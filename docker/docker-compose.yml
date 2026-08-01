@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ..
+      dockerfile: docker/server.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      CORS_ORIGIN: ${PUBLIC_ORIGIN}
+      APP_ACCESS_CODE: ${APP_ACCESS_CODE}
+      ADMIN_PIN: ${ADMIN_PIN}
+      JWT_SECRET: ${JWT_SECRET}
+      SEED_ON_START: ${SEED_ON_START:-false}
+      BACKUP_SHEETS_ENABLED: ${BACKUP_SHEETS_ENABLED:-false}
+      BACKUP_SHEETS_ID: ${BACKUP_SHEETS_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-service-account.json
+    volumes:
+      # Monte le dossier secrets/ (créer secrets/google-service-account.json si backup activé).
+      - ../secrets:/run/secrets:ro
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - server
+    # Exposé sur un port hôte ; Nginx Proxy Manager proxifie le domaine + TLS
+    # vers ce port (ou vers le conteneur `web` si NPM partage le réseau Docker).
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+  backup-cron:
+    build:
+      context: backup-cron
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-900}
+      BACKUP_KEEP: ${BACKUP_KEEP:-96}
+    volumes:
+      - ../backups:/backups
+
+volumes:
+  pgdata:

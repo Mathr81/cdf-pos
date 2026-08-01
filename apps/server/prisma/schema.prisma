@@ -1,0 +1,131 @@
+// ─────────────────────────────────────────────────────────────
+//  Schéma Prisma — cdf-pos
+//  Le journal `Event` est canonique. Les autres tables sont des
+//  PROJECTIONS reconstruisibles à partir des événements.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Journal d'événements (source de vérité) ─────────────────
+model Event {
+  id               String   @id // UUID généré côté client → idempotence
+  seq              Int      @unique @default(autoincrement()) // curseur de synchro monotone
+  type             String
+  payload          Json
+  deviceId         String
+  clientSeq        Int
+  createdAt        DateTime // horodatage client
+  serverReceivedAt DateTime @default(now())
+
+  @@index([seq])
+  @@index([type])
+  @@index([deviceId, clientSeq])
+}
+
+// ─── Configuration ───────────────────────────────────────────
+model Station {
+  id        String    @id
+  name      String
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id             String          @id
+  name           String
+  priceCents     Int
+  category       String          @default("Divers")
+  stationId      String?
+  station        Station?        @relation(fields: [stationId], references: [id])
+  stockInitial   Int             @default(0)
+  active         Boolean         @default(true)
+  sortOrder      Int             @default(0)
+  emoji          String          @default("🍔")
+  color          String          @default("#f59e0b")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) // = event.createdAt, sert au last-write-wins
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+  prepared       Prepared[]
+
+  @@index([stationId])
+}
+
+// ─── Projections (issues des événements) ─────────────────────
+model Order {
+  id                String      @id // UUID client
+  createdAt         DateTime // horodatage client de la vente
+  serverReceivedAt  DateTime    @default(now())
+  deviceId          String
+  registerLabel     String
+  cashierName       String?
+  paymentMethod     String // cash | card
+  status            String      @default("paid") // paid | void
+  totalCents        Int
+  cashReceivedCents Int?
+  items             OrderItem[]
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([registerLabel])
+}
+
+model OrderItem {
+  id             String  @id @default(uuid())
+  orderId        String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id])
+  qty            Int
+  unitPriceCents Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model StockMovement {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  delta     Int
+  reason    String // restock | spoilage | correction
+  note      String?
+  createdAt DateTime
+
+  @@index([productId])
+}
+
+model Prepared {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  stationId String
+  qty       Int
+  createdAt DateTime
+
+  @@index([productId])
+  @@index([stationId])
+}
+
+// ─── File de retry pour le miroir Google Sheet ───────────────
+model BackupQueue {
+  id        Int      @id @default(autoincrement())
+  eventId   String
+  eventType String
+  status    String   @default("pending") // pending | done | error
+  attempts  Int      @default(0)
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}

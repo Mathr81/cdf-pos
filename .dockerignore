@@ -1,0 +1,16 @@
+# Ne pas envoyer ces dossiers dans le contexte de build Docker.
+**/node_modules
+**/dist
+**/dev-dist
+**/.turbo
+**/*.tsbuildinfo
+.git
+.github
+backups
+docker/backup-cron/dumps
+secrets/*
+!secrets/.gitkeep
+.env
+.env.*
+!.env.example
+**/*.log

@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* ─── Base ─────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #0b1120;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  /* App tactile : pas de sélection ni de tap-highlight parasites. */
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Zones tactiles : pas de sélection de texte sur les boutons. */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Scrollbars discrètes */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+/* ─── Utilitaires ──────────────────────────────────────────── */
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Animation d'apparition légère */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}

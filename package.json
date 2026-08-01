@@ -1,0 +1,24 @@
+{
+  "name": "cdf-pos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "POS / PWA pour comité des fêtes — caisse, cuisine, inventaire, stats",
+  "packageManager": "pnpm@10.28.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @cdf/shared build && pnpm --parallel --filter @cdf/shared --filter \"./apps/*\" dev",
+    "dev:web": "pnpm --filter @cdf/web dev",
+    "dev:server": "pnpm --filter @cdf/server dev",
+    "build": "pnpm --filter @cdf/shared build && pnpm --filter @cdf/server build && pnpm --filter @cdf/web build",
+    "db:generate": "pnpm --filter @cdf/server prisma:generate",
+    "db:migrate": "pnpm --filter @cdf/server prisma:migrate",
+    "db:seed": "pnpm --filter @cdf/server db:seed",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
