@@ -15,9 +15,54 @@ import { applyIncoming, useStore } from "./store.js";
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
 const CURSOR_KEY = "cursor";
+const EPOCH_KEY = "epoch";
 
 async function refreshPending() {
   useStore.getState().setPending(await db.outbox.count());
+}
+
+/**
+ * Efface toutes les données locales de l'appareil (journal, outbox, curseur).
+ * Utilisé après une remise à zéro serveur, ou manuellement depuis l'admin
+ * quand un poste est dans un état incohérent.
+ *
+ * ⚠️ Les ventes encore en attente de synchro (outbox) sont perdues : c'est
+ * voulu après un reset, mais à éviter si un poste est resté hors ligne.
+ */
+export async function wipeLocalData(): Promise<void> {
+  await db.transaction("rw", db.log, db.outbox, db.meta, async () => {
+    await db.log.clear();
+    await db.outbox.clear();
+    await db.meta.clear();
+  });
+}
+
+/**
+ * Compare l'epoch du serveur à celui mémorisé localement.
+ * Retourne `false` si l'appareil a dû être purgé (un rechargement est lancé,
+ * l'appelant doit s'arrêter là).
+ */
+async function ensureSameEpoch(): Promise<boolean> {
+  if (!socket) return false;
+  const hello = await socket
+    .timeout(10000)
+    .emitWithAck("sync:hello")
+    .catch(() => null);
+  const epoch = hello?.epoch;
+  if (!epoch) return true; // serveur injoignable ou plus ancien : on continue
+
+  const local = await getMeta(EPOCH_KEY);
+  if (local === epoch) return true;
+  if (local === null) {
+    await setMeta(EPOCH_KEY, epoch);
+    return true;
+  }
+
+  // Remise à zéro détectée : on repart d'une ardoise vierge.
+  await wipeLocalData();
+  await setMeta(EPOCH_KEY, epoch);
+  window.location.reload();
+  return false;
 }
 
 /** Reconstruit la projection depuis le journal local (démarrage hors-ligne). */
@@ -107,6 +152,9 @@ export function connect(): void {
 
   socket.on("connect", async () => {
     useStore.getState().setConnected(true);
+    // Toujours vérifier l'epoch AVANT de synchroniser : sinon on re-téléchargerait
+    // par-dessus un journal local que l'on s'apprête à jeter.
+    if (!(await ensureSameEpoch())) return;
     await pull();
     await pushOutbox();
   });
@@ -116,6 +164,15 @@ export function connect(): void {
   socket.on("events:broadcast", (events) => {
     applyIncoming(events);
     void persistIncoming(events);
+  });
+
+  // Remise à zéro déclenchée depuis l'admin pendant que le poste est ouvert.
+  socket.on("server:reset", ({ epoch }) => {
+    void (async () => {
+      await wipeLocalData();
+      if (epoch) await setMeta(EPOCH_KEY, epoch);
+      window.location.reload();
+    })();
   });
 }
 

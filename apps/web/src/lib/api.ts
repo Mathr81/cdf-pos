@@ -31,4 +31,13 @@ export const api = {
   getStats: () => request<StatsResponse>("/api/stats"),
   getState: () =>
     request<{ stations: { id: string; name: string; sortOrder: number }[] }>("/api/state"),
+  /**
+   * Remise à zéro (PIN admin requis). `sales` garde la carte, `all` efface tout.
+   * Le serveur prévient ensuite tous les appareils connectés.
+   */
+  reset: (scope: "sales" | "all") =>
+    request<{ scope: string; epoch: string; keptProducts: number }>("/api/admin/reset", {
+      method: "POST",
+      body: JSON.stringify({ scope }),
+    }),
 };

@@ -7,6 +7,7 @@ import {
   sortedStations,
   type ClientProduct,
   type ClientStation,
+  type ProductComponent,
 } from "@cdf/shared";
 import { projection } from "../lib/store.js";
 import { useRev } from "../lib/hooks.js";
@@ -17,11 +18,13 @@ import {
   upsertProduct,
   upsertStation,
 } from "../lib/actions.js";
+import { api } from "../lib/api.js";
+import { wipeLocalData } from "../lib/sync.js";
 import { Button, Card } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
 import { cn } from "../lib/cn.js";
 
-type Tab = "produits" | "stations";
+type Tab = "produits" | "stations" | "reset";
 
 export function AdminScreen() {
   useRev();
@@ -41,6 +44,9 @@ export function AdminScreen() {
         <TabBtn active={tab === "stations"} onClick={() => setTab("stations")}>
           Stations cuisine
         </TabBtn>
+        <TabBtn active={tab === "reset"} onClick={() => setTab("reset")}>
+          Remise à zéro
+        </TabBtn>
       </div>
 
       {tab === "produits" && (
@@ -56,6 +62,8 @@ export function AdminScreen() {
                 category: "Divers",
                 stationId: stations[0]?.id ?? null,
                 stockInitial: 0,
+                stockUnlimited: false,
+                components: [],
                 active: true,
                 sortOrder: products.length,
                 emoji: "🍔",
@@ -80,7 +88,12 @@ export function AdminScreen() {
                   </div>
                   <div className="text-xs text-slate-400">
                     {formatCents(p.priceCents)} · {p.category}
-                    {p.stationId && ` · ${projection.stations[p.stationId]?.name ?? p.stationId}`} · stock {p.stockInitial}
+                    {p.stationId && ` · ${projection.stations[p.stationId]?.name ?? p.stationId}`} ·{" "}
+                    {p.stockUnlimited ? "stock ∞" : `stock ${p.stockInitial}`}
+                    {p.components.length > 0 &&
+                      ` · avec ${p.components
+                        .map((c) => `${c.qty}× ${projection.products[c.productId]?.name ?? c.productId}`)
+                        .join(", ")}`}
                   </div>
                 </div>
                 <Button variant="secondary" size="sm" onClick={() => setEditProduct(p)}>
@@ -118,6 +131,8 @@ export function AdminScreen() {
         </>
       )}
 
+      {tab === "reset" && <ResetPanel />}
+
       {editProduct && (
         <ProductEditor
           product={editProduct}
@@ -144,7 +159,10 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-const EMOJIS = ["🍔", "🧀", "🌭", "🍟", "🥤", "💧", "🍺", "☕", "🥞", "🍰", "🌮", "🍕", "🥗", "🍦"];
+const EMOJIS = [
+  "🍔", "🧀", "🌭", "🍟", "🧅", "🍗", "🥓", "🌮", "🍕", "🥗",
+  "🍦", "🍮", "🧊", "🍰", "🥞", "🍫", "🥤", "💧", "🍺", "☕",
+];
 
 function ProductEditor({
   product,
@@ -160,6 +178,8 @@ function ProductEditor({
   const [category, setCategory] = useState(product.category);
   const [stationId, setStationId] = useState(product.stationId ?? "");
   const [stockInitial, setStockInitial] = useState(String(product.stockInitial));
+  const [stockUnlimited, setStockUnlimited] = useState(product.stockUnlimited);
+  const [components, setComponents] = useState<ProductComponent[]>(product.components);
   const [emoji, setEmoji] = useState(product.emoji);
   const [color, setColor] = useState(product.color);
   const [active, setActive] = useState(product.active);
@@ -171,7 +191,9 @@ function ProductEditor({
       priceCents: parseAmountToCents(price),
       category: category.trim() || "Divers",
       stationId: stationId || null,
-      stockInitial: Number(stockInitial) || 0,
+      stockInitial: stockUnlimited ? 0 : Number(stockInitial) || 0,
+      stockUnlimited,
+      components,
       active,
       sortOrder: product.sortOrder,
       emoji,
@@ -199,9 +221,30 @@ function ProductEditor({
             <Input value={price} onChange={setPrice} inputMode="decimal" placeholder="5,00" />
           </L>
           <L label="Stock initial">
-            <Input value={stockInitial} onChange={setStockInitial} inputMode="numeric" />
+            <Input
+              value={stockUnlimited ? "∞" : stockInitial}
+              onChange={setStockInitial}
+              inputMode="numeric"
+              disabled={stockUnlimited}
+              className={cn(stockUnlimited && "opacity-50")}
+            />
           </L>
         </div>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+          <input
+            type="checkbox"
+            checked={stockUnlimited}
+            onChange={(e) => setStockUnlimited(e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0"
+          />
+          <span className="text-sm text-slate-300">
+            <b className="text-slate-100">Stock illimité</b>
+            <span className="mt-0.5 block text-xs text-slate-400">
+              Pour les produits qu'on ne compte pas (frites au sac, sirop…). Jamais affiché
+              « épuisé », pas d'alerte de stock bas.
+            </span>
+          </span>
+        </label>
         <L label="Catégorie">
           <Input value={category} onChange={setCategory} placeholder="Plats, Boissons…" />
         </L>
@@ -219,6 +262,11 @@ function ProductEditor({
             ))}
           </select>
         </L>
+        <ComponentsPicker
+          productId={product.id}
+          components={components}
+          onChange={setComponents}
+        />
         <L label="Icône">
           <div className="flex flex-wrap gap-1.5">
             {EMOJIS.map((e) => (
@@ -266,6 +314,101 @@ function ProductEditor({
   );
 }
 
+/**
+ * Choix des produits contenus dans un plat. « Burger Frites » contient
+ * 1 « Frites » → la friteuse compte cette barquette, et le stock des frites
+ * est décrémenté, même si personne n'achète de frites seules.
+ */
+function ComponentsPicker({
+  productId,
+  components,
+  onChange,
+}: {
+  productId: string;
+  components: ProductComponent[];
+  onChange: (next: ProductComponent[]) => void;
+}) {
+  const [open, setOpen] = useState(components.length > 0);
+  const candidates = sortedProducts(projection).filter(
+    (p) => p.id !== productId && p.active && p.components.length === 0,
+  );
+
+  const qtyOf = (id: string) => components.find((c) => c.productId === id)?.qty ?? 0;
+
+  const setQty = (id: string, qty: number) => {
+    const next = components.filter((c) => c.productId !== id);
+    if (qty > 0) next.push({ productId: id, qty });
+    onChange(next);
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-800/50">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+      >
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Contient
+        </span>
+        <span className="text-sm text-slate-300">
+          {components.length === 0
+            ? "rien"
+            : components
+                .map((c) => `${c.qty}× ${projection.products[c.productId]?.name ?? c.productId}`)
+                .join(", ")}
+        </span>
+        <span className="ml-auto text-slate-500">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-700 p-2">
+          <p className="mb-2 px-1 text-xs text-slate-400">
+            Ex. « Saucisse Frites » contient 1 « Frites » : la cuisine voit alors toutes les
+            barquettes à sortir, menus compris.
+          </p>
+          {candidates.length === 0 && (
+            <p className="px-1 py-2 text-xs text-slate-500">Aucun autre produit disponible.</p>
+          )}
+          <div className="max-h-52 space-y-1 overflow-y-auto">
+            {candidates.map((p) => {
+              const qty = qtyOf(p.id);
+              return (
+                <div
+                  key={p.id}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2 py-1.5",
+                    qty > 0 ? "bg-amber-500/15" : "bg-slate-800/60",
+                  )}
+                >
+                  <span>{p.emoji}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-slate-200">{p.name}</span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 w-8 !px-0"
+                    onClick={() => setQty(p.id, Math.max(0, qty - 1))}
+                  >
+                    −
+                  </Button>
+                  <span className="w-6 text-center text-sm font-bold text-slate-100">{qty}</span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 w-8 !px-0"
+                    onClick={() => setQty(p.id, qty + 1)}
+                  >
+                    +
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StationEditor({ station, onClose }: { station: ClientStation; onClose: () => void }) {
   const [name, setName] = useState(station.name);
   const save = () => {
@@ -300,6 +443,123 @@ function StationEditor({ station, onClose }: { station: ClientStation; onClose: 
   );
 }
 
+/**
+ * Remise à zéro. Le journal d'événements étant répliqué sur chaque appareil,
+ * le serveur change son `epoch` : tous les postes connectés purgent alors leur
+ * copie locale et se rechargent automatiquement.
+ */
+function ResetPanel() {
+  const [confirm, setConfirm] = useState<"sales" | "all" | null>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  const run = async () => {
+    if (!confirm) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.reset(confirm);
+      setDone(
+        confirm === "sales"
+          ? `Ventes effacées. ${res.keptProducts} produits conservés.`
+          : "Tout a été effacé (ventes et carte).",
+      );
+      setConfirm(null);
+      setTyped("");
+      // Le serveur diffuse « server:reset » : cet appareil aussi se purge et
+      // se recharge. On force le passage au cas où le socket serait coupé.
+      await wipeLocalData();
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const expected = confirm === "all" ? "TOUT EFFACER" : "EFFACER";
+
+  return (
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-4">
+      <Card className="border-slate-700 p-4">
+        <h2 className="font-bold text-slate-100">Effacer les ventes</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Supprime les commandes, les mouvements de stock et les préparations sur tous les
+          appareils. <b className="text-slate-200">Les produits et stations sont conservés</b> —
+          c'est le bon choix après une soirée de test.
+        </p>
+        <Button variant="danger" className="mt-3" onClick={() => setConfirm("sales")}>
+          Effacer les ventes
+        </Button>
+      </Card>
+
+      <Card className="border-rose-900/60 p-4">
+        <h2 className="font-bold text-rose-300">Tout effacer</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Supprime aussi la carte (produits et stations). L'application repart totalement vide :
+          à utiliser si tu veux tout ressaisir toi-même.
+        </p>
+        <Button variant="danger" className="mt-3" onClick={() => setConfirm("all")}>
+          Tout effacer
+        </Button>
+      </Card>
+
+      <Card className="p-4">
+        <h2 className="font-bold text-slate-100">Vider seulement cet appareil</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Ne touche pas au serveur : efface le cache local de cette tablette puis recharge. Utile
+          si un poste affiche des données incohérentes.
+        </p>
+        <Button
+          variant="secondary"
+          className="mt-3"
+          onClick={async () => {
+            if (!window.confirm("Vider les données locales de cet appareil et recharger ?")) return;
+            await wipeLocalData();
+            window.location.reload();
+          }}
+        >
+          Vider le cache local
+        </Button>
+      </Card>
+
+      <p className="px-1 text-xs text-slate-500">
+        💡 Une remise à zéro est définitive côté application. Les dumps PostgreSQL et le miroir
+        Google Sheet, eux, gardent la trace de ce qui a été effacé.
+      </p>
+
+      {done && (
+        <p className="rounded-xl bg-emerald-600/20 p-3 text-sm text-emerald-300">
+          ✓ {done} Rechargement…
+        </p>
+      )}
+
+      <Modal open={confirm !== null} onClose={() => setConfirm(null)}>
+        <h2 className="mb-2 text-lg font-bold text-rose-300">
+          {confirm === "all" ? "Tout effacer ?" : "Effacer les ventes ?"}
+        </h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Cette action est <b className="text-slate-200">irréversible</b> et s'applique à tous les
+          appareils. Tape <b className="text-slate-100">{expected}</b> pour confirmer.
+        </p>
+        <Input value={typed} onChange={setTyped} autoFocus placeholder={expected} />
+        {error && <p className="mt-2 text-sm text-rose-400">{error}</p>}
+        <div className="mt-5 flex gap-2">
+          <Button variant="ghost" onClick={() => setConfirm(null)}>
+            Annuler
+          </Button>
+          <div className="flex-1" />
+          <Button variant="danger" disabled={typed.trim() !== expected || busy} onClick={run}>
+            {busy ? "Effacement…" : "Confirmer"}
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 function L({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -312,6 +572,7 @@ function L({ label, children }: { label: string; children: React.ReactNode }) {
 function Input({
   value,
   onChange,
+  className,
   ...props
 }: {
   value: string;
@@ -321,7 +582,10 @@ function Input({
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-100 outline-none focus:border-amber-400"
+      className={cn(
+        "w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-100 outline-none focus:border-amber-400",
+        className,
+      )}
       {...props}
     />
   );

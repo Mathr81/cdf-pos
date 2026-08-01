@@ -6,8 +6,10 @@ la vente de repas lors d'un événement :
 - **Caisse** (plusieurs postes en simultané) : composer une commande, calculer le
   total, encaisser (espèces avec **rendu monnaie**, ou carte), voir le **stock** en direct.
 - **Cuisine** (plusieurs postes) : chaque station voit **Vendu / Préparé / Reste à faire**
-  en temps réel pour savoir quoi produire.
-- **Inventaire** : stock initial, restant, réappro/pertes, alertes stock bas.
+  en temps réel pour savoir quoi produire — y compris les accompagnements
+  **inclus dans les plats** (un « Burger Frites » vendu = une barquette de frites à sortir).
+- **Inventaire** : stock initial, restant, réappro/pertes, alertes stock bas, et
+  **stock illimité** pour ce qu'on ne compte pas (frites au sac, sirop…).
 - **Statistiques** : chiffre d'affaires, panier moyen, affluence par heure, top produits,
   répartition par caisse et moyen de paiement.
 
@@ -56,9 +58,9 @@ pnpm install
 # 2. Configuration
 cp .env.example .env        # puis éditez DATABASE_URL, APP_ACCESS_CODE, ADMIN_PIN…
 
-# 3. Base de données (migrations + données de démo)
+# 3. Base de données (migrations + carte du soir)
 pnpm db:migrate             # crée les tables
-pnpm db:seed                # produits & stations d'exemple (optionnel)
+pnpm db:seed                # charge la carte du soir (voir prisma/menu.ts)
 
 # 4. Lancer serveur + web en parallèle
 pnpm dev
@@ -76,6 +78,8 @@ Au lancement, l'app demande le **code d'accès** (`APP_ACCESS_CODE`). Pour accé
 pnpm typecheck       # vérifie tous les packages
 pnpm build           # build shared + server + web
 pnpm db:migrate      # nouvelle migration en dev
+pnpm db:seed         # (re)charge la carte — `-- --force` pour écraser l'existante
+pnpm db:reset        # efface les ventes — `-- --all` pour tout effacer
 ```
 
 ---
@@ -95,8 +99,8 @@ NPM proxifie le domaine vers ce port.
    Édite au minimum : `WEB_PORT` (port exposé, défaut `8080`), `PUBLIC_ORIGIN`
    (l'URL publique finale, ex. `https://pos.mondomaine.fr`), `POSTGRES_PASSWORD`,
    `APP_ACCESS_CODE`, `ADMIN_PIN`, `JWT_SECRET`.
-   Mets `SEED_ON_START=true` pour peupler des produits de démo au 1er lancement
-   (repasse-le à `false` ensuite).
+   Mets `SEED_ON_START=true` pour charger la carte du soir au 1er lancement
+   (voir [La carte](#-la-carte)) ; sans effet si des produits existent déjà.
 
 2. **Lancement** :
 
@@ -127,10 +131,99 @@ NPM proxifie le domaine vers ce port.
 
 ### Mise à jour
 
+Un `git pull` seul **ne suffit pas** : il récupère les sources, mais les conteneurs
+tournent sur des images déjà construites. Il faut donc reconstruire :
+
+```bash
+cd /chemin/vers/cdf-pos
+./scripts/update.sh
+```
+
+Le script fait exactement ceci — tu peux aussi le taper à la main :
+
+```bash
+git pull                                              # 1. récupérer le code
+cd docker
+docker compose --env-file ../.env up -d --build       # 2. rebuild + redémarrage
+```
+
+- Les **migrations Prisma** sont appliquées automatiquement au démarrage du
+  conteneur serveur : rien à lancer de plus.
+- **Aucune donnée n'est perdue** : le volume PostgreSQL survit à la mise à jour.
+- Sur les tablettes, l'application étant une **PWA**, recharge la page (ou ferme et
+  rouvre l'app) pour récupérer la nouvelle version — le service worker se met à jour
+  tout seul en quelques secondes.
+
+En développement local (sans Docker), l'équivalent est :
+
 ```bash
 git pull
-cd docker && docker compose --env-file ../.env up -d --build
+pnpm install        # si des dépendances ont changé
+pnpm db:migrate     # si le schéma a changé
+pnpm dev
 ```
+
+---
+
+## 🔄 Remise à zéro
+
+Après une soirée de test, ou pour repartir d'une base vierge avant le service.
+
+> ℹ️ Vider la base du serveur ne suffit pas : chaque tablette garde une copie du
+> journal d'événements dans son navigateur. C'est pourquoi le serveur gère un
+> **`epoch`** — un identifiant de « session de données ». Une remise à zéro en
+> génère un nouveau, et chaque appareil qui le découvre **purge son cache local
+> et se recharge automatiquement**. Rien à faire sur les tablettes.
+
+### Depuis l'application (le plus simple)
+
+**Admin → Remise à zéro** (PIN admin requis). Trois options :
+
+| Bouton | Efface | Conserve |
+|---|---|---|
+| **Effacer les ventes** | commandes, mouvements de stock, préparations | **la carte** (produits, stations) |
+| **Tout effacer** | tout, y compris produits et stations | rien — l'app repart vide |
+| **Vider le cache local** | seulement les données de *cette* tablette | le serveur et les autres postes |
+
+Une confirmation par saisie (`EFFACER` / `TOUT EFFACER`) est demandée, puis tous les
+postes connectés se rechargent.
+
+**Pour ton cas** (mode démo testé, tu veux tout ressaisir) : **Tout effacer**, puis
+recrée stations et produits dans Admin. Si tu préfères repartir de la carte du soir
+plutôt que d'une page blanche, fais **Tout effacer** puis relance le seed :
+
+```bash
+cd docker && docker compose exec server pnpm run db:seed
+```
+
+### En ligne de commande
+
+Utile si l'écran admin est inaccessible.
+
+```bash
+# Sur le VPS (Docker)
+cd docker
+docker compose exec server pnpm run db:reset             # efface les ventes
+docker compose exec server pnpm run db:reset -- --all    # efface tout
+
+# En dev local
+pnpm db:reset
+pnpm db:reset -- --all
+```
+
+Puis recharger la carte si besoin :
+
+```bash
+docker compose exec server pnpm run db:seed              # ne fait rien si des produits existent
+docker compose exec server pnpm run db:seed -- --force   # réapplique la carte par-dessus
+```
+
+> ⚠️ Une remise à zéro est **définitive** côté application. Les dumps PostgreSQL
+> (`./backups/`) et le miroir Google Sheet, eux, gardent la trace de ce qui a été
+> effacé — pense à récupérer les stats **avant** si la soirée comptait.
+>
+> ⚠️ Si une caisse est **hors ligne** avec des ventes en attente au moment du reset,
+> ces ventes sont perdues. Vérifie que tous les postes sont « En ligne » d'abord.
 
 ---
 
@@ -141,14 +234,60 @@ cd docker && docker compose --env-file ../.env up -d --build
 Chaque vente est ajoutée en **nouvelle ligne** d'un Google Sheet — si la prod tombe,
 vous gardez un journal lisible des ventes.
 
-1. Dans **Google Cloud Console** : créez un projet, activez **Google Sheets API**,
-   créez un **compte de service** et téléchargez sa clé **JSON**.
-2. Placez ce fichier dans `secrets/google-service-account.json`.
-3. Créez un Google Sheet, récupérez son **ID** (dans l'URL
-   `/spreadsheets/d/<ID>/edit`), et **partagez-le en éditeur** avec l'adresse email
-   du compte de service (`...@...iam.gserviceaccount.com`).
-4. Dans `.env` : `BACKUP_SHEETS_ENABLED=true` et `BACKUP_SHEETS_ID=<ID>`.
-5. Redémarrez : `docker compose --env-file ../.env up -d`.
+#### Où récupérer le fichier JSON du compte Google
+
+Le fichier attendu est la **clé d'un compte de service** Google Cloud. Ce n'est pas
+ton compte Gmail personnel : c'est un « robot » à qui tu donnes accès au tableur.
+C'est gratuit, et l'API Sheets est incluse dans le quota gratuit.
+
+1. Va sur **[console.cloud.google.com](https://console.cloud.google.com)** et
+   connecte-toi avec ton compte Google.
+2. En haut à gauche, ouvre le sélecteur de projet → **Nouveau projet**. Nomme-le
+   par exemple `cdf-pos`, puis **Créer**. Vérifie qu'il est bien sélectionné.
+3. Menu ☰ → **API et services** → **Bibliothèque**. Cherche **Google Sheets API**,
+   ouvre-la et clique **Activer**.
+4. Menu ☰ → **API et services** → **Identifiants** → **+ Créer des identifiants** →
+   **Compte de service**.
+   - Nom : `cdf-pos-backup` → **Créer et continuer**.
+   - Rôle : tu peux laisser vide (les droits viendront du partage du tableur) →
+     **Continuer** → **OK**.
+5. Dans la liste **Comptes de service**, clique sur celui que tu viens de créer,
+   onglet **Clés** → **Ajouter une clé** → **Créer une clé** → format **JSON** →
+   **Créer**. Le fichier `.json` se télécharge **immédiatement** (c'est la seule
+   fois où Google te le donne — s'il est perdu, il faut créer une nouvelle clé).
+6. Renomme-le et dépose-le sur le VPS dans le dossier `secrets/` du projet :
+
+   ```bash
+   # depuis ton ordinateur
+   scp ~/Téléchargements/cdf-pos-xxxxx.json \
+       user@mon-vps:/chemin/vers/cdf-pos/secrets/google-service-account.json
+   ```
+
+   Le chemin exact attendu est **`secrets/google-service-account.json`** (déjà
+   monté en lecture seule dans le conteneur serveur, et ignoré par git).
+
+7. Ouvre le fichier et repère la ligne `"client_email"` : c'est une adresse du type
+   `cdf-pos-backup@cdf-pos.iam.gserviceaccount.com`.
+8. Crée un **Google Sheet** vierge, clique **Partager**, colle cette adresse et
+   donne-lui le rôle **Éditeur**. **Sans cette étape, rien ne s'écrira** (erreur 403).
+9. Récupère l'**ID du tableur** dans son URL :
+   `https://docs.google.com/spreadsheets/d/`**`1AbC…xyz`**`/edit` → l'ID est la
+   partie en gras.
+10. Dans `.env` :
+
+    ```bash
+    BACKUP_SHEETS_ENABLED=true
+    BACKUP_SHEETS_ID=1AbC…xyz
+    ```
+
+11. Redémarre : `cd docker && docker compose --env-file ../.env up -d`.
+
+Vérifie que ça marche : encaisse une vente de test, puis regarde le tableur — une
+ligne doit apparaître en quelques secondes. Sinon, `docker compose logs -f server`
+affiche l'erreur (`[backup] …`).
+
+> 🔒 Ce fichier JSON est un **secret** : il donne accès aux documents partagés avec
+> ce compte. Ne le commite jamais (`secrets/` est déjà dans `.gitignore`).
 
 Le worker gère une **file de retry** : si l'API Google est momentanément
 indisponible, les ventes sont renvoyées automatiquement au tick suivant.
@@ -171,6 +310,59 @@ docker compose exec postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --
 
 ---
 
+## 🍽️ La carte
+
+La carte de départ est décrite dans **`apps/server/prisma/menu.ts`** et chargée par
+`pnpm db:seed`. Tout reste modifiable ensuite dans **Admin → Produits** : le seed
+n'est là que pour éviter de tout saisir à la main la première fois.
+
+| Produit | Prix | Catégorie | Station | Stock |
+|---|---|---|---|---|
+| Oignon ring's | 3,00 € | Entrées | Friteuse | 60 |
+| Camembert braisé | 5,00 € | Entrées | Grill | 30 |
+| Salade fraîcheur | 3,00 € | Entrées | Froid & desserts | 30 |
+| Frites | 3,00 € | Accompagnements | Friteuse | **∞ illimité** |
+| Saucisse Frites | 6,00 € | Plats | Grill | 80 · *contient 1 Frites* |
+| Poulet Tandoori Frites | 8,00 € | Plats | Grill | 60 · *contient 1 Frites* |
+| Burger Frites | 8,00 € | Plats | Grill | 80 · *contient 1 Frites* |
+| Glaces | 2,00 € | Desserts | Froid & desserts | 80 |
+| Panna Cotta | 3,00 € | Desserts | Froid & desserts | 40 |
+| Mr Freeze | 1,00 € | Desserts | Froid & desserts | 150 |
+
+> ⚠️ **Les prix et les quantités sont des valeurs par défaut** — vérifie-les dans
+> Admin → Produits avant le service.
+
+### Stock illimité
+
+Coche **« Stock illimité »** dans la fiche produit pour tout ce dont on ne suit pas
+le stock à l'unité — typiquement les **frites**, qui sortent d'un sac et dont les
+barquettes sont remplies à la louche.
+
+Un produit en stock illimité :
+
+- affiche `∞` en caisse au lieu d'un compteur, et n'est **jamais marqué « épuisé »** ;
+- n'apparaît pas dans les alertes de stock bas et n'a pas de boutons réappro/perte ;
+- reste **compté normalement** dans les ventes, les stats et le « reste à préparer »
+  de la cuisine.
+
+### Plats composés (« … Frites »)
+
+Un produit peut **contenir** d'autres produits : dans la fiche de « Burger Frites »,
+la section **Contient** indique `1× Frites`.
+
+Concrètement, quand une caisse vend 3 « Burger Frites » :
+
+- le poste **Friteuse** voit **3 barquettes de plus** à préparer, même si personne
+  n'a acheté de frites seules (l'écran précise « dont 3 inclus dans un plat ») ;
+- le **stock** du composant est décrémenté d'autant — sans effet ici puisque les
+  frites sont en illimité, mais utile pour un ingrédient qu'on compte (pains,
+  barquettes…).
+
+Un seul niveau de composition est développé : un composant n'est pas lui-même
+décomposé.
+
+---
+
 ## 📱 Utilisation
 
 - **Caisse** : touchez les produits pour les ajouter au panier, ajustez les quantités,
@@ -179,7 +371,7 @@ docker compose exec postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --
   à jour en direct. Marquez les articles préparés avec `+1 / +5 / +10`.
 - **Inventaire** : réapprovisionnez ou déclarez des pertes ; le stock restant est
   recalculé partout.
-- **Admin** (PIN requis) : créez/modifiez produits & stations cuisine.
+- **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
 - **Stats** (PIN requis) : tableau de bord live (fonctionne aussi hors-ligne).
 
 ### Comportement hors-ligne

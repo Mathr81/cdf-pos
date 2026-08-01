@@ -1,4 +1,4 @@
-import type { AppEvent, PaymentMethod } from "./events.js";
+import type { AppEvent, PaymentMethod, ProductComponent } from "./events.js";
 
 /**
  * ─────────────────────────────────────────────────────────────
@@ -19,6 +19,10 @@ export interface ClientProduct {
   category: string;
   stationId: string | null;
   stockInitial: number;
+  /** true = pas de stock à suivre (le produit n'est jamais « épuisé »). */
+  stockUnlimited: boolean;
+  /** Produits contenus dans celui-ci (ex. « Burger Frites » → 1 « Frites »). */
+  components: ProductComponent[];
   active: boolean;
   sortOrder: number;
   emoji: string;
@@ -114,6 +118,8 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         category: p.category ?? "Divers",
         stationId: p.stationId ?? null,
         stockInitial: p.stockInitial ?? 0,
+        stockUnlimited: p.stockUnlimited ?? false,
+        components: p.components ?? [],
         active: p.active ?? true,
         sortOrder: p.sortOrder ?? 0,
         emoji: p.emoji ?? "🍔",
@@ -143,14 +149,45 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
 
 // ─── Sélecteurs dérivés ──────────────────────────────────────
 
-export function stockRemaining(state: ProjectionState, productId: string): number {
+/**
+ * Quantité vendue « réelle » d'un produit : ses ventes directes PLUS celles
+ * générées par les plats qui le contiennent (3 « Burger Frites » vendus =
+ * 3 barquettes de frites à sortir, même si personne n'a acheté de frites seules).
+ * Un seul niveau de composition est développé.
+ */
+export function soldWithComponents(state: ProjectionState, productId: string): number {
+  let total = state.sold[productId] ?? 0;
+  for (const parent of Object.values(state.products)) {
+    if (parent.id === productId) continue;
+    const parentSold = state.sold[parent.id] ?? 0;
+    if (parentSold === 0) continue;
+    for (const c of parent.components) {
+      if (c.productId === productId) total += parentSold * c.qty;
+    }
+  }
+  return total;
+}
+
+/** Part des ventes d'un produit qui provient des plats qui le contiennent. */
+export function soldFromComponents(state: ProjectionState, productId: string): number {
+  return soldWithComponents(state, productId) - (state.sold[productId] ?? 0);
+}
+
+/**
+ * Stock restant, ou `null` quand le produit est en stock illimité
+ * (les appelants affichent alors « ∞ » plutôt qu'un nombre trompeur).
+ */
+export function stockRemaining(state: ProjectionState, productId: string): number | null {
   const p = state.products[productId];
   if (!p) return 0;
-  return p.stockInitial + (state.adjustments[productId] ?? 0) - (state.sold[productId] ?? 0);
+  if (p.stockUnlimited) return null;
+  return (
+    p.stockInitial + (state.adjustments[productId] ?? 0) - soldWithComponents(state, productId)
+  );
 }
 
 export function toPrepare(state: ProjectionState, productId: string): number {
-  return Math.max(0, (state.sold[productId] ?? 0) - (state.prepared[productId] ?? 0));
+  return Math.max(0, soldWithComponents(state, productId) - (state.prepared[productId] ?? 0));
 }
 
 export function sortedProducts(state: ProjectionState): ClientProduct[] {
