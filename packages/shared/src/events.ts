@@ -69,6 +69,17 @@ export const PreparedPayloadSchema = z.object({
 });
 export type PreparedPayload = z.infer<typeof PreparedPayloadSchema>;
 
+/**
+ * Composant d'un produit : un plat « Saucisse Frites » contient 1 « Frites ».
+ * Sert à la cuisine (combien de barquettes préparer au total) et au stock.
+ * Un seul niveau est développé (un composant n'est pas lui-même décomposé).
+ */
+export const ProductComponentSchema = z.object({
+  productId: z.string().min(1),
+  qty: z.number().int().positive(),
+});
+export type ProductComponent = z.infer<typeof ProductComponentSchema>;
+
 /** Création / mise à jour d'un produit (admin, last-write-wins). */
 export const ProductUpsertPayloadSchema = z.object({
   id: z.string().min(1),
@@ -77,6 +88,9 @@ export const ProductUpsertPayloadSchema = z.object({
   category: z.string().default("Divers"),
   stationId: z.string().nullable().optional(),
   stockInitial: z.number().int().nonnegative().default(0),
+  /** true = produit sans stock à suivre (frites au sac, sirop, glaçons…). */
+  stockUnlimited: z.boolean().default(false),
+  components: z.array(ProductComponentSchema).default([]),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
   emoji: z.string().default("🍔"),

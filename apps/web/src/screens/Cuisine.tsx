@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { sortedProducts, sortedStations, toPrepare, type ClientProduct } from "@cdf/shared";
+import {
+  soldFromComponents,
+  soldWithComponents,
+  sortedProducts,
+  sortedStations,
+  toPrepare,
+  type ClientProduct,
+} from "@cdf/shared";
 import { projection } from "../lib/store.js";
 import { useRev } from "../lib/hooks.js";
 import { markPrepared } from "../lib/actions.js";
@@ -22,7 +29,9 @@ export function CuisineScreen() {
     .filter((p) => p.active && p.stationId === stationId)
     .map((p) => ({
       product: p,
-      sold: projection.sold[p.id] ?? 0,
+      // Ventes directes + portions incluses dans les plats composés.
+      sold: soldWithComponents(projection, p.id),
+      viaMenus: soldFromComponents(projection, p.id),
       prepared: projection.prepared[p.id] ?? 0,
       remaining: toPrepare(projection, p.id),
     }))
@@ -63,6 +72,7 @@ export function CuisineScreen() {
                 key={it.product.id}
                 product={it.product}
                 sold={it.sold}
+                viaMenus={it.viaMenus}
                 prepared={it.prepared}
                 remaining={it.remaining}
                 stationId={stationId}
@@ -78,12 +88,14 @@ export function CuisineScreen() {
 function KitchenCard({
   product,
   sold,
+  viaMenus,
   prepared,
   remaining,
   stationId,
 }: {
   product: ClientProduct;
   sold: number;
+  viaMenus: number;
   prepared: number;
   remaining: number;
   stationId: string;
@@ -111,6 +123,9 @@ function KitchenCard({
         <span>Vendu&nbsp;<b className="text-slate-200">{sold}</b></span>
         <span>Préparé&nbsp;<b className="text-slate-200">{prepared}</b></span>
       </div>
+      {viaMenus > 0 && (
+        <p className="mt-1 text-xs text-slate-500">dont {viaMenus} inclus dans un plat</p>
+      )}
 
       <div className="mt-3 grid grid-cols-4 gap-2">
         <Button variant="secondary" size="sm" className="h-11" onClick={() => markPrepared(product.id, stationId, -1)}>

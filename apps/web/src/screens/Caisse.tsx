@@ -174,7 +174,9 @@ function ProductTile({
   );
 }
 
-function StockBadge({ stock }: { stock: number }) {
+/** `stock === null` = produit en stock illimité (rien à suivre). */
+function StockBadge({ stock }: { stock: number | null }) {
+  if (stock === null) return <span className="text-xs font-semibold text-slate-500">∞</span>;
   if (stock <= 0)
     return <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-300">épuisé</span>;
   const tone = stock <= 10 ? "text-amber-300" : "text-slate-400";

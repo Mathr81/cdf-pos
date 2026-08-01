@@ -2,11 +2,16 @@ import { randomUUID } from "node:crypto";
 import type { AppEvent } from "@cdf/shared";
 import { applyEvent } from "../src/projections.js";
 import { prisma } from "../src/db.js";
+import { PRODUCTS, STATIONS, type SeedProduct } from "./menu.js";
 
 /**
- * Seed de démonstration. La config (stations + produits) est émise sous forme
+ * Charge la carte définie dans `menu.ts`. La config est émise sous forme
  * d'ÉVÉNEMENTS pour que le journal reste la source de vérité, y compris pour
  * les clients hors-ligne qui reconstruisent leur état depuis le flux.
+ *
+ *   pnpm db:seed              → ne fait rien si des produits existent déjà
+ *   pnpm db:seed -- --force   → réapplique la carte (écrase les produits de
+ *                               même identifiant, garde les autres)
  */
 
 let seq = 0;
@@ -24,17 +29,7 @@ function stationEvent(id: string, name: string, sortOrder: number): AppEvent {
   };
 }
 
-function productEvent(p: {
-  id: string;
-  name: string;
-  priceCents: number;
-  category: string;
-  stationId?: string | null;
-  stockInitial?: number;
-  sortOrder?: number;
-  emoji?: string;
-  color?: string;
-}): AppEvent {
+function productEvent(p: SeedProduct, sortOrder: number): AppEvent {
   return {
     id: randomUUID(),
     type: "product_upsert",
@@ -48,8 +43,10 @@ function productEvent(p: {
       category: p.category,
       stationId: p.stationId ?? null,
       stockInitial: p.stockInitial ?? 0,
+      stockUnlimited: p.stockUnlimited ?? false,
+      components: p.components ?? [],
       active: true,
-      sortOrder: p.sortOrder ?? 0,
+      sortOrder,
       emoji: p.emoji ?? "🍔",
       color: p.color ?? "#f59e0b",
     },
@@ -57,20 +54,19 @@ function productEvent(p: {
 }
 
 async function main() {
-  const events: AppEvent[] = [
-    stationEvent("grill", "Grill", 0),
-    stationEvent("friteuse", "Friteuse", 1),
-    stationEvent("boissons", "Boissons", 2),
+  const force = process.argv.includes("--force");
+  const existing = await prisma.product.count();
+  if (existing > 0 && !force) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `Seed ignoré : ${existing} produit(s) déjà en base. Relance avec --force pour réappliquer la carte.`,
+    );
+    return;
+  }
 
-    productEvent({ id: "burger", name: "Burger", priceCents: 500, category: "Plats", stationId: "grill", stockInitial: 120, sortOrder: 0, emoji: "🍔", color: "#f59e0b" }),
-    productEvent({ id: "cheeseburger", name: "Cheeseburger", priceCents: 600, category: "Plats", stationId: "grill", stockInitial: 120, sortOrder: 1, emoji: "🧀", color: "#eab308" }),
-    productEvent({ id: "hotdog", name: "Hot-dog", priceCents: 400, category: "Plats", stationId: "grill", stockInitial: 80, sortOrder: 2, emoji: "🌭", color: "#f97316" }),
-    productEvent({ id: "frites", name: "Frites", priceCents: 300, category: "Accompagnements", stationId: "friteuse", stockInitial: 200, sortOrder: 3, emoji: "🍟", color: "#facc15" }),
-    productEvent({ id: "soda", name: "Soda 33cl", priceCents: 200, category: "Boissons", stationId: "boissons", stockInitial: 200, sortOrder: 4, emoji: "🥤", color: "#3b82f6" }),
-    productEvent({ id: "eau", name: "Eau 50cl", priceCents: 100, category: "Boissons", stationId: "boissons", stockInitial: 200, sortOrder: 5, emoji: "💧", color: "#38bdf8" }),
-    productEvent({ id: "biere", name: "Bière 25cl", priceCents: 350, category: "Boissons", stationId: "boissons", stockInitial: 150, sortOrder: 6, emoji: "🍺", color: "#d97706" }),
-    productEvent({ id: "cafe", name: "Café", priceCents: 150, category: "Boissons", stationId: "boissons", stockInitial: 100, sortOrder: 7, emoji: "☕", color: "#78350f" }),
-    productEvent({ id: "crepe", name: "Crêpe sucre", priceCents: 250, category: "Desserts", stationId: null, stockInitial: 100, sortOrder: 8, emoji: "🥞", color: "#ec4899" }),
+  const events: AppEvent[] = [
+    ...STATIONS.map((s) => stationEvent(s.id, s.name, s.sortOrder)),
+    ...PRODUCTS.map((p, i) => productEvent(p, i)),
   ];
 
   for (const ev of events) {
@@ -78,7 +74,10 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log(`Seed OK : ${events.length} événements de configuration appliqués.`);
+  console.log(
+    `Seed OK : ${STATIONS.length} stations et ${PRODUCTS.length} produits chargés.\n` +
+      "⚠️  Vérifie les prix et les stocks dans Admin → Produits avant le service.",
+  );
 }
 
 main()

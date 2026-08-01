@@ -12,6 +12,7 @@ import {
 import { env } from "./env.js";
 import { prisma } from "./db.js";
 import { ingestEvents } from "./ingest.js";
+import { getEpoch } from "./reset.js";
 
 const PULL_PAGE_SIZE = 500;
 
@@ -62,6 +63,16 @@ export function createSocketServer(httpServer: HttpServer) {
   });
 
   io.on("connection", (socket) => {
+    // Epoch de la session de données : le client compare avec le sien avant de
+    // se synchroniser, et purge son journal local s'il a changé (remise à zéro).
+    socket.on("sync:hello", async (ack) => {
+      try {
+        ack?.({ epoch: await getEpoch() });
+      } catch {
+        ack?.({ epoch: "" });
+      }
+    });
+
     // Poussée d'un batch d'événements (outbox client).
     socket.on("events:push", async (events: AppEvent[], ack) => {
       try {

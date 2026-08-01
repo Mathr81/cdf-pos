@@ -127,6 +127,8 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
         category: p.category ?? "Divers",
         stationId: p.stationId ?? null,
         stockInitial: p.stockInitial ?? 0,
+        stockUnlimited: p.stockUnlimited ?? false,
+        components: (p.components ?? []) as unknown as Prisma.InputJsonValue,
         active: p.active ?? true,
         sortOrder: p.sortOrder ?? 0,
         emoji: p.emoji ?? "🍔",

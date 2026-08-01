@@ -47,6 +47,10 @@ model Product {
   stationId      String?
   station        Station?        @relation(fields: [stationId], references: [id])
   stockInitial   Int             @default(0)
+  /// true = produit sans stock à suivre (frites au sac, sirop…) : jamais « épuisé ».
+  stockUnlimited Boolean         @default(false)
+  /// Composants inclus : [{ productId, qty }] — ex. « Burger Frites » → 1 « frites ».
+  components     Json            @default("[]")
   active         Boolean         @default(true)
   sortOrder      Int             @default(0)
   emoji          String          @default("🍔")
@@ -114,6 +118,16 @@ model Prepared {
 
   @@index([productId])
   @@index([stationId])
+}
+
+// ─── Métadonnées serveur (clé/valeur) ────────────────────────
+/// Contient notamment `epoch` : identifiant de la « session de données »
+/// courante. Une remise à zéro le change, ce qui signale à chaque appareil
+/// qu'il doit purger son journal local au lieu de le resynchroniser.
+model AppMeta {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 // ─── File de retry pour le miroir Google Sheet ───────────────
