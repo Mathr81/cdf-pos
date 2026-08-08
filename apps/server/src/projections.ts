@@ -58,6 +58,7 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       await tx.order.create({
         data: {
           id: p.orderId,
+          soireeId: p.soireeId,
           createdAt,
           deviceId: ev.deviceId,
           registerLabel: p.registerLabel,
@@ -86,10 +87,35 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       break;
     }
 
+    case "order_amend": {
+      const p = ev.payload;
+      const order = await tx.order.findUnique({ where: { id: p.orderId }, select: { status: true } });
+      if (!order || order.status === "void") break;
+      await tx.orderItem.deleteMany({ where: { orderId: p.orderId } });
+      await tx.order.update({
+        where: { id: p.orderId },
+        data: {
+          totalCents: p.totalCents,
+          paymentMethod: p.paymentMethod,
+          cashReceivedCents: p.cashReceivedCents ?? null,
+          amended: true,
+          items: {
+            create: p.items.map((it) => ({
+              productId: it.productId,
+              qty: it.qty,
+              unitPriceCents: it.unitPriceCents,
+            })),
+          },
+        },
+      });
+      break;
+    }
+
     case "stock_adjust": {
       const p = ev.payload;
       await tx.stockMovement.create({
         data: {
+          soireeId: p.soireeId,
           productId: p.productId,
           delta: p.delta,
           reason: p.reason,
@@ -104,6 +130,7 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       const p = ev.payload;
       await tx.prepared.create({
         data: {
+          soireeId: p.soireeId,
           productId: p.productId,
           stationId: p.stationId,
           qty: p.qty,
@@ -112,6 +139,52 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       });
       break;
     }
+
+    case "soiree_upsert": {
+      const p = ev.payload;
+      const current = await tx.soiree.findUnique({ where: { id: p.id }, select: { updatedAt: true } });
+      if (current && current.updatedAt > createdAt) break;
+      await tx.soiree.upsert({
+        where: { id: p.id },
+        update: { name: p.name, date: p.date, updatedAt: createdAt },
+        create: { id: p.id, name: p.name, date: p.date, updatedAt: createdAt },
+      });
+      break;
+    }
+
+    case "soiree_activate": {
+      await tx.soiree.updateMany({ where: { id: ev.payload.soireeId }, data: { status: "open" } });
+      await tx.appMeta.upsert({
+        where: { key: "activeSoiree" },
+        update: { value: ev.payload.soireeId },
+        create: { key: "activeSoiree", value: ev.payload.soireeId },
+      });
+      break;
+    }
+
+    case "soiree_close": {
+      await tx.soiree.updateMany({ where: { id: ev.payload.soireeId }, data: { status: "closed" } });
+      const active = await tx.appMeta.findUnique({ where: { key: "activeSoiree" } });
+      if (active?.value === ev.payload.soireeId) {
+        await tx.appMeta.update({ where: { key: "activeSoiree" }, data: { value: "" } });
+      }
+      break;
+    }
+
+    case "soiree_delete": {
+      await tx.order.deleteMany({ where: { soireeId: ev.payload.soireeId } });
+      await tx.stockMovement.deleteMany({ where: { soireeId: ev.payload.soireeId } });
+      await tx.prepared.deleteMany({ where: { soireeId: ev.payload.soireeId } });
+      await tx.soiree.deleteMany({ where: { id: ev.payload.soireeId } });
+      const active = await tx.appMeta.findUnique({ where: { key: "activeSoiree" } });
+      if (active?.value === ev.payload.soireeId) {
+        await tx.appMeta.update({ where: { key: "activeSoiree" }, data: { value: "" } });
+      }
+      break;
+    }
+
+    // soiree_product_set, preset_upsert, preset_delete : conservés uniquement dans
+    // le journal d'événements (projetés côté client), pas de table SQL dédiée.
 
     case "product_upsert": {
       const p = ev.payload;

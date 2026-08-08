@@ -19,7 +19,7 @@ import { prisma } from "./db.js";
 const EPOCH_KEY = "epoch";
 
 /** Types d'événements liés à l'exploitation (par opposition à la configuration). */
-const OPERATIONAL_EVENT_TYPES = ["sale", "order_void", "stock_adjust", "prepared"];
+const OPERATIONAL_EVENT_TYPES = ["sale", "order_void", "order_amend", "stock_adjust", "prepared"];
 
 export type ResetScope =
   /** Efface les ventes / stocks / préparations, garde produits et stations. */
@@ -81,6 +81,8 @@ export async function resetData(scope: ResetScope): Promise<ResetResult> {
     if (scope === "all") {
       await tx.product.deleteMany({});
       await tx.station.deleteMany({});
+      await tx.soiree.deleteMany({});
+      await tx.appMeta.deleteMany({ where: { key: "activeSoiree" } });
     }
 
     return {

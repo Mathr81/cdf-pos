@@ -1,6 +1,6 @@
-import type { ProjectionState } from "./projection.js";
+import type { ProjectionState, ClientOrder } from "./projection.js";
 
-/** Réponse de l'endpoint /api/stats (partagée serveur ↔ client). */
+/** Réponse stats (partagée serveur ↔ client). `null` en soireeId = toutes soirées. */
 export interface StatsResponse {
   totalRevenueCents: number;
   orderCount: number;
@@ -10,28 +10,41 @@ export interface StatsResponse {
   byRegister: { registerLabel: string; orders: number; revenueCents: number }[];
   topProducts: { productId: string; name: string; qty: number; revenueCents: number }[];
   salesByHour: { hour: string; orders: number; revenueCents: number }[];
+  /** Courbe d'évolution cumulée du CA (un point par commande). */
+  revenueTimeline: { t: string; cumulativeCents: number; orders: number }[];
   voidCount: number;
 }
 
+function paidOrders(state: ProjectionState, soireeId: string | null): ClientOrder[] {
+  return Object.values(state.orders).filter(
+    (o) => o.status === "paid" && (soireeId === null || o.soireeId === soireeId),
+  );
+}
+
 /**
- * Calcule les statistiques à partir de la projection locale (client).
- * Même logique métier que le serveur SQL, mais sans round-trip → live & offline.
+ * Calcule les statistiques depuis la projection locale (live & offline).
+ * `soireeId` filtre sur une soirée ; `null` = toutes soirées confondues.
  */
-export function computeStats(state: ProjectionState): StatsResponse {
-  const orders = Object.values(state.orders);
-  const paid = orders.filter((o) => o.status === "paid");
+export function computeStats(state: ProjectionState, soireeId: string | null): StatsResponse {
+  const paid = paidOrders(state, soireeId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const byMethod = new Map<string, { orders: number; revenueCents: number }>();
   const byRegister = new Map<string, { orders: number; revenueCents: number }>();
   const byHour = new Map<string, { orders: number; revenueCents: number }>();
   const qtyByProduct = new Map<string, number>();
   const revByProduct = new Map<string, number>();
+  const revenueTimeline: { t: string; cumulativeCents: number; orders: number }[] = [];
 
   let totalRevenueCents = 0;
   let itemCount = 0;
+  let cumulative = 0;
+  let n = 0;
 
   for (const o of paid) {
     totalRevenueCents += o.totalCents;
+    cumulative += o.totalCents;
+    n++;
+    revenueTimeline.push({ t: o.createdAt, cumulativeCents: cumulative, orders: n });
 
     const m = byMethod.get(o.paymentMethod) ?? { orders: 0, revenueCents: 0 };
     m.orders++;
@@ -52,10 +65,7 @@ export function computeStats(state: ProjectionState): StatsResponse {
     for (const it of o.items) {
       itemCount += it.qty;
       qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + it.qty);
-      revByProduct.set(
-        it.productId,
-        (revByProduct.get(it.productId) ?? 0) + it.qty * it.unitPriceCents,
-      );
+      revByProduct.set(it.productId, (revByProduct.get(it.productId) ?? 0) + it.qty * it.unitPriceCents);
     }
   }
 
@@ -68,6 +78,10 @@ export function computeStats(state: ProjectionState): StatsResponse {
     }))
     .sort((a, b) => b.qty - a.qty);
 
+  const voidCount = Object.values(state.orders).filter(
+    (o) => o.status === "void" && (soireeId === null || o.soireeId === soireeId),
+  ).length;
+
   return {
     totalRevenueCents,
     orderCount: paid.length,
@@ -76,9 +90,92 @@ export function computeStats(state: ProjectionState): StatsResponse {
     byPaymentMethod: [...byMethod.entries()].map(([method, v]) => ({ method, ...v })),
     byRegister: [...byRegister.entries()].map(([registerLabel, v]) => ({ registerLabel, ...v })),
     topProducts,
-    salesByHour: [...byHour.entries()]
-      .map(([hour, v]) => ({ hour, ...v }))
-      .sort((a, b) => a.hour.localeCompare(b.hour)),
-    voidCount: orders.filter((o) => o.status === "void").length,
+    salesByHour: [...byHour.entries()].map(([hour, v]) => ({ hour, ...v })).sort((a, b) => a.hour.localeCompare(b.hour)),
+    revenueTimeline,
+    voidCount,
+  };
+}
+
+/** Résumé compact d'une soirée (pour la comparaison entre soirées). */
+export interface SoireeSummary {
+  soireeId: string;
+  name: string;
+  date: string;
+  revenueCents: number;
+  orders: number;
+  items: number;
+  avgBasketCents: number;
+}
+
+export function soireeSummaries(state: ProjectionState): SoireeSummary[] {
+  return Object.values(state.soirees)
+    .map((s) => {
+      const paid = paidOrders(state, s.id);
+      const revenueCents = paid.reduce((a, o) => a + o.totalCents, 0);
+      const items = paid.reduce((a, o) => a + o.items.reduce((x, i) => x + i.qty, 0), 0);
+      return {
+        soireeId: s.id,
+        name: s.name,
+        date: s.date,
+        revenueCents,
+        orders: paid.length,
+        items,
+        avgBasketCents: paid.length ? Math.round(revenueCents / paid.length) : 0,
+      };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Ligne de clôture de caisse (rapport Z) par poste de caisse. */
+export interface CashupRow {
+  registerLabel: string;
+  orders: number;
+  cashCents: number;
+  cardCents: number;
+  totalCents: number;
+}
+
+export interface Cashup {
+  rows: CashupRow[];
+  totalCashCents: number;
+  totalCardCents: number;
+  totalCents: number;
+  orders: number;
+}
+
+/** Clôture de caisse d'une soirée : réparti espèces/carte par poste. */
+export function computeCashup(state: ProjectionState, soireeId: string): Cashup {
+  const byReg = new Map<string, CashupRow>();
+  let totalCashCents = 0;
+  let totalCardCents = 0;
+  let orders = 0;
+
+  for (const o of paidOrders(state, soireeId)) {
+    orders++;
+    const row = byReg.get(o.registerLabel) ?? {
+      registerLabel: o.registerLabel,
+      orders: 0,
+      cashCents: 0,
+      cardCents: 0,
+      totalCents: 0,
+    };
+    row.orders++;
+    row.totalCents += o.totalCents;
+    if (o.paymentMethod === "cash") {
+      row.cashCents += o.totalCents;
+      totalCashCents += o.totalCents;
+    } else {
+      row.cardCents += o.totalCents;
+      totalCardCents += o.totalCents;
+    }
+    byReg.set(o.registerLabel, row);
+  }
+
+  return {
+    rows: [...byReg.values()].sort((a, b) => a.registerLabel.localeCompare(b.registerLabel)),
+    totalCashCents,
+    totalCardCents,
+    totalCents: totalCashCents + totalCardCents,
+    orders,
   };
 }

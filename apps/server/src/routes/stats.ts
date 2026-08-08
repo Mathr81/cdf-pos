@@ -87,6 +87,7 @@ export async function statsRoutes(app: FastifyInstance) {
       salesByHour: [...byHour.entries()]
         .map(([hour, v]) => ({ hour, ...v }))
         .sort((a, b) => a.hour.localeCompare(b.hour)),
+      revenueTimeline: [],
       voidCount,
     };
   });

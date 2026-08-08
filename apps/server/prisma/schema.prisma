@@ -64,9 +64,20 @@ model Product {
   @@index([stationId])
 }
 
+// ─── Soirées (sessions de vente) ─────────────────────────────
+model Soiree {
+  id        String   @id
+  name      String
+  date      String
+  status    String   @default("open") // open | closed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
 // ─── Projections (issues des événements) ─────────────────────
 model Order {
   id                String      @id // UUID client
+  soireeId          String?
   createdAt         DateTime // horodatage client de la vente
   serverReceivedAt  DateTime    @default(now())
   deviceId          String
@@ -74,10 +85,12 @@ model Order {
   cashierName       String?
   paymentMethod     String // cash | card
   status            String      @default("paid") // paid | void
+  amended           Boolean     @default(false)
   totalCents        Int
   cashReceivedCents Int?
   items             OrderItem[]
 
+  @@index([soireeId])
   @@index([createdAt])
   @@index([status])
   @@index([registerLabel])
@@ -98,6 +111,7 @@ model OrderItem {
 
 model StockMovement {
   id        String   @id @default(uuid())
+  soireeId  String?
   productId String
   product   Product  @relation(fields: [productId], references: [id])
   delta     Int
@@ -106,10 +120,12 @@ model StockMovement {
   createdAt DateTime
 
   @@index([productId])
+  @@index([soireeId])
 }
 
 model Prepared {
   id        String   @id @default(uuid())
+  soireeId  String?
   productId String
   product   Product  @relation(fields: [productId], references: [id])
   stationId String
@@ -118,6 +134,7 @@ model Prepared {
 
   @@index([productId])
   @@index([stationId])
+  @@index([soireeId])
 }
 
 // ─── Métadonnées serveur (clé/valeur) ────────────────────────

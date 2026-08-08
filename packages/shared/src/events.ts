@@ -31,9 +31,10 @@ export const SaleItemSchema = z.object({
 });
 export type SaleItem = z.infer<typeof SaleItemSchema>;
 
-/** Vente finalisée (encaissement). */
+/** Vente finalisée (encaissement). Rattachée à une soirée. */
 export const SalePayloadSchema = z.object({
   orderId: z.string().uuid(),
+  soireeId: z.string().min(1),
   registerLabel: z.string().min(1),
   cashierName: z.string().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS),
@@ -51,8 +52,20 @@ export const OrderVoidPayloadSchema = z.object({
 });
 export type OrderVoidPayload = z.infer<typeof OrderVoidPayloadSchema>;
 
-/** Ajustement manuel de stock (réappro, perte, correction). */
+/** Modification d'une commande déjà encaissée (correction tracée). */
+export const OrderAmendPayloadSchema = z.object({
+  orderId: z.string().uuid(),
+  items: z.array(SaleItemSchema).min(1),
+  totalCents: z.number().int().nonnegative(),
+  paymentMethod: z.enum(PAYMENT_METHODS),
+  cashReceivedCents: z.number().int().nonnegative().optional(),
+  reason: z.string().optional(),
+});
+export type OrderAmendPayload = z.infer<typeof OrderAmendPayloadSchema>;
+
+/** Ajustement manuel de stock (réappro, perte, correction), pour une soirée. */
 export const StockAdjustPayloadSchema = z.object({
+  soireeId: z.string().min(1),
   productId: z.string().min(1),
   /** Variation appliquée au stock (positif = ajout, négatif = retrait). */
   delta: z.number().int(),
@@ -61,8 +74,9 @@ export const StockAdjustPayloadSchema = z.object({
 });
 export type StockAdjustPayload = z.infer<typeof StockAdjustPayloadSchema>;
 
-/** Quantité marquée « préparée » en cuisine (delta, peut être négatif pour corriger). */
+/** Quantité marquée « préparée » en cuisine (delta), pour une soirée. */
 export const PreparedPayloadSchema = z.object({
+  soireeId: z.string().min(1),
   productId: z.string().min(1),
   stationId: z.string().min(1),
   qty: z.number().int(),
@@ -116,6 +130,71 @@ export const StationDeletePayloadSchema = z.object({
 });
 export type StationDeletePayload = z.infer<typeof StationDeletePayloadSchema>;
 
+// ─── Soirées (événements/sessions de vente) ──────────────────
+
+/** Création / renommage d'une soirée. */
+export const SoireeUpsertPayloadSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** Date de la soirée (ISO, ex "2026-08-15"). */
+  date: z.string().min(1),
+});
+export type SoireeUpsertPayload = z.infer<typeof SoireeUpsertPayloadSchema>;
+
+/** Définit la soirée active (celle où encaissent les caisses). */
+export const SoireeActivatePayloadSchema = z.object({
+  soireeId: z.string().min(1),
+});
+export type SoireeActivatePayload = z.infer<typeof SoireeActivatePayloadSchema>;
+
+/** Clôture d'une soirée (archivée, plus modifiable au quotidien). */
+export const SoireeClosePayloadSchema = z.object({
+  soireeId: z.string().min(1),
+});
+export type SoireeClosePayload = z.infer<typeof SoireeClosePayloadSchema>;
+
+export const SoireeDeletePayloadSchema = z.object({
+  soireeId: z.string().min(1),
+});
+export type SoireeDeletePayload = z.infer<typeof SoireeDeletePayloadSchema>;
+
+/**
+ * Configure un produit dans la carte d'une soirée : présence sur la carte,
+ * stock initial et prix propres à la soirée (sinon prix catalogue).
+ */
+export const SoireeProductSetPayloadSchema = z.object({
+  soireeId: z.string().min(1),
+  productId: z.string().min(1),
+  onCarte: z.boolean(),
+  stockInitial: z.number().int().nonnegative().default(0),
+  stockUnlimited: z.boolean().default(false),
+  /** Prix propre à la soirée en centimes ; null = prix catalogue. */
+  priceOverrideCents: z.number().int().nonnegative().nullable().default(null),
+});
+export type SoireeProductSetPayload = z.infer<typeof SoireeProductSetPayloadSchema>;
+
+// ─── Presets (modèles de carte réutilisables) ────────────────
+
+export const PresetItemSchema = z.object({
+  productId: z.string().min(1),
+  stockInitial: z.number().int().nonnegative().default(0),
+  stockUnlimited: z.boolean().default(false),
+  priceOverrideCents: z.number().int().nonnegative().nullable().default(null),
+});
+export type PresetItem = z.infer<typeof PresetItemSchema>;
+
+export const PresetUpsertPayloadSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  items: z.array(PresetItemSchema).default([]),
+});
+export type PresetUpsertPayload = z.infer<typeof PresetUpsertPayloadSchema>;
+
+export const PresetDeletePayloadSchema = z.object({
+  id: z.string().min(1),
+});
+export type PresetDeletePayload = z.infer<typeof PresetDeletePayloadSchema>;
+
 // ─── Enveloppe d'événement (discriminated union sur `type`) ──
 
 const baseEnvelope = {
@@ -132,12 +211,20 @@ const baseEnvelope = {
 export const EventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEnvelope, type: z.literal("sale"), payload: SalePayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("order_void"), payload: OrderVoidPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("order_amend"), payload: OrderAmendPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("stock_adjust"), payload: StockAdjustPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("prepared"), payload: PreparedPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("product_upsert"), payload: ProductUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("product_delete"), payload: ProductDeletePayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("station_upsert"), payload: StationUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("station_delete"), payload: StationDeletePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("soiree_upsert"), payload: SoireeUpsertPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("soiree_activate"), payload: SoireeActivatePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("soiree_close"), payload: SoireeClosePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("soiree_delete"), payload: SoireeDeletePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("soiree_product_set"), payload: SoireeProductSetPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("preset_upsert"), payload: PresetUpsertPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("preset_delete"), payload: PresetDeletePayloadSchema }),
 ]);
 
 export type AppEvent = z.infer<typeof EventSchema>;

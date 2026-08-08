@@ -1,38 +1,45 @@
 import { useState } from "react";
 import {
+  soireeCarte,
   soldFromComponents,
   soldWithComponents,
-  sortedProducts,
   stockRemaining,
   type ClientProduct,
   type StockReason,
 } from "@cdf/shared";
 import { projection } from "../lib/store.js";
-import { useRev } from "../lib/hooks.js";
+import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { adjustStock } from "../lib/actions.js";
 import { Button } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
+import { NoSoiree } from "../components/NoSoiree.js";
 import { cn } from "../lib/cn.js";
 
 type AdjustKind = "restock" | "spoilage";
 
 export function InventaireScreen() {
   useRev();
+  const soiree = useActiveSoiree();
   const [adjust, setAdjust] = useState<{ product: ClientProduct; kind: AdjustKind } | null>(null);
 
-  const rows = sortedProducts(projection).filter((p) => p.active);
+  if (!soiree) return <NoSoiree />;
+  const soireeId = soiree.id;
+  const rows = soireeCarte(projection, soireeId);
 
   return (
     <div className="mx-auto flex h-full max-w-4xl flex-col p-4">
-      <h1 className="mb-3 text-xl font-bold text-slate-100">Inventaire</h1>
+      <div className="mb-3 flex items-center gap-2">
+        <h1 className="text-xl font-bold text-slate-100">Inventaire</h1>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-amber-300">🎉 {soiree.name}</span>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="space-y-2">
-          {rows.map((p) => {
-            const sold = soldWithComponents(projection, p.id);
-            const viaMenus = soldFromComponents(projection, p.id);
-            const adj = projection.adjustments[p.id] ?? 0;
-            const remaining = stockRemaining(projection, p.id);
+          {rows.map(({ product: p }) => {
+            const sold = soldWithComponents(projection, soireeId, p.id);
+            const viaMenus = soldFromComponents(projection, soireeId, p.id);
+            const adj = projection.adjustments[soireeId]?.[p.id] ?? 0;
+            const remaining = stockRemaining(projection, soireeId, p.id);
             return (
               <div
                 key={p.id}
@@ -42,7 +49,7 @@ export function InventaireScreen() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-slate-100">{p.name}</div>
                   <div className="text-xs text-slate-400">
-                    {p.stockUnlimited ? "Stock illimité" : `Initial ${p.stockInitial}`} · Vendu {sold}
+                    Vendu {sold}
                     {viaMenus > 0 && ` (dont ${viaMenus} en menu)`}
                     {adj !== 0 && ` · Ajust. ${adj > 0 ? "+" : ""}${adj}`}
                   </div>
@@ -82,13 +89,13 @@ export function InventaireScreen() {
             );
           })}
           {rows.length === 0 && (
-            <p className="mt-10 text-center text-slate-500">Aucun produit.</p>
+            <p className="mt-10 text-center text-slate-500">Aucun produit sur la carte de cette soirée.</p>
           )}
         </div>
       </div>
 
       {adjust && (
-        <AdjustModal product={adjust.product} kind={adjust.kind} onClose={() => setAdjust(null)} />
+        <AdjustModal product={adjust.product} kind={adjust.kind} soireeId={soireeId} onClose={() => setAdjust(null)} />
       )}
     </div>
   );
@@ -97,20 +104,21 @@ export function InventaireScreen() {
 function AdjustModal({
   product,
   kind,
+  soireeId,
   onClose,
 }: {
   product: ClientProduct;
   kind: AdjustKind;
+  soireeId: string;
   onClose: () => void;
 }) {
   const [qty, setQty] = useState(0);
   const isRestock = kind === "restock";
   const reason: StockReason = isRestock ? "restock" : "spoilage";
+  const current = stockRemaining(projection, soireeId, product.id);
 
   const confirm = () => {
-    if (qty > 0) {
-      void adjustStock(product.id, isRestock ? qty : -qty, reason);
-    }
+    if (qty > 0) void adjustStock(product.id, isRestock ? qty : -qty, reason, undefined, soireeId);
     onClose();
   };
 
@@ -120,7 +128,7 @@ function AdjustModal({
         {isRestock ? "Réapprovisionnement" : "Déclarer une perte"}
       </h2>
       <p className="mb-4 text-sm text-slate-400">
-        {product.emoji} {product.name} · stock actuel {stockRemaining(projection, product.id) ?? "∞"}
+        {product.emoji} {product.name} · stock actuel {current ?? "∞"}
       </p>
 
       <div className="mb-4 flex items-center justify-center gap-4">

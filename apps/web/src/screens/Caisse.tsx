@@ -1,23 +1,25 @@
 import { useMemo, useState } from "react";
 import {
   formatCents,
-  sortedProducts,
+  soireeCarte,
   stockRemaining,
-  type ClientProduct,
+  type CarteEntry,
   type PaymentMethod,
 } from "@cdf/shared";
 import { projection } from "../lib/store.js";
-import { useRev } from "../lib/hooks.js";
+import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { useCart } from "../lib/cart.js";
 import { useSession } from "../lib/session.js";
 import { emitSale } from "../lib/actions.js";
 import { Button, Card } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
 import { PaymentModal } from "../components/PaymentModal.js";
+import { NoSoiree } from "../components/NoSoiree.js";
 import { cn } from "../lib/cn.js";
 
 export function CaisseScreen() {
   useRev();
+  const soiree = useActiveSoiree();
   const { label, cashierName } = useSession();
   const cart = useCart();
   const [category, setCategory] = useState<string>("Tous");
@@ -25,28 +27,33 @@ export function CaisseScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const products = sortedProducts(projection).filter((p) => p.active);
+  const soireeId = soiree?.id ?? "";
+  const carte = useMemo(() => (soiree ? soireeCarte(projection, soiree.id) : []), [soiree, useRev()]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const categories = useMemo(() => {
-    const set = new Set(products.map((p) => p.category));
+    const set = new Set(carte.map((e) => e.product.category));
     return ["Tous", ...[...set].sort()];
-  }, [products]);
-  const visible = category === "Tous" ? products : products.filter((p) => p.category === category);
+  }, [carte]);
+  const visible = category === "Tous" ? carte : carte.filter((e) => e.product.category === category);
 
   const lines = Object.entries(cart.items)
-    .map(([id, qty]) => ({ product: projection.products[id], qty }))
-    .filter((l) => l.product);
-  const totalCents = lines.reduce((s, l) => s + l.product.priceCents * l.qty, 0);
+    .map(([id, qty]) => ({ entry: carte.find((e) => e.product.id === id), qty }))
+    .filter((l): l is { entry: CarteEntry; qty: number } => Boolean(l.entry));
+  const totalCents = lines.reduce((s, l) => s + l.entry.priceCents * l.qty, 0);
   const itemCount = lines.reduce((s, l) => s + l.qty, 0);
+
+  if (!soiree) return <NoSoiree />;
 
   const confirmPayment = (method: PaymentMethod, cashReceivedCents?: number) => {
     void emitSale({
+      soireeId,
       registerLabel: label ?? "Caisse",
       cashierName: cashierName ?? undefined,
       paymentMethod: method,
       items: lines.map((l) => ({
-        productId: l.product.id,
+        productId: l.entry.product.id,
         qty: l.qty,
-        unitPriceCents: l.product.priceCents,
+        unitPriceCents: l.entry.priceCents,
       })),
       totalCents,
       cashReceivedCents,
@@ -58,53 +65,57 @@ export function CaisseScreen() {
     setTimeout(() => setToast(null), 2200);
   };
 
+  const cartPanel = (
+    <CartPanel
+      lines={lines}
+      totalCents={totalCents}
+      onInc={(id) => cart.add(id)}
+      onDec={(id) => cart.add(id, -1)}
+      onRemove={(id) => cart.remove(id)}
+      onClear={cart.clear}
+      onPay={() => setPayOpen(true)}
+    />
+  );
+
   return (
     <div className="flex h-full">
-      {/* Zone produits */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex gap-2 overflow-x-auto border-b border-slate-800 px-3 py-2">
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={cn(
-                "whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
-                category === c
-                  ? "bg-amber-500 text-slate-950"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700",
-              )}
-            >
-              {c}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
+          <span className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-amber-300">
+            🎉 {soiree.name}
+          </span>
+          <div className="flex gap-2 overflow-x-auto">
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategory(c)}
+                className={cn(
+                  "whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
+                  category === c ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-300 hover:bg-slate-700",
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24 lg:pb-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {visible.map((p) => (
-              <ProductTile key={p.id} product={p} qty={cart.items[p.id] ?? 0} onAdd={() => cart.add(p.id)} />
+            {visible.map((e) => (
+              <ProductTile key={e.product.id} entry={e} soireeId={soireeId} qty={cart.items[e.product.id] ?? 0} onAdd={() => cart.add(e.product.id)} />
             ))}
           </div>
           {visible.length === 0 && (
-            <p className="mt-10 text-center text-slate-500">Aucun produit. Configure-les dans l'admin.</p>
+            <p className="mt-10 text-center text-slate-500">
+              Aucun produit sur la carte de cette soirée. Configure-la dans Admin → Soirées.
+            </p>
           )}
         </div>
       </div>
 
-      {/* Panier — barre latérale (lg+) */}
-      <aside className="hidden w-96 flex-col border-l border-slate-800 bg-slate-900/50 lg:flex">
-        <CartPanel
-          lines={lines}
-          totalCents={totalCents}
-          onInc={(id) => cart.add(id)}
-          onDec={(id) => cart.add(id, -1)}
-          onRemove={(id) => cart.remove(id)}
-          onClear={cart.clear}
-          onPay={() => setPayOpen(true)}
-        />
-      </aside>
+      <aside className="hidden w-96 flex-col border-l border-slate-800 bg-slate-900/50 lg:flex">{cartPanel}</aside>
 
-      {/* Barre panier mobile (< lg) */}
       {itemCount > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-900/95 p-3 backdrop-blur safe-bottom lg:hidden">
           <Button variant="primary" size="lg" className="flex w-full items-center justify-between" onClick={() => setSheetOpen(true)}>
@@ -114,25 +125,11 @@ export function CaisseScreen() {
         </div>
       )}
 
-      {/* Panier plein écran (mobile) */}
       <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[85vh] overflow-hidden p-0">
-        <CartPanel
-          lines={lines}
-          totalCents={totalCents}
-          onInc={(id) => cart.add(id)}
-          onDec={(id) => cart.add(id, -1)}
-          onRemove={(id) => cart.remove(id)}
-          onClear={cart.clear}
-          onPay={() => setPayOpen(true)}
-        />
+        {cartPanel}
       </Modal>
 
-      <PaymentModal
-        open={payOpen}
-        totalCents={totalCents}
-        onClose={() => setPayOpen(false)}
-        onConfirm={confirmPayment}
-      />
+      <PaymentModal open={payOpen} totalCents={totalCents} onClose={() => setPayOpen(false)} onConfirm={confirmPayment} />
 
       {toast && (
         <div className="fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg animate-fade-in">
@@ -144,15 +141,18 @@ export function CaisseScreen() {
 }
 
 function ProductTile({
-  product,
+  entry,
+  soireeId,
   qty,
   onAdd,
 }: {
-  product: ClientProduct;
+  entry: CarteEntry;
+  soireeId: string;
   qty: number;
   onAdd: () => void;
 }) {
-  const stock = stockRemaining(projection, product.id);
+  const { product, priceCents } = entry;
+  const stock = stockRemaining(projection, soireeId, product.id);
   return (
     <button
       onClick={onAdd}
@@ -167,7 +167,7 @@ function ProductTile({
       <span className="text-3xl">{product.emoji}</span>
       <span className="line-clamp-2 text-sm font-semibold text-slate-100">{product.name}</span>
       <div className="flex w-full items-center justify-between">
-        <span className="font-bold text-amber-400">{formatCents(product.priceCents)}</span>
+        <span className="font-bold text-amber-400">{formatCents(priceCents)}</span>
         <StockBadge stock={stock} />
       </div>
     </button>
@@ -184,7 +184,7 @@ function StockBadge({ stock }: { stock: number | null }) {
 }
 
 interface Line {
-  product: ClientProduct;
+  entry: CarteEntry;
   qty: number;
 }
 
@@ -222,25 +222,25 @@ function CartPanel({
         ) : (
           <div className="space-y-2">
             {lines.map((l) => (
-              <Card key={l.product.id} className="flex items-center gap-2 p-2">
-                <span className="text-xl">{l.product.emoji}</span>
+              <Card key={l.entry.product.id} className="flex items-center gap-2 p-2">
+                <span className="text-xl">{l.entry.product.emoji}</span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-100">{l.product.name}</div>
-                  <div className="text-xs text-slate-400">{formatCents(l.product.priceCents)}</div>
+                  <div className="truncate text-sm font-semibold text-slate-100">{l.entry.product.name}</div>
+                  <div className="text-xs text-slate-400">{formatCents(l.entry.priceCents)}</div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => onDec(l.product.id)}>
+                  <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => onDec(l.entry.product.id)}>
                     −
                   </Button>
                   <span className="w-6 text-center font-bold text-slate-100">{l.qty}</span>
-                  <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => onInc(l.product.id)}>
+                  <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => onInc(l.entry.product.id)}>
                     +
                   </Button>
                 </div>
                 <div className="w-16 text-right text-sm font-bold text-amber-400">
-                  {formatCents(l.product.priceCents * l.qty)}
+                  {formatCents(l.entry.priceCents * l.qty)}
                 </div>
-                <button onClick={() => onRemove(l.product.id)} className="px-1 text-slate-500 hover:text-rose-400">
+                <button onClick={() => onRemove(l.entry.product.id)} className="px-1 text-slate-500 hover:text-rose-400">
                   ✕
                 </button>
               </Card>

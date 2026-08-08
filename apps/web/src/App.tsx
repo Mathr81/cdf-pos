@@ -9,6 +9,8 @@ import { CuisineScreen } from "./screens/Cuisine.js";
 import { InventaireScreen } from "./screens/Inventaire.js";
 import { StatsScreen } from "./screens/Stats.js";
 import { AdminScreen } from "./screens/Admin.js";
+import { SoireesScreen } from "./screens/Soirees.js";
+import { JournalScreen } from "./screens/Journal.js";
 
 export function App() {
   const role = useSession((s) => s.role);
@@ -46,7 +48,9 @@ export function App() {
         <Route path="/caisse" element={<CaisseScreen />} />
         <Route path="/cuisine" element={<CuisineScreen />} />
         <Route path="/inventaire" element={<InventaireScreen />} />
+        <Route path="/journal" element={<JournalScreen />} />
         <Route path="/stats" element={<StatsScreen />} />
+        <Route path="/soirees" element={<SoireesScreen />} />
         <Route path="/admin" element={<AdminScreen />} />
         <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
       </Routes>

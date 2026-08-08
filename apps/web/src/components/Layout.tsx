@@ -15,16 +15,18 @@ function navItemsFor(role: string | null, isAdmin: boolean): NavItem[] {
   const caisse = { to: "/caisse", label: "Caisse", icon: "🧾" };
   const cuisine = { to: "/cuisine", label: "Cuisine", icon: "👨‍🍳" };
   const inventaire = { to: "/inventaire", label: "Stock", icon: "📦" };
+  const journal = { to: "/journal", label: "Journal", icon: "📒" };
   const stats = { to: "/stats", label: "Stats", icon: "📊" };
+  const soirees = { to: "/soirees", label: "Soirées", icon: "🎉" };
   const admin = { to: "/admin", label: "Admin", icon: "⚙️" };
-  if (isAdmin) return [caisse, cuisine, inventaire, stats, admin];
+  if (isAdmin) return [caisse, cuisine, inventaire, journal, stats, soirees, admin];
   switch (role) {
     case "cuisine":
       return [cuisine];
     case "stats":
       return [stats];
     case "admin":
-      return [admin, caisse, cuisine, inventaire, stats];
+      return [soirees, caisse, cuisine, inventaire, journal, stats, admin];
     default:
       return [caisse, inventaire];
   }

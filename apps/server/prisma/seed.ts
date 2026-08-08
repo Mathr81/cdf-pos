@@ -64,9 +64,26 @@ async function main() {
     return;
   }
 
+  const SOIREE_ID = "demo";
+  const wrap = (type: AppEvent["type"], payload: unknown): AppEvent =>
+    ({ id: randomUUID(), type, deviceId: DEVICE, clientSeq: seq++, createdAt: now(), payload }) as AppEvent;
+
   const events: AppEvent[] = [
     ...STATIONS.map((s) => stationEvent(s.id, s.name, s.sortOrder)),
     ...PRODUCTS.map((p, i) => productEvent(p, i)),
+    // Soirée de démonstration + carte (tous les produits) + activation.
+    wrap("soiree_upsert", { id: SOIREE_ID, name: "Soirée démo", date: new Date().toISOString().slice(0, 10) }),
+    ...PRODUCTS.map((p) =>
+      wrap("soiree_product_set", {
+        soireeId: SOIREE_ID,
+        productId: p.id,
+        onCarte: true,
+        stockInitial: p.stockInitial ?? 0,
+        stockUnlimited: p.stockUnlimited ?? false,
+        priceOverrideCents: null,
+      }),
+    ),
+    wrap("soiree_activate", { soireeId: SOIREE_ID }),
   ];
 
   for (const ev of events) {
@@ -75,7 +92,7 @@ async function main() {
 
   // eslint-disable-next-line no-console
   console.log(
-    `Seed OK : ${STATIONS.length} stations et ${PRODUCTS.length} produits chargés.\n` +
+    `Seed OK : ${STATIONS.length} stations, ${PRODUCTS.length} produits et 1 soirée démo (active).\n` +
       "⚠️  Vérifie les prix et les stocks dans Admin → Produits avant le service.",
   );
 }
