@@ -15,12 +15,13 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
         className={cn(
-          "w-full max-w-lg rounded-t-3xl border border-slate-800 bg-slate-900 p-5 shadow-2xl animate-fade-in sm:rounded-2xl safe-bottom",
+          "safe-bottom w-full max-w-lg rounded-t-surface border border-line bg-surface p-5",
+          "animate-sheet-in shadow-[0_-8px_40px_rgba(0,0,0,0.5)] sm:rounded-surface",
           className,
         )}
         onClick={(e) => e.stopPropagation()}
