@@ -57,13 +57,9 @@ export function ProductIcon({
  */
 export const DEFAULT_IMAGE_ZOOM = 88;
 
-/** Niveaux proposés dans l'éditeur produit. */
-export const ZOOM_LEVELS: { value: number; label: string }[] = [
-  { value: 100, label: "Plein" },
-  { value: 88, label: "Grand" },
-  { value: 76, label: "Moyen" },
-  { value: 62, label: "Petit" },
-];
+/** Bornes du réglage de taille. Doivent rester dans la plage du schéma zod. */
+export const ZOOM_MIN = 40;
+export const ZOOM_MAX = 100;
 
 export function TicketBlock({
   emoji,

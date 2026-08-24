@@ -41,7 +41,8 @@ import {
   DEFAULT_IMAGE_ZOOM,
   ProductIcon,
   TicketBlock,
-  ZOOM_LEVELS,
+  ZOOM_MAX,
+  ZOOM_MIN,
 } from "../components/ProductIcon.js";
 import { ICON_GROUPS, isIconSlug } from "../lib/productIcons.js";
 import { inkOn, ticketColor } from "../lib/ticket.js";
@@ -561,7 +562,7 @@ function ImageUploader({
             {imageKey ? "Remplacer" : "Choisir une image"}
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/heic,image/heif,image/svg+xml"
               className="hidden"
               disabled={busy}
               onChange={(e) => {
@@ -614,27 +615,37 @@ function ImageUploader({
               il reste donc réglable après coup, sans redemander le fichier
               source, contrairement au mode ci-dessus qui est cuit dans le WebP. */}
           <div>
-            <p className="mb-1.5 text-micro font-semibold text-ash">Taille dans la tuile</p>
-            <div className="flex flex-wrap gap-2">
-              {ZOOM_LEVELS.map((z) => (
-                <button
-                  key={z.value}
-                  type="button"
-                  onClick={() => onZoomChange(z.value)}
-                  className={cn(
-                    "min-h-12 rounded-control border px-3 text-body font-bold transition-colors",
-                    (imageZoom ?? DEFAULT_IMAGE_ZOOM) === z.value
-                      ? "border-lantern bg-lantern/15 text-lantern"
-                      : "border-line bg-surface text-cream",
-                  )}
-                >
-                  {z.label}
-                </button>
-              ))}
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <p className="text-micro font-semibold text-ash">Taille dans la tuile</p>
+              <p className="tnum text-micro font-bold text-cream">
+                {imageZoom ?? DEFAULT_IMAGE_ZOOM} %
+              </p>
             </div>
-            <p className="mt-1.5 text-micro text-ash">
-              Réglable à tout moment, sans renvoyer l'image.
-            </p>
+            {/* Curseur plutôt que quatre paliers : le bon cadrage dépend du
+                logo, et un pas de 2 % laisse ajuster finement. Piste haute de
+                44px pour rester utilisable au doigt. */}
+            <input
+              type="range"
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
+              step={2}
+              value={imageZoom ?? DEFAULT_IMAGE_ZOOM}
+              onChange={(e) => onZoomChange(Number(e.target.value))}
+              aria-label="Taille de l'image dans la tuile"
+              className="h-11 w-full cursor-pointer accent-lantern"
+            />
+            <div className="flex items-center justify-between text-micro text-ash">
+              <span>Petit</span>
+              <button
+                type="button"
+                onClick={() => onZoomChange(null)}
+                className="min-h-11 px-2 font-semibold transition-colors hover:text-cream"
+              >
+                Réinitialiser
+              </button>
+              <span>Plein</span>
+            </div>
+            <p className="text-micro text-ash">Réglable à tout moment, sans renvoyer l'image.</p>
           </div>
 
           <button

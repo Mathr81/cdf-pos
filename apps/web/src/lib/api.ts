@@ -1,4 +1,5 @@
 import type { StatsResponse } from "@cdf/shared";
+import { downscaleForUpload } from "./downscale.js";
 import { useSession } from "./session.js";
 
 /**
@@ -65,9 +66,12 @@ export const api = {
    */
   uploadImage: async (file: File, mode?: "photo" | "icone"): Promise<UploadedImage> => {
     const { accessCode, adminPin } = useSession.getState();
+    // Une photo d'iPad pèse souvent plus de 8 Mo pour un rendu final de 320px :
+    // on la réduit avant de la pousser sur le wifi de la salle des fêtes.
+    const payload = await downscaleForUpload(file);
     const form = new FormData();
     if (mode) form.append("mode", mode);
-    form.append("file", file);
+    form.append("file", payload);
 
     const headers: Record<string, string> = {};
     if (accessCode) headers["x-access-code"] = accessCode;
@@ -78,7 +82,13 @@ export const api = {
     const res = await fetch("/api/admin/media", { method: "POST", headers, body: form });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}) as { error?: string });
-      throw new Error(body.error ?? `Erreur ${res.status}`);
+      if (body.error) throw new Error(body.error);
+      // Un 413 sans corps JSON ne vient pas de l'application : c'est le reverse
+      // proxy qui a coupé la requête avant elle (`client_max_body_size`).
+      if (res.status === 413) {
+        throw new Error("Image refusée par le serveur car trop lourde. Essaie une photo plus petite.");
+      }
+      throw new Error(`Erreur ${res.status}`);
     }
     return res.json() as Promise<UploadedImage>;
   },

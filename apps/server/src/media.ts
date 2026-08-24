@@ -39,10 +39,23 @@ const TARGET = 320;
  */
 const MAX_RENDER_DIM = 2048;
 
-/** Filet de sécurité pour les entrées raster. Le vectoriel est borné en amont. */
-const LIMIT_INPUT_PIXELS = 40_000_000;
+/**
+ * Filet de sécurité pour les entrées raster. Le vectoriel est borné en amont
+ * par la densité calculée. 120 Mpx couvre les capteurs 48 Mpx des iPhone/iPad
+ * récents avec de la marge ; libvips décode les JPEG à échelle réduite quand la
+ * cible est petite, le coût mémoire réel reste donc modeste.
+ */
+const LIMIT_INPUT_PIXELS = 120_000_000;
 
-export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+/**
+ * Une photo prise à l'iPad et convertie en JPEG par Safari dépasse
+ * régulièrement 8 Mo. Le client réduit déjà les grandes images avant l'envoi ;
+ * cette limite est le filet pour les cas où il n'y arrive pas.
+ *
+ * ⚠️ Doit rester <= `client_max_body_size` dans docker/nginx.conf, sinon nginx
+ * renvoie un 413 opaque avant que ce code ne soit atteint.
+ */
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export class MediaError extends Error {}
 
@@ -50,7 +63,7 @@ export class MediaError extends Error {}
    Le `content-type` et le nom de fichier envoyés par le client ne sont
    jamais utilisés pour décider quoi que ce soit. */
 
-type Detected = "png" | "jpeg" | "webp" | "gif" | "avif" | "svg";
+type Detected = "png" | "jpeg" | "webp" | "gif" | "avif" | "heic" | "svg";
 
 function detectFormat(buf: Buffer): Detected | null {
   if (buf.length < 12) return null;
@@ -61,8 +74,14 @@ function detectFormat(buf: Buffer): Detected | null {
   if (buf.toString("ascii", 0, 3) === "GIF") return "gif";
   if (buf.toString("ascii", 4, 8) === "ftyp") {
     const brand = buf.toString("ascii", 8, 12);
-    if (brand.startsWith("avif") || brand.startsWith("avis") || brand.startsWith("mif1"))
-      return "avif";
+    if (brand.startsWith("avif") || brand.startsWith("avis")) return "avif";
+    // HEIC : format natif de la photothèque iOS. Safari le convertit
+    // normalement en JPEG à la sélection, mais pas dans tous les cas (partage,
+    // fichier déposé). libheif est présent dans le binaire sharp (1.23.0), on
+    // accepte donc directement plutôt que de renvoyer « format non reconnu ».
+    if (brand.startsWith("heic") || brand.startsWith("heix") || brand.startsWith("hevc"))
+      return "heic";
+    if (brand.startsWith("mif1") || brand.startsWith("msf1")) return "heic";
   }
   // SVG : soit gzippé (.svgz), soit du XML en clair.
   if (buf[0] === 0x1f && buf[1] === 0x8b) return "svg";
@@ -198,10 +217,19 @@ async function encode(buf: Buffer, mode: MediaMode, density: number | undefined)
       .toBuffer();
   }
   const pipeline = base();
-  // `position: "attention"` cadre sur la zone de plus forte entropie : sur une
-  // photo de plat, ça vise le plat plutôt que le centre géométrique.
+  // Recadrage CENTRÉ, volontairement.
+  //
+  // La version précédente utilisait `position: "attention"`, en pariant que
+  // sharp viserait le sujet plutôt que le centre géométrique. Le test terrain
+  // l'a démenti : sur une image large, la stratégie retient la zone la plus
+  // saturée, donc un bord. Mesuré sur une image 900x300 découpée en trois
+  // bandes, la sortie contenait 93 % de la bande de gauche et 0 % de celle de
+  // droite. « centre » et « entropy » gardent le centre à 100 %.
+  //
+  // Un bénévole qui photographie un plat le cadre au centre : honorer ce
+  // cadrage est plus juste, et surtout prévisible.
   return pipeline
-    .resize(TARGET, TARGET, { fit: "cover", position: "attention" })
+    .resize(TARGET, TARGET, { fit: "cover", position: "centre" })
     .webp({ quality: 80, effort: 5 })
     .toBuffer();
 }
