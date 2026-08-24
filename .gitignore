@@ -2,6 +2,10 @@
 node_modules/
 .pnpm-store/
 
+# Images produit (dev local ; en prod c'est un volume Docker)
+.media/
+apps/server/.media/
+
 # Builds
 dist/
 build/

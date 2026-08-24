@@ -207,6 +207,10 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
         emoji: p.emoji ?? "🍔",
         color: p.color ?? "#f59e0b",
         updatedAt: createdAt,
+        // `imageKey` absent du payload (poste dont la PWA n'est pas à jour) :
+        // on n'écrit rien, l'image existante est conservée. `null` explicite
+        // signifie au contraire que l'admin a retiré l'image.
+        ...(p.imageKey !== undefined ? { imageKey: p.imageKey } : {}),
       };
       await tx.product.upsert({
         where: { id: p.id },

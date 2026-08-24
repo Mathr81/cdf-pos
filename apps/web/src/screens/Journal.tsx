@@ -348,6 +348,7 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
                 <TicketBlock
                   emoji={product.emoji}
                   color={product.color}
+                  imageKey={product.imageKey}
                   iconSize={16}
                   className="h-9 w-9"
                 />

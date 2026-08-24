@@ -33,6 +33,12 @@ export interface ClientProduct {
   sortOrder: number;
   emoji: string;
   color: string;
+  /**
+   * Nom de fichier de l'image personnalisée ("<hash32>.webp"), ou null.
+   * L'icône `emoji` reste renseignée : elle sert de repli quand l'image n'est
+   * pas encore en cache local (poste hors ligne qui n'a jamais vu ce produit).
+   */
+  imageKey: string | null;
 }
 
 export interface ClientStation {
@@ -184,6 +190,9 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       const p = ev.payload;
       if ((state.productUpdatedAt[p.id] ?? 0) > ts) break; // last-write-wins
       state.productUpdatedAt[p.id] = ts;
+      // `imageKey` absent du payload = poste dont la PWA n'est pas à jour :
+      // on conserve l'image déjà connue plutôt que de l'effacer.
+      const previousImage = state.products[p.id]?.imageKey ?? null;
       state.products[p.id] = {
         id: p.id,
         name: p.name,
@@ -197,6 +206,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         sortOrder: p.sortOrder ?? 0,
         emoji: p.emoji ?? "🍔",
         color: p.color ?? "#f59e0b",
+        imageKey: p.imageKey !== undefined ? p.imageKey : previousImage,
       };
       break;
     }

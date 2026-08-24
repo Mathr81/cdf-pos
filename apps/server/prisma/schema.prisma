@@ -55,6 +55,11 @@ model Product {
   sortOrder      Int             @default(0)
   emoji          String          @default("🍔")
   color          String          @default("#f59e0b")
+  /// Image personnalisée : NOM DE FICHIER seul ("<hash32>.webp"), jamais une URL.
+  /// Cette valeur atterrit dans le journal d'événements immuable et dans le
+  /// miroir Google Sheet : y graver un chemin de déploiement serait irréversible.
+  /// Le fichier vit sur disque (MEDIA_DIR), jamais en base ni dans le journal.
+  imageKey       String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @default(now()) // = event.createdAt, sert au last-write-wins
   orderItems     OrderItem[]

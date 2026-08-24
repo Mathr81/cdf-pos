@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { PRODUCT_ICONS } from "../lib/productIcons.js";
+import { mediaUrl } from "../lib/api.js";
 import { inkOn, ticketColor } from "../lib/ticket.js";
 import { cn } from "../lib/cn.js";
 
@@ -52,17 +54,28 @@ export function ProductIcon({
 export function TicketBlock({
   emoji,
   color,
+  imageKey,
   iconSize,
   className,
   dimmed,
 }: {
   emoji: string;
   color: string;
+  /** Image personnalisée, ou null pour retomber sur l'icône. */
+  imageKey: string | null;
   iconSize: number;
   className?: string;
   dimmed?: boolean;
 }) {
   const hex = ticketColor(color);
+  // Une image référencée mais absente du cache local (poste hors ligne qui n'a
+  // jamais vu ce produit) déclenche `onError` : on retombe sur l'icône, jamais
+  // sur une vignette cassée. C'est aussi pour ça que `emoji` reste renseigné
+  // même quand une image est choisie.
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [imageKey]);
+  const showImage = Boolean(imageKey) && !broken;
+
   return (
     <div
       className={cn(
@@ -76,7 +89,24 @@ export function TicketBlock({
       )}
       style={{ background: hex }}
     >
-      <ProductIcon value={emoji} size={iconSize} color={inkOn(hex)} />
+      {showImage ? (
+        /* `contain` et non `cover` : le bloc peut être très allongé (jusqu'à
+           un rapport 0,42 sur une tuile de caisse), et un `cover` y rognerait
+           un logo centré jusqu'à le faire disparaître. `contain` garantit en
+           plus que la couleur du ticket reste visible autour de l'image, quel
+           que soit le mode de traitement retenu à l'upload. */
+        <img
+          src={mediaUrl(imageKey!)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={() => setBroken(true)}
+          className="h-full w-full object-contain p-[6%]"
+        />
+      ) : (
+        <ProductIcon value={emoji} size={iconSize} color={inkOn(hex)} />
+      )}
     </div>
   );
 }

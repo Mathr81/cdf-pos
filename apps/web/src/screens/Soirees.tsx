@@ -385,6 +385,7 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
                 <TicketBlock
                   emoji={p.emoji}
                   color={p.color}
+                  imageKey={p.imageKey}
                   iconSize={16}
                   className="h-9 w-9"
                 />

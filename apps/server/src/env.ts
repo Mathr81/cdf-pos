@@ -14,6 +14,12 @@ export const env = {
   corsOrigin: (process.env.CORS_ORIGIN ?? "http://localhost:5173")
     .split(",")
     .map((s) => s.trim()),
+  /**
+   * Dossier des images produit. En conteneur c'est un volume Docker dédié
+   * (`mediadata`), en dev local un dossier ignoré par git. Aucun binaire ne
+   * transite jamais par la base ni par le journal d'événements.
+   */
+  mediaDir: process.env.MEDIA_DIR ?? "./.media",
   appAccessCode: required("APP_ACCESS_CODE", "fete2026"),
   adminPin: required("ADMIN_PIN", "1234"),
   jwtSecret: required("JWT_SECRET", "dev-insecure-secret"),

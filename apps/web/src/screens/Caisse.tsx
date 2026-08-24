@@ -325,6 +325,7 @@ function ProductTile({
       <TicketBlock
         emoji={product.emoji}
         color={product.color}
+        imageKey={product.imageKey}
         iconSize={30}
         dimmed={soldOut}
         className="w-[28%] min-w-13 max-w-36 self-stretch"
@@ -403,6 +404,7 @@ function CartPanel({
                 <TicketBlock
                   emoji={l.entry.product.emoji}
                   color={l.entry.product.color}
+                  imageKey={l.entry.product.imageKey}
                   iconSize={18}
                   className="mt-0.5 h-10 w-10"
                 />

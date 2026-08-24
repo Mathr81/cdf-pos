@@ -4,6 +4,7 @@ import { stateRoutes } from "./state.js";
 import { eventsRoutes } from "./events.js";
 import { statsRoutes } from "./stats.js";
 import { adminRoutes } from "./admin.js";
+import { mediaRoutes } from "./media.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/health", async () => ({ ok: true, ts: new Date().toISOString() }));
@@ -13,4 +14,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(eventsRoutes, { prefix: "/api" });
   await app.register(statsRoutes, { prefix: "/api" });
   await app.register(adminRoutes, { prefix: "/api" });
+  await app.register(mediaRoutes, { prefix: "/api" });
 }

@@ -190,6 +190,7 @@ function TodoCard({
         <TicketBlock
           emoji={product.emoji}
           color={product.color}
+          imageKey={product.imageKey}
           iconSize={38}
           className="h-20 w-20 shrink-0"
         />
@@ -263,6 +264,7 @@ function DoneCard({
       <TicketBlock
         emoji={product.emoji}
         color={product.color}
+        imageKey={product.imageKey}
         iconSize={18}
         className="h-10 w-10"
       />

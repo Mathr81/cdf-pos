@@ -17,9 +17,11 @@ import { ChefHatIcon } from "@phosphor-icons/react/dist/csr/ChefHat";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
+import { UploadSimpleIcon } from "@phosphor-icons/react/dist/csr/UploadSimple";
+import { WifiSlashIcon } from "@phosphor-icons/react/dist/csr/WifiSlash";
 import { WarningIcon } from "@phosphor-icons/react/dist/csr/Warning";
 
-import { projection } from "../lib/store.js";
+import { projection, useStore } from "../lib/store.js";
 import { useRev } from "../lib/hooks.js";
 import { newId } from "../lib/device.js";
 import { deleteProduct, deleteStation, upsertProduct, upsertStation } from "../lib/actions.js";
@@ -86,6 +88,7 @@ export function AdminScreen() {
                 sortOrder: products.length,
                 emoji: "hamburger",
                 color: "#f59e0b",
+                imageKey: null,
               })
             }
           >
@@ -105,6 +108,7 @@ export function AdminScreen() {
                   <TicketBlock
                     emoji={p.emoji}
                     color={p.color}
+                    imageKey={p.imageKey}
                     iconSize={22}
                     dimmed={!p.active}
                     className="h-12 w-12"
@@ -238,6 +242,7 @@ function ProductEditor({
   const [components, setComponents] = useState<ProductComponent[]>(product.components);
   const [emoji, setEmoji] = useState(product.emoji);
   const [color, setColor] = useState(product.color);
+  const [imageKey, setImageKey] = useState<string | null>(product.imageKey);
   const [active, setActive] = useState(product.active);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -255,6 +260,7 @@ function ProductEditor({
       sortOrder: product.sortOrder,
       emoji,
       color,
+      imageKey,
     });
     onClose();
   };
@@ -334,9 +340,21 @@ function ProductEditor({
             onChange={setComponents}
           />
 
-          <IconPicker value={emoji} onChange={setEmoji} color={color} />
+          <VisualPicker
+            emoji={emoji}
+            onEmojiChange={setEmoji}
+            imageKey={imageKey}
+            onImageChange={setImageKey}
+            color={color}
+          />
 
-          <TicketColorField value={color} onChange={setColor} emoji={emoji} name={name} />
+          <TicketColorField
+            value={color}
+            onChange={setColor}
+            emoji={emoji}
+            imageKey={imageKey}
+            name={name}
+          />
 
           <label className="flex min-h-11 cursor-pointer items-center gap-3 text-body text-sand">
             <input
@@ -383,6 +401,245 @@ function ProductEditor({
 }
 
 /**
+ * Choix du visuel : une icône OU une image.
+ *
+ * Exclusivité au RENDU, pas en base. `emoji` reste toujours renseigné même
+ * quand une image est choisie, parce que c'est lui qui sert de repli quand
+ * l'image n'est pas encore dans le cache local d'un poste hors ligne. Retirer
+ * l'image restaure donc l'icône précédente au lieu de laisser le produit nu.
+ */
+function VisualPicker({
+  emoji,
+  onEmojiChange,
+  imageKey,
+  onImageChange,
+  color,
+}: {
+  emoji: string;
+  onEmojiChange: (v: string) => void;
+  imageKey: string | null;
+  onImageChange: (v: string | null) => void;
+  color: string;
+}) {
+  const connected = useStore((s) => s.connected);
+  const [tab, setTab] = useState<"icone" | "image">(imageKey ? "image" : "icone");
+
+  return (
+    <div>
+      <FieldLabel>Visuel du produit</FieldLabel>
+      <div className="mb-2 flex gap-2">
+        <TabBtn active={tab === "icone"} onClick={() => setTab("icone")}>
+          Icône
+        </TabBtn>
+        <TabBtn active={tab === "image"} onClick={() => setTab("image")}>
+          Image
+        </TabBtn>
+      </div>
+
+      {tab === "image" ? (
+        <ImageUploader
+          imageKey={imageKey}
+          onChange={onImageChange}
+          color={color}
+          emoji={emoji}
+          connected={connected}
+        />
+      ) : (
+        <IconPicker
+          value={emoji}
+          onChange={(v) => {
+            onEmojiChange(v);
+            // Choisir une icône retire l'image : les deux ne s'affichent
+            // jamais ensemble.
+            if (imageKey) onImageChange(null);
+          }}
+          color={color}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Upload d'image.
+ *
+ * Seule action de l'application qui exige le réseau : le binaire ne transite
+ * pas par le journal d'événements, il est déposé sur le serveur qui renvoie
+ * une référence. On le dit AVANT que l'utilisateur essaie, pas après l'échec.
+ *
+ * L'aperçu affiche le fichier réellement produit par le serveur (320x320 WebP),
+ * pas un aperçu local du fichier source : le redimensionnement, le recadrage et
+ * la compression sont donc visibles avant d'enregistrer.
+ */
+function ImageUploader({
+  imageKey,
+  onChange,
+  color,
+  emoji,
+  connected,
+}: {
+  imageKey: string | null;
+  onChange: (v: string | null) => void;
+  color: string;
+  emoji: string;
+  connected: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"photo" | "icone" | null>(null);
+  const [info, setInfo] = useState<{ bytes: number } | null>(null);
+  // Conservé le temps de l'édition : changer de mode retraite CE fichier,
+  // sans redemander à l'utilisateur d'aller le rechercher.
+  const [source, setSource] = useState<File | null>(null);
+
+  const send = async (file: File, wanted?: "photo" | "icone") => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.uploadImage(file, wanted);
+      onChange(res.imageKey);
+      setMode(res.mode);
+      setInfo({ bytes: res.bytes });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!connected) {
+    return (
+      <div className="flex items-start gap-2.5 rounded-control border border-line bg-well p-3">
+        <WifiSlashIcon size={18} weight="bold" className="mt-0.5 shrink-0 text-signal" />
+        <p className="text-body text-sand">
+          <b className="text-cream">Ajouter une image demande d'être connecté.</b>
+          <span className="mt-0.5 block text-micro text-ash">
+            Le reste de la fiche produit se modifie normalement hors ligne. Reconnecte-toi pour
+            changer l'image.
+          </span>
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-control border border-line bg-well p-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <TicketBlock
+          emoji={emoji}
+          color={color}
+          imageKey={imageKey}
+          iconSize={26}
+          className="h-20 w-20"
+        />
+        <div className="min-w-0 flex-1">
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-control border border-line bg-surface px-3 text-body font-bold text-cream">
+            <UploadSimpleIcon size={18} weight="bold" />
+            {imageKey ? "Remplacer" : "Choisir une image"}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                setSource(f);
+                void send(f);
+              }}
+            />
+          </label>
+          <p className="mt-1 text-micro text-ash">
+            {busy
+              ? "Traitement en cours…"
+              : imageKey && info
+                ? `Aperçu du rendu réel · 320×320 · ${Math.round(info.bytes / 1024)} ko`
+                : "PNG, JPEG, WebP, GIF, AVIF ou SVG. Max 8 Mo."}
+          </p>
+        </div>
+      </div>
+
+      {imageKey && (
+        <>
+          <div>
+            <p className="mb-1.5 text-micro font-semibold text-ash">Traitement</p>
+            <div className="flex flex-wrap gap-2">
+              <ModeBtn
+                active={mode === "photo"}
+                disabled={busy || !source}
+                onClick={() => source && send(source, "photo")}
+                label="Photo"
+                hint="recadré, compressé"
+              />
+              <ModeBtn
+                active={mode === "icone"}
+                disabled={busy || !source}
+                onClick={() => source && send(source, "icone")}
+                label="Icône ou logo"
+                hint="centré, fond transparent, sans perte"
+              />
+            </div>
+            {!source && (
+              <p className="mt-1.5 text-micro text-ash">
+                Choisis une nouvelle image pour changer de traitement.
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              setSource(null);
+              setMode(null);
+              setInfo(null);
+            }}
+            className="inline-flex min-h-11 items-center gap-2 text-body font-semibold text-ash transition-colors hover:text-signal"
+          >
+            <TrashIcon size={16} weight="bold" />
+            Retirer l'image et revenir à l'icône
+          </button>
+        </>
+      )}
+
+      {error && <p className="text-body font-semibold text-signal">{error}</p>}
+    </div>
+  );
+}
+
+function ModeBtn({
+  active,
+  disabled,
+  onClick,
+  label,
+  hint,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "min-h-12 rounded-control border px-3 text-left transition-colors disabled:opacity-40",
+        active ? "border-lantern bg-lantern/15" : "border-line bg-surface",
+      )}
+    >
+      <span className={cn("block text-body font-bold", active ? "text-lantern" : "text-cream")}>
+        {label}
+      </span>
+      <span className="block text-micro text-ash">{hint}</span>
+    </button>
+  );
+}
+
+/**
  * Sélecteur d'icône.
  * Écrit un slug Phosphor (ex "hamburger") dans `product.emoji`, qui est un
  * `z.string()` libre : aucun champ nouveau, aucune migration. Le champ de
@@ -401,7 +658,6 @@ function IconPicker({
   const custom = !isIconSlug(value);
   return (
     <div>
-      <FieldLabel>Icône</FieldLabel>
       <div className="space-y-3 rounded-control border border-line bg-well p-3">
         {ICON_GROUPS.map((g) => (
           <div key={g.label}>
@@ -459,11 +715,13 @@ function TicketColorField({
   value,
   onChange,
   emoji,
+  imageKey,
   name,
 }: {
   value: string;
   onChange: (v: string) => void;
   emoji: string;
+  imageKey: string | null;
   name: string;
 }) {
   const hex = ticketColor(value);
@@ -479,11 +737,19 @@ function TicketColorField({
           className="h-12 w-16 shrink-0 cursor-pointer rounded-control border border-line bg-surface"
         />
         <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control border border-line bg-surface p-2">
-          <TicketBlock emoji={emoji} color={hex} iconSize={22} className="h-12 w-12" />
+          <TicketBlock
+            emoji={emoji}
+            color={hex}
+            imageKey={imageKey}
+            iconSize={22}
+            className="h-12 w-12"
+          />
           <div className="min-w-0">
             <div className="truncate text-body font-bold text-cream">{name || "Aperçu"}</div>
             <div className="text-micro text-ash">
-              Encre {inkOn(hex) === "#14100f" ? "sombre" : "claire"}, choisie automatiquement
+              {imageKey
+                ? "L'image se pose sur cette couleur, qui reste visible autour."
+                : `Encre ${inkOn(hex) === "#14100f" ? "sombre" : "claire"}, choisie automatiquement`}
             </div>
           </div>
         </div>
@@ -562,6 +828,7 @@ function ComponentsPicker({
                   <TicketBlock
                     emoji={p.emoji}
                     color={p.color}
+                    imageKey={p.imageKey}
                     iconSize={15}
                     className="h-8 w-8"
                   />
@@ -664,7 +931,7 @@ function ResetPanel() {
       setDone(
         pending === "sales"
           ? `Ventes effacées. ${res.keptProducts} produits conservés.`
-          : "Tout a été effacé (ventes et carte).",
+          : `Tout a été effacé (ventes, carte et ${res.deletedMedia} image(s)).`,
       );
       setPending(null);
       setTyped("");
@@ -706,8 +973,8 @@ function ResetPanel() {
           Tout effacer
         </h2>
         <p className="mt-2 text-body text-sand">
-          Supprime aussi la carte (produits et stations). L'application repart totalement vide : à
-          utiliser si tu veux tout ressaisir toi-même.
+          Supprime aussi la carte (produits, stations) et les images envoyées. L'application repart
+          totalement vide : à utiliser si tu veux tout ressaisir toi-même.
         </p>
         <Button variant="danger" size="lg" className="mt-3" onClick={() => setPending("all")}>
           Tout effacer

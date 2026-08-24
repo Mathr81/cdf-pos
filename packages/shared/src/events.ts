@@ -109,6 +109,20 @@ export const ProductUpsertPayloadSchema = z.object({
   sortOrder: z.number().int().default(0),
   emoji: z.string().default("🍔"),
   color: z.string().default("#f59e0b"),
+  /**
+   * Image personnalisée : nom de fichier seul ("<hash32>.webp"), jamais une URL,
+   * jamais un binaire. Le fichier est uploadé à part (POST /api/admin/media) et
+   * servi en HTTP ; seule cette référence circule dans le journal.
+   *
+   * ⚠️ Volontairement `.optional()` SANS `.default()`. `product_upsert` est en
+   * last-write-wins avec charge utile complète : un poste dont la PWA n'est pas
+   * encore à jour n'enverra pas ce champ, et un `.default(null)` effacerait
+   * alors l'image sans que personne comprenne pourquoi. La distinction est donc
+   * porteuse de sens et doit être préservée jusqu'à la projection :
+   *   - `undefined` → champ absent, ne pas toucher à l'image existante
+   *   - `null`      → l'admin a explicitement retiré l'image
+   */
+  imageKey: z.string().max(64).nullable().optional(),
 });
 export type ProductUpsertPayload = z.infer<typeof ProductUpsertPayloadSchema>;
 

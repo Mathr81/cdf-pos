@@ -16,6 +16,8 @@ export interface ProductState {
   sortOrder: number;
   emoji: string;
   color: string;
+  /** Nom de fichier de l'image personnalisée ("<hash32>.webp"), ou null. */
+  imageKey: string | null;
   /** Quantité vendue en direct (lignes de commande de ce produit). */
   soldDirect: number;
   /** Quantité générée par les plats qui contiennent ce produit. */
@@ -99,6 +101,7 @@ export async function getFullState(): Promise<FullState> {
         sortOrder: p.sortOrder,
         emoji: p.emoji,
         color: p.color,
+        imageKey: p.imageKey,
         soldDirect,
         soldFromComponents,
         sold,

@@ -34,9 +34,13 @@ services:
       BACKUP_SHEETS_ENABLED: ${BACKUP_SHEETS_ENABLED:-false}
       BACKUP_SHEETS_ID: ${BACKUP_SHEETS_ID:-}
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-service-account.json
+      MEDIA_DIR: /data/media
     volumes:
       # Monte le dossier secrets/ (créer secrets/google-service-account.json si backup activé).
       - ../secrets:/run/secrets:ro
+      # Images produit. Volume dédié : ces fichiers ne sont ni en base ni dans
+      # le journal d'événements, donc pg_dump ne les couvre pas.
+      - mediadata:/data/media
 
   web:
     build:
@@ -65,8 +69,13 @@ services:
       PGDATABASE: ${POSTGRES_DB}
       BACKUP_INTERVAL: ${BACKUP_INTERVAL:-900}
       BACKUP_KEEP: ${BACKUP_KEEP:-96}
+      MEDIA_DIR: /media
+      MEDIA_KEEP: ${MEDIA_KEEP:-12}
     volumes:
       - ../backups:/backups
+      # Lecture seule : le conteneur de sauvegarde ne doit jamais écrire ici.
+      - mediadata:/media:ro
 
 volumes:
   pgdata:
+  mediadata:
