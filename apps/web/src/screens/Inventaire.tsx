@@ -65,6 +65,8 @@ export function InventaireScreen() {
                   <TicketBlock
                     emoji={p.emoji}
                     color={p.color}
+                    imageKey={p.imageKey}
+                    imageZoom={p.imageZoom}
                     iconSize={22}
                     className="h-12 w-12"
                   />
@@ -165,7 +167,14 @@ function AdjustModal({
   return (
     <Modal open onClose={onClose}>
       <div className="mb-4 flex items-center gap-3">
-        <TicketBlock emoji={product.emoji} color={product.color} iconSize={22} className="h-12 w-12" />
+        <TicketBlock
+          emoji={product.emoji}
+          color={product.color}
+          imageKey={product.imageKey}
+          imageZoom={product.imageZoom}
+          iconSize={22}
+          className="h-12 w-12"
+        />
         <div className="min-w-0">
           <h2 className="font-display truncate text-lead font-bold text-cream">
             {isRestock ? "Réapprovisionnement" : "Déclarer une perte"}

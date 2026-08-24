@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "./db.js";
+import { purgeMedia } from "./media.js";
 
 /**
  * ─────────────────────────────────────────────────────────────
@@ -56,6 +57,8 @@ export interface ResetResult {
   /** Nouvel epoch : les appareils qui le reçoivent purgent leur cache local. */
   epoch: string;
   deleted: { events: number; orders: number; stockMovements: number; prepared: number };
+  /** Fichiers image supprimés du volume média (scope « all » uniquement). */
+  deletedMedia: number;
   keptProducts: number;
 }
 
@@ -93,8 +96,14 @@ export async function resetData(scope: ResetScope): Promise<ResetResult> {
     };
   });
 
+  // Les images vivent sur disque, hors base : `pg_dump` ne les couvre pas et
+  // la transaction ci-dessus ne les supprime pas non plus. Sans ce nettoyage,
+  // « l'application repart totalement vide » serait faux et le volume ne ferait
+  // que grossir. `scope: "sales"` n'y touche pas, puisque les produits restent.
+  const deletedMedia = scope === "all" ? await purgeMedia().catch(() => 0) : 0;
+
   const epoch = await bumpEpoch();
   const keptProducts = await prisma.product.count();
 
-  return { scope, epoch, deleted, keptProducts };
+  return { scope, epoch, deleted, deletedMedia, keptProducts };
 }
