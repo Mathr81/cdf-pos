@@ -211,6 +211,7 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
         // on n'écrit rien, l'image existante est conservée. `null` explicite
         // signifie au contraire que l'admin a retiré l'image.
         ...(p.imageKey !== undefined ? { imageKey: p.imageKey } : {}),
+        ...(p.imageZoom !== undefined ? { imageZoom: p.imageZoom } : {}),
       };
       await tx.product.upsert({
         where: { id: p.id },

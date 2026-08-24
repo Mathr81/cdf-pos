@@ -386,6 +386,7 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
                   emoji={p.emoji}
                   color={p.color}
                   imageKey={p.imageKey}
+                  imageZoom={p.imageZoom}
                   iconSize={16}
                   className="h-9 w-9"
                 />

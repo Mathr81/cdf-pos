@@ -51,10 +51,25 @@ export function ProductIcon({
  *     à côté, à pleine force : la tuile reste identifiable en niveaux de
  *     gris (daltonisme, écran délavé par la lumière).
  */
+/**
+ * Part du cadre occupée par le dessin quand aucun zoom n'est enregistré.
+ * Correspond au rendu d'origine (marge de 6 % de chaque côté).
+ */
+export const DEFAULT_IMAGE_ZOOM = 88;
+
+/** Niveaux proposés dans l'éditeur produit. */
+export const ZOOM_LEVELS: { value: number; label: string }[] = [
+  { value: 100, label: "Plein" },
+  { value: 88, label: "Grand" },
+  { value: 76, label: "Moyen" },
+  { value: 62, label: "Petit" },
+];
+
 export function TicketBlock({
   emoji,
   color,
   imageKey,
+  imageZoom,
   iconSize,
   className,
   dimmed,
@@ -63,6 +78,8 @@ export function TicketBlock({
   color: string;
   /** Image personnalisée, ou null pour retomber sur l'icône. */
   imageKey: string | null;
+  /** Part du cadre occupée par le dessin, en % (40-100). null = défaut. */
+  imageZoom: number | null;
   iconSize: number;
   className?: string;
   dimmed?: boolean;
@@ -95,6 +112,9 @@ export function TicketBlock({
            un logo centré jusqu'à le faire disparaître. `contain` garantit en
            plus que la couleur du ticket reste visible autour de l'image, quel
            que soit le mode de traitement retenu à l'upload. */
+        /* Le zoom est appliqué ici, à l'affichage, et non cuit dans le fichier :
+           le corriger ne demande donc pas de renvoyer l'image. La marge est
+           répartie également, le dessin ayant déjà été normalisé au traitement. */
         <img
           src={mediaUrl(imageKey!)}
           alt=""
@@ -102,7 +122,8 @@ export function TicketBlock({
           decoding="async"
           draggable={false}
           onError={() => setBroken(true)}
-          className="h-full w-full object-contain p-[6%]"
+          className="h-full w-full object-contain"
+          style={{ padding: `${(100 - (imageZoom ?? DEFAULT_IMAGE_ZOOM)) / 2}%` }}
         />
       ) : (
         <ProductIcon value={emoji} size={iconSize} color={inkOn(hex)} />

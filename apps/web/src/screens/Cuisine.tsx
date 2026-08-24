@@ -191,6 +191,7 @@ function TodoCard({
           emoji={product.emoji}
           color={product.color}
           imageKey={product.imageKey}
+          imageZoom={product.imageZoom}
           iconSize={38}
           className="h-20 w-20 shrink-0"
         />
@@ -265,6 +266,7 @@ function DoneCard({
         emoji={product.emoji}
         color={product.color}
         imageKey={product.imageKey}
+        imageZoom={product.imageZoom}
         iconSize={18}
         className="h-10 w-10"
       />

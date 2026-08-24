@@ -37,7 +37,12 @@ import {
   StepButton,
   TextInput,
 } from "../components/ui.js";
-import { ProductIcon, TicketBlock } from "../components/ProductIcon.js";
+import {
+  DEFAULT_IMAGE_ZOOM,
+  ProductIcon,
+  TicketBlock,
+  ZOOM_LEVELS,
+} from "../components/ProductIcon.js";
 import { ICON_GROUPS, isIconSlug } from "../lib/productIcons.js";
 import { inkOn, ticketColor } from "../lib/ticket.js";
 import { Modal } from "../components/Modal.js";
@@ -89,6 +94,7 @@ export function AdminScreen() {
                 emoji: "hamburger",
                 color: "#f59e0b",
                 imageKey: null,
+                imageZoom: null,
               })
             }
           >
@@ -109,6 +115,7 @@ export function AdminScreen() {
                     emoji={p.emoji}
                     color={p.color}
                     imageKey={p.imageKey}
+                    imageZoom={p.imageZoom}
                     iconSize={22}
                     dimmed={!p.active}
                     className="h-12 w-12"
@@ -243,6 +250,7 @@ function ProductEditor({
   const [emoji, setEmoji] = useState(product.emoji);
   const [color, setColor] = useState(product.color);
   const [imageKey, setImageKey] = useState<string | null>(product.imageKey);
+  const [imageZoom, setImageZoom] = useState<number | null>(product.imageZoom);
   const [active, setActive] = useState(product.active);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -261,6 +269,7 @@ function ProductEditor({
       emoji,
       color,
       imageKey,
+      imageZoom,
     });
     onClose();
   };
@@ -345,6 +354,8 @@ function ProductEditor({
             onEmojiChange={setEmoji}
             imageKey={imageKey}
             onImageChange={setImageKey}
+            imageZoom={imageZoom}
+            onZoomChange={setImageZoom}
             color={color}
           />
 
@@ -353,6 +364,7 @@ function ProductEditor({
             onChange={setColor}
             emoji={emoji}
             imageKey={imageKey}
+            imageZoom={imageZoom}
             name={name}
           />
 
@@ -413,12 +425,16 @@ function VisualPicker({
   onEmojiChange,
   imageKey,
   onImageChange,
+  imageZoom,
+  onZoomChange,
   color,
 }: {
   emoji: string;
   onEmojiChange: (v: string) => void;
   imageKey: string | null;
   onImageChange: (v: string | null) => void;
+  imageZoom: number | null;
+  onZoomChange: (v: number | null) => void;
   color: string;
 }) {
   const connected = useStore((s) => s.connected);
@@ -440,6 +456,8 @@ function VisualPicker({
         <ImageUploader
           imageKey={imageKey}
           onChange={onImageChange}
+          imageZoom={imageZoom}
+          onZoomChange={onZoomChange}
           color={color}
           emoji={emoji}
           connected={connected}
@@ -474,12 +492,16 @@ function VisualPicker({
 function ImageUploader({
   imageKey,
   onChange,
+  imageZoom,
+  onZoomChange,
   color,
   emoji,
   connected,
 }: {
   imageKey: string | null;
   onChange: (v: string | null) => void;
+  imageZoom: number | null;
+  onZoomChange: (v: number | null) => void;
   color: string;
   emoji: string;
   connected: boolean;
@@ -529,6 +551,7 @@ function ImageUploader({
           emoji={emoji}
           color={color}
           imageKey={imageKey}
+          imageZoom={imageZoom}
           iconSize={26}
           className="h-20 w-20"
         />
@@ -587,10 +610,38 @@ function ImageUploader({
             )}
           </div>
 
+          {/* Le zoom est enregistré avec le produit et appliqué à l'affichage :
+              il reste donc réglable après coup, sans redemander le fichier
+              source, contrairement au mode ci-dessus qui est cuit dans le WebP. */}
+          <div>
+            <p className="mb-1.5 text-micro font-semibold text-ash">Taille dans la tuile</p>
+            <div className="flex flex-wrap gap-2">
+              {ZOOM_LEVELS.map((z) => (
+                <button
+                  key={z.value}
+                  type="button"
+                  onClick={() => onZoomChange(z.value)}
+                  className={cn(
+                    "min-h-12 rounded-control border px-3 text-body font-bold transition-colors",
+                    (imageZoom ?? DEFAULT_IMAGE_ZOOM) === z.value
+                      ? "border-lantern bg-lantern/15 text-lantern"
+                      : "border-line bg-surface text-cream",
+                  )}
+                >
+                  {z.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-micro text-ash">
+              Réglable à tout moment, sans renvoyer l'image.
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={() => {
               onChange(null);
+              onZoomChange(null);
               setSource(null);
               setMode(null);
               setInfo(null);
@@ -716,12 +767,14 @@ function TicketColorField({
   onChange,
   emoji,
   imageKey,
+  imageZoom,
   name,
 }: {
   value: string;
   onChange: (v: string) => void;
   emoji: string;
   imageKey: string | null;
+  imageZoom: number | null;
   name: string;
 }) {
   const hex = ticketColor(value);
@@ -741,6 +794,7 @@ function TicketColorField({
             emoji={emoji}
             color={hex}
             imageKey={imageKey}
+            imageZoom={imageZoom}
             iconSize={22}
             className="h-12 w-12"
           />
@@ -829,6 +883,7 @@ function ComponentsPicker({
                     emoji={p.emoji}
                     color={p.color}
                     imageKey={p.imageKey}
+                    imageZoom={p.imageZoom}
                     iconSize={15}
                     className="h-8 w-8"
                   />

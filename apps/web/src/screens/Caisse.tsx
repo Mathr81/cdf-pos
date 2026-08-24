@@ -326,6 +326,7 @@ function ProductTile({
         emoji={product.emoji}
         color={product.color}
         imageKey={product.imageKey}
+        imageZoom={product.imageZoom}
         iconSize={30}
         dimmed={soldOut}
         className="w-[28%] min-w-13 max-w-36 self-stretch"
@@ -405,6 +406,7 @@ function CartPanel({
                   emoji={l.entry.product.emoji}
                   color={l.entry.product.color}
                   imageKey={l.entry.product.imageKey}
+                  imageZoom={l.entry.product.imageZoom}
                   iconSize={18}
                   className="mt-0.5 h-10 w-10"
                 />

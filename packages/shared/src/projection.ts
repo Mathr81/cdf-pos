@@ -39,6 +39,8 @@ export interface ClientProduct {
    * pas encore en cache local (poste hors ligne qui n'a jamais vu ce produit).
    */
   imageKey: string | null;
+  /** Part du cadre occupée par le dessin, en % (40-100). null = défaut client. */
+  imageZoom: number | null;
 }
 
 export interface ClientStation {
@@ -193,6 +195,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       // `imageKey` absent du payload = poste dont la PWA n'est pas à jour :
       // on conserve l'image déjà connue plutôt que de l'effacer.
       const previousImage = state.products[p.id]?.imageKey ?? null;
+      const previousZoom = state.products[p.id]?.imageZoom ?? null;
       state.products[p.id] = {
         id: p.id,
         name: p.name,
@@ -207,6 +210,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         emoji: p.emoji ?? "🍔",
         color: p.color ?? "#f59e0b",
         imageKey: p.imageKey !== undefined ? p.imageKey : previousImage,
+        imageZoom: p.imageZoom !== undefined ? p.imageZoom : previousZoom,
       };
       break;
     }

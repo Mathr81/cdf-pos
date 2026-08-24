@@ -349,6 +349,7 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
                   emoji={product.emoji}
                   color={product.color}
                   imageKey={product.imageKey}
+                  imageZoom={product.imageZoom}
                   iconSize={16}
                   className="h-9 w-9"
                 />

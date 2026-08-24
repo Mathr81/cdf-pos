@@ -66,6 +66,7 @@ export function InventaireScreen() {
                     emoji={p.emoji}
                     color={p.color}
                     imageKey={p.imageKey}
+                    imageZoom={p.imageZoom}
                     iconSize={22}
                     className="h-12 w-12"
                   />
@@ -170,6 +171,7 @@ function AdjustModal({
           emoji={product.emoji}
           color={product.color}
           imageKey={product.imageKey}
+          imageZoom={product.imageZoom}
           iconSize={22}
           className="h-12 w-12"
         />

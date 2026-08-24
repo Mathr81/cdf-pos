@@ -18,6 +18,8 @@ export interface ProductState {
   color: string;
   /** Nom de fichier de l'image personnalisée ("<hash32>.webp"), ou null. */
   imageKey: string | null;
+  /** Part du cadre occupée par le dessin, en % (40-100). */
+  imageZoom: number | null;
   /** Quantité vendue en direct (lignes de commande de ce produit). */
   soldDirect: number;
   /** Quantité générée par les plats qui contiennent ce produit. */
@@ -102,6 +104,7 @@ export async function getFullState(): Promise<FullState> {
         emoji: p.emoji,
         color: p.color,
         imageKey: p.imageKey,
+        imageZoom: p.imageZoom,
         soldDirect,
         soldFromComponents,
         sold,

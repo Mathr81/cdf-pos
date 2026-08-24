@@ -126,14 +126,65 @@ export interface ProcessResult {
   mode: MediaMode;
 }
 
-async function encode(buf: Buffer, mode: MediaMode, density: number | undefined) {
-  const pipeline = sharp(buf, {
+/**
+ * Les quatre coins sont-ils transparents ?
+ *
+ * C'est la condition qui autorise le rognage. `sharp().trim()` déduit la
+ * couleur de fond du pixel du coin : si ce coin est OPAQUE, il fait partie du
+ * dessin et le rognage détruit du contenu. Mesuré sur une plaque violette
+ * pleine avec un disque au centre : 300x300 ramené à 130x130 et 95 % des
+ * pixels violets supprimés.
+ *
+ * Un coin transparent est en revanche indubitablement du vide. Un dessin qui
+ * touche les quatre bords depuis un fond transparent reste intact, la boîte
+ * englobante couvrant alors tout le cadre (vérifié).
+ */
+async function cornersAreTransparent(buf: Buffer, density: number | undefined): Promise<boolean> {
+  const { data, info } = await sharp(buf, {
     ...(density !== undefined ? { density } : {}),
     limitInputPixels: LIMIT_INPUT_PIXELS,
     animated: false,
-  }).rotate(); // applique l'orientation EXIF : sans ça, une photo iPad sort couchée
+  })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  if (info.channels < 4 || info.width < 2 || info.height < 2) return false;
+  const alphaAt = (x: number, y: number) => data[(y * info.width + x) * info.channels + 3];
+  const corners = [
+    alphaAt(0, 0),
+    alphaAt(info.width - 1, 0),
+    alphaAt(0, info.height - 1),
+    alphaAt(info.width - 1, info.height - 1),
+  ];
+  return corners.every((a) => a < 16);
+}
+
+async function encode(buf: Buffer, mode: MediaMode, density: number | undefined) {
+  const base = () =>
+    sharp(buf, {
+      ...(density !== undefined ? { density } : {}),
+      limitInputPixels: LIMIT_INPUT_PIXELS,
+      animated: false,
+    }).rotate(); // applique l'orientation EXIF : sans ça, une photo iPad sort couchée
 
   if (mode === "icone") {
+    // Normalisation du cadrage. `fit: "contain"` ajuste le CADRE du fichier,
+    // pas le DESSIN : les exports de logo embarquent des marges internes très
+    // variables, et deux logos identiques exportés différemment sortaient à
+    // 100 % et 70 % du cadre. Rogner d'abord ramène tout le monde au même
+    // référentiel, le dessin lui-même.
+    //
+    // Uniquement si les coins sont transparents : voir cornersAreTransparent().
+    // Un logo aplati sur fond opaque n'est donc pas normalisé, et c'est le
+    // réglage de zoom (stocké par produit) qui permet de le rattraper.
+    let pipeline = base();
+    if (await cornersAreTransparent(buf, density)) {
+      // `trim()` calcule une boîte englobante indépendante par côté : une marge
+      // de 20 à gauche et 220 à droite est correctement traitée (vérifié).
+      pipeline = pipeline.trim({ threshold: 10 });
+    }
+
     // `contain` centre au lieu de rogner, le fond transparent laisse voir la
     // couleur du ticket derrière le logo. Sans perte : plus léger ET plus net
     // qu'un encodage avec perte sur des aplats.
@@ -146,12 +197,20 @@ async function encode(buf: Buffer, mode: MediaMode, density: number | undefined)
       .webp({ lossless: true, effort: 4 })
       .toBuffer();
   }
+  const pipeline = base();
   // `position: "attention"` cadre sur la zone de plus forte entropie : sur une
   // photo de plat, ça vise le plat plutôt que le centre géométrique.
   return pipeline
     .resize(TARGET, TARGET, { fit: "cover", position: "attention" })
     .webp({ quality: 80, effort: 5 })
     .toBuffer();
+}
+
+/** Aucun pixel visible ? Sert à refuser une image entièrement transparente. */
+async function isBlank(webp: Buffer): Promise<boolean> {
+  const { data, info } = await sharp(webp).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 3; i < data.length; i += info.channels) if (data[i] > 16) return false;
+  return true;
 }
 
 /** Suggestion de mode, seulement pour présélectionner le bouton côté UI. */
@@ -191,6 +250,12 @@ export async function processUpload(buf: Buffer, mode: MediaMode): Promise<Proce
     out = await encode(buf, mode, density);
   } catch (e) {
     throw new MediaError(`Image illisible : ${(e as Error).message}`);
+  }
+
+  // Une image sans aucun pixel visible produirait une vignette vide, stockée et
+  // sauvegardée pour rien. Le cas devient plus probable avec le rognage.
+  if (mode === "icone" && (await isBlank(out))) {
+    throw new MediaError("Image vide : aucun pixel visible après traitement");
   }
 
   // Étape 6 : nom = hash du buffer de SORTIE, écriture atomique.

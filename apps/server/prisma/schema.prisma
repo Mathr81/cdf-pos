@@ -60,6 +60,10 @@ model Product {
   /// miroir Google Sheet : y graver un chemin de déploiement serait irréversible.
   /// Le fichier vit sur disque (MEDIA_DIR), jamais en base ni dans le journal.
   imageKey       String?
+  /// Part du cadre occupée par le dessin, en pourcentage (40 à 100).
+  /// Appliqué à l'AFFICHAGE, pas cuit dans le fichier : ajustable après coup
+  /// sans redemander le fichier source. `null` = valeur par défaut du client.
+  imageZoom      Int?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @default(now()) // = event.createdAt, sert au last-write-wins
   orderItems     OrderItem[]
