@@ -41,9 +41,12 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {padded ? (
-          /* Le padding bas ADDITIONNE l'encoche à sa base — voir le
-             commentaire des utilitaires d'encoche dans index.css. */
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          /* L'encoche ne concerne QUE la feuille collée au bord bas, sous `sm`.
+             À partir de `sm` la modale est centrée (`sm:items-center`), loin de
+             l'indicateur d'accueil : y appliquer l'encoche n'y dégageait rien et
+             creusait un bas plus épais que les côtés, visible sur iPad.
+             `max()` et non une addition : voir index.css. */
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
             {children}
           </div>
         ) : (

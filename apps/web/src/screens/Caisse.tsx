@@ -250,9 +250,12 @@ export function CaisseScreen() {
           ref={gridBox.ref}
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto p-3",
-            // Réserve la hauteur de la barre panier fixe, encoche comprise :
-            // sinon la dernière ligne de tuiles reste sous la barre sur iOS.
-            itemCount > 0 && "pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-3",
+            // Réserve la hauteur de la barre panier fixe : le même
+            // `max(0.75rem, encoche)` que son propre padding bas, sinon la
+            // réserve et la barre divergent et laissent un vide ou masquent
+            // la dernière ligne de tuiles.
+            itemCount > 0 &&
+              "pb-[calc(6.25rem+max(0.75rem,env(safe-area-inset-bottom)))] lg:pb-3",
           )}
           style={gridBox.vars}
         >
@@ -283,7 +286,7 @@ export function CaisseScreen() {
       </aside>
 
       {itemCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
           <Button
             variant="primary"
             size="lg"
@@ -531,7 +534,7 @@ function CartPanel({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-line px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="shrink-0 border-t border-line px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mb-3 flex items-baseline justify-between">
           <span className="text-body text-sand">Total</span>
           <span className="font-display tnum text-display font-bold text-lantern">

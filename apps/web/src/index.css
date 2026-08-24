@@ -70,7 +70,14 @@
 html,
 body,
 #root {
+  /* `dvh` et NON `%`. En PWA plein écran iOS, une hauteur en pourcentage se
+     résout contre un viewport plus court que l'écran : la mise en page
+     s'arrêtait avant le bord bas, et la bande restante n'était plus peinte
+     que par le fond de canevas. Mesuré sur iPad Pro 12,9" : le haut couvrait
+     bien la ligne 0, mais 32px CSS manquaient en bas, d'où un liseré sombre
+     sous le panneau panier. `%` reste en repli avant iOS 15.4. */
   height: 100%;
+  height: 100dvh;
 }
 
 body {
@@ -124,7 +131,13 @@ button {
    sur Chrome desktop et Android `env()` vaut 0 et le contenu se
    retrouve collé au bord. Écrire le calcul en clair sur le côté
    concerné, sans jamais laisser un `p-*` couvrir ce même côté :
-     px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]
+     px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]
+
+   `max()` et NON `calc(base + encoche)`. L'encoche n'est pas une marge à
+   ajouter, c'est une distance minimale à dégager : quand le padding de
+   base la couvre déjà, il n'y a rien à ajouter. Une addition donnait sur
+   iPad 20px de base + 20px d'encoche = 40px en bas contre 20px sur les
+   côtés, une asymétrie visible sur toutes les modales.
 
    `safe-top` n'a pas ce problème (aucun `p-*` concurrent là où il est
    utilisé), mais la même règle s'applique s'il venait à en croiser un. */
