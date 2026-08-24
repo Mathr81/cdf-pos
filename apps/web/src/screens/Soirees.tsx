@@ -10,6 +10,12 @@ import {
   type ClientSoiree,
   type PresetItem,
 } from "@cdf/shared";
+import { ConfettiIcon } from "@phosphor-icons/react/dist/csr/Confetti";
+import { FloppyDiskIcon } from "@phosphor-icons/react/dist/csr/FloppyDisk";
+import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+
 import { projection } from "../lib/store.js";
 import { useRev } from "../lib/hooks.js";
 import { newId } from "../lib/device.js";
@@ -22,8 +28,17 @@ import {
   upsertPreset,
   upsertSoiree,
 } from "../lib/actions.js";
-import { Button, Badge } from "../components/ui.js";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  SelectInput,
+  TextInput,
+} from "../components/ui.js";
+import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
+import { ConfirmModal } from "../components/ConfirmModal.js";
 import { cn } from "../lib/cn.js";
 
 export function SoireesScreen() {
@@ -32,77 +47,122 @@ export function SoireesScreen() {
   const activeId = projection.activeSoireeId;
   const [creating, setCreating] = useState(false);
   const [carteFor, setCarteFor] = useState<ClientSoiree | null>(null);
+  const [closing, setClosing] = useState<ClientSoiree | null>(null);
+  const [deleting, setDeleting] = useState<ClientSoiree | null>(null);
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-100">Soirées</h1>
+      <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
+        <h1 className="font-display text-title font-bold text-cream">Soirées</h1>
         <Button variant="primary" onClick={() => setCreating(true)}>
-          + Nouvelle soirée
+          <PlusIcon size={18} weight="bold" />
+          Nouvelle soirée
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
-        {soirees.map((s) => {
-          const isActive = s.id === activeId;
-          const carteCount = soireeCarte(projection, s.id).length;
-          const orders = Object.values(projection.orders).filter((o) => o.soireeId === s.id).length;
-          return (
-            <div
-              key={s.id}
-              className={cn(
-                "rounded-2xl border p-3",
-                isActive ? "border-emerald-500/50 bg-emerald-500/5" : "border-slate-800 bg-slate-900/60",
-              )}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-100">{s.name}</span>
-                    {isActive && <Badge tone="emerald">Active</Badge>}
-                    {s.status === "closed" && <Badge tone="slate">Clôturée</Badge>}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {s.date} · {carteCount} produit{carteCount > 1 ? "s" : ""} · {orders} commande{orders > 1 ? "s" : ""}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        {soirees.length === 0 ? (
+          <EmptyState
+            icon={<ConfettiIcon size={44} weight="light" />}
+            title="Aucune soirée"
+            hint="Crée une soirée pour commencer à vendre. Tu pourras partir d'un modèle ou copier une carte existante."
+            action={
+              <Button variant="primary" size="lg" onClick={() => setCreating(true)}>
+                Créer une soirée
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2">
+            {soirees.map((s) => {
+              const isActive = s.id === activeId;
+              const carteCount = soireeCarte(projection, s.id).length;
+              const orders = Object.values(projection.orders).filter(
+                (o) => o.soireeId === s.id,
+              ).length;
+              return (
+                <div
+                  key={s.id}
+                  className={cn(
+                    "rounded-surface border p-3",
+                    isActive ? "border-mint bg-mint/10" : "border-line bg-surface",
+                  )}
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-lead font-bold text-cream">
+                          {s.name}
+                        </span>
+                        {isActive && <Badge tone="mint">Active</Badge>}
+                        {s.status === "closed" && <Badge tone="neutral">Clôturée</Badge>}
+                      </div>
+                      <div className="tnum text-micro text-sand">
+                        {s.date} · {carteCount} produit{carteCount > 1 ? "s" : ""} · {orders}{" "}
+                        commande{orders > 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => setCarteFor(s)}>
+                        Carte
+                      </Button>
+                      {!isActive && (
+                        <Button variant="success" size="sm" onClick={() => activateSoiree(s.id)}>
+                          Activer
+                        </Button>
+                      )}
+                      {isActive && (
+                        <Button variant="secondary" size="sm" onClick={() => setClosing(s)}>
+                          Clôturer
+                        </Button>
+                      )}
+                      {orders === 0 && (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          aria-label={`Supprimer ${s.name}`}
+                          onClick={() => setDeleting(s)}
+                        >
+                          <TrashIcon size={17} weight="bold" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setCarteFor(s)}>
-                    Carte
-                  </Button>
-                  {!isActive && (
-                    <Button variant="success" size="sm" onClick={() => activateSoiree(s.id)}>
-                      Activer
-                    </Button>
-                  )}
-                  {isActive && (
-                    <Button variant="secondary" size="sm" onClick={() => confirm("Clôturer cette soirée ?") && closeSoiree(s.id)}>
-                      Clôturer
-                    </Button>
-                  )}
-                  {orders === 0 && (
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => confirm(`Supprimer « ${s.name} » ?`) && deleteSoiree(s.id)}
-                    >
-                      🗑
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {soirees.length === 0 && (
-          <p className="mt-10 text-center text-slate-500">
-            Aucune soirée. Crée-en une pour commencer à vendre.
-          </p>
+              );
+            })}
+          </div>
         )}
       </div>
 
       {creating && <NewSoireeModal onClose={() => setCreating(false)} onEditCarte={setCarteFor} />}
       {carteFor && <CarteEditor soiree={carteFor} onClose={() => setCarteFor(null)} />}
+
+      <ConfirmModal
+        open={closing !== null}
+        title="Clôturer cette soirée ?"
+        body={
+          closing
+            ? `« ${closing.name} » ne sera plus la soirée active. Les ventes déjà enregistrées sont conservées.`
+            : undefined
+        }
+        confirmLabel="Clôturer"
+        tone="primary"
+        onConfirm={() => closing && closeSoiree(closing.id)}
+        onClose={() => setClosing(null)}
+      />
+      <ConfirmModal
+        open={deleting !== null}
+        title="Supprimer cette soirée ?"
+        body={
+          deleting
+            ? `« ${deleting.name} » sera retirée sur tous les postes. Cette soirée ne contient aucune commande.`
+            : undefined
+        }
+        confirmLabel="Supprimer"
+        onConfirm={() => deleting && deleteSoiree(deleting.id)}
+        onClose={() => setDeleting(null)}
+      />
     </div>
   );
 }
@@ -155,35 +215,35 @@ function NewSoireeModal({
     void activateSoiree(id);
     onClose();
     // Ouvre directement l'éditeur de carte pour ajuster.
-    onEditCarte({ id, name: name.trim() || "Soirée", date, status: "open", createdAt: new Date().toISOString() });
+    onEditCarte({
+      id,
+      name: name.trim() || "Soirée",
+      date,
+      status: "open",
+      createdAt: new Date().toISOString(),
+    });
   };
 
   return (
     <Modal open onClose={onClose}>
-      <h2 className="mb-4 text-lg font-bold text-slate-100">Nouvelle soirée</h2>
+      <h2 className="font-display mb-4 text-lead font-bold text-cream">Nouvelle soirée</h2>
       <div className="space-y-3">
         <Field label="Nom">
-          <input
+          <TextInput
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
-            placeholder="Fête du village…"
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-100 outline-none focus:border-amber-400"
+            placeholder="Fête du village"
           />
         </Field>
         <Field label="Date">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-100 outline-none focus:border-amber-400"
-          />
+          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
         <Field label="Partir de">
-          <select
+          <SelectInput
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-100 outline-none focus:border-amber-400"
+            className="w-full"
           >
             <option value="">Carte vide</option>
             {presets.length > 0 && (
@@ -204,15 +264,15 @@ function NewSoireeModal({
                 ))}
               </optgroup>
             )}
-          </select>
+          </SelectInput>
         </Field>
       </div>
-      <div className="mt-5 flex gap-2">
-        <Button variant="ghost" onClick={onClose}>
+      <div className="mt-6 flex gap-2">
+        <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
         <Button variant="primary" size="lg" className="flex-1" onClick={create}>
-          Créer & activer
+          Créer et activer
         </Button>
       </div>
     </Modal>
@@ -284,60 +344,84 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
         productId: p.id,
         stockInitial: Number(draft[p.id].stockInitial) || 0,
         stockUnlimited: draft[p.id].stockUnlimited,
-        priceOverrideCents: draft[p.id].price.trim() ? parseAmountToCents(draft[p.id].price) : null,
+        priceOverrideCents: draft[p.id].price.trim()
+          ? parseAmountToCents(draft[p.id].price)
+          : null,
       }));
     void upsertPreset({ id: newId(), name: presetName, items });
   };
 
   return (
     <Modal open onClose={onClose} className="max-w-2xl">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-100">Carte — {soiree.name}</h2>
-          <p className="text-xs text-slate-400">{onCarteCount} produit(s) sur la carte</p>
+          <h2 className="font-display text-lead font-bold text-cream">Carte de {soiree.name}</h2>
+          <p className="tnum text-micro text-ash">{onCarteCount} produit(s) sur la carte</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setSavePreset(true)}>
-          💾 Enregistrer comme modèle
+          <FloppyDiskIcon size={17} weight="bold" />
+          Enregistrer comme modèle
         </Button>
       </div>
 
-      <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
+      <div className="max-h-[58vh] space-y-1.5 overflow-y-auto pr-1">
         {products.map((p) => {
           const r = draft[p.id];
           return (
             <div
               key={p.id}
               className={cn(
-                "flex flex-wrap items-center gap-2 rounded-xl border p-2",
-                r.onCarte ? "border-slate-700 bg-slate-800/60" : "border-slate-800 bg-slate-900/40 opacity-70",
+                "flex flex-wrap items-center gap-2 rounded-control border p-2",
+                r.onCarte ? "border-line bg-surface" : "border-transparent opacity-60",
               )}
             >
-              <label className="flex flex-1 cursor-pointer items-center gap-2">
-                <input type="checkbox" checked={r.onCarte} onChange={(e) => set(p.id, { onCarte: e.target.checked })} className="h-5 w-5" />
-                <span className="text-lg">{p.emoji}</span>
-                <span className="text-sm font-semibold text-slate-100">{p.name}</span>
+              <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={r.onCarte}
+                  onChange={(e) => set(p.id, { onCarte: e.target.checked })}
+                  className="h-6 w-6 shrink-0 accent-lantern"
+                />
+                <TicketBlock
+                  emoji={p.emoji}
+                  color={p.color}
+                  iconSize={16}
+                  className="h-9 w-9"
+                />
+                <span className="truncate text-body font-bold text-cream">{p.name}</span>
               </label>
               {r.onCarte && (
                 <div className="flex items-center gap-2">
-                  <input
+                  <TextInput
                     value={r.price}
                     onChange={(e) => set(p.id, { price: e.target.value })}
                     inputMode="decimal"
                     placeholder={formatAmount(p.priceCents)}
-                    className="w-16 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-right text-sm text-slate-100 outline-none focus:border-amber-400"
+                    aria-label={`Prix de ${p.name}`}
                     title="Prix (vide = prix catalogue)"
+                    className="tnum w-20 min-h-11 text-right"
                   />
-                  <span className="text-xs text-slate-500">€</span>
-                  <label className="flex items-center gap-1 text-xs text-slate-400" title="Stock illimité">
-                    <input type="checkbox" checked={r.stockUnlimited} onChange={(e) => set(p.id, { stockUnlimited: e.target.checked })} className="h-4 w-4" />∞
+                  <span className="text-micro text-ash">€</span>
+                  <label
+                    className="flex min-h-11 cursor-pointer items-center gap-1.5 text-micro text-sand"
+                    title="Stock illimité"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={r.stockUnlimited}
+                      onChange={(e) => set(p.id, { stockUnlimited: e.target.checked })}
+                      className="h-5 w-5 accent-lantern"
+                    />
+                    illimité
                   </label>
                   {!r.stockUnlimited && (
-                    <input
+                    <TextInput
                       value={r.stockInitial}
                       onChange={(e) => set(p.id, { stockInitial: e.target.value })}
                       inputMode="numeric"
-                      className="w-16 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-right text-sm text-slate-100 outline-none focus:border-amber-400"
+                      aria-label={`Stock initial de ${p.name}`}
                       title="Stock initial"
+                      className="tnum w-20 min-h-11 text-right"
                     />
                   )}
                 </div>
@@ -346,12 +430,14 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
           );
         })}
         {products.length === 0 && (
-          <p className="py-6 text-center text-sm text-slate-500">Aucun produit au catalogue. Crée-en dans l'onglet Produits.</p>
+          <p className="py-6 text-center text-body text-ash">
+            Aucun produit au catalogue. Crée-en dans l'onglet Produits.
+          </p>
         )}
       </div>
 
-      <div className="mt-4 flex gap-2">
-        <Button variant="ghost" onClick={onClose}>
+      <div className="mt-5 flex gap-2">
+        <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
         <Button variant="primary" size="lg" className="flex-1" onClick={save}>
@@ -372,49 +458,62 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
   );
 }
 
-function PresetNameModal({ onClose, onSave }: { onClose: () => void; onSave: (name: string) => void }) {
+function PresetNameModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (name: string) => void;
+}) {
   const [name, setName] = useState("");
   const presets = sortedPresets(projection);
   return (
     <Modal open onClose={onClose}>
-      <h2 className="mb-3 text-lg font-bold text-slate-100">Enregistrer comme modèle</h2>
-      <input
+      <h2 className="font-display mb-3 text-lead font-bold text-cream">
+        Enregistrer comme modèle
+      </h2>
+      <TextInput
         value={name}
         onChange={(e) => setName(e.target.value)}
         autoFocus
         placeholder="Nom du modèle (ex : Carte burgers)"
-        className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-slate-100 outline-none focus:border-amber-400"
+        aria-label="Nom du modèle"
       />
       {presets.length > 0 && (
-        <div className="mt-3 space-y-1">
-          <p className="text-xs text-slate-500">Modèles existants :</p>
-          {presets.map((pr) => (
-            <div key={pr.id} className="flex items-center gap-2 text-sm text-slate-300">
-              <span className="flex-1">{pr.name}</span>
-              <button onClick={() => deletePreset(pr.id)} className="text-slate-500 hover:text-rose-400">
-                ✕
-              </button>
-            </div>
-          ))}
+        <div className="mt-4">
+          <p className="mb-1 text-micro font-bold tracking-wide text-ash uppercase">
+            Modèles existants
+          </p>
+          <div className="divide-y divide-line">
+            {presets.map((pr) => (
+              <div key={pr.id} className="flex items-center gap-2 py-1 text-body text-sand">
+                <span className="min-w-0 flex-1 truncate">{pr.name}</span>
+                <button
+                  onClick={() => deletePreset(pr.id)}
+                  aria-label={`Supprimer le modèle ${pr.name}`}
+                  className="flex h-11 w-11 items-center justify-center text-ash transition-colors hover:text-signal"
+                >
+                  <XIcon size={16} weight="bold" />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
-      <div className="mt-4 flex gap-2">
-        <Button variant="ghost" onClick={onClose}>
+      <div className="mt-5 flex gap-2">
+        <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
-        <Button variant="primary" className="flex-1" disabled={!name.trim()} onClick={() => onSave(name.trim())}>
+        <Button
+          variant="primary"
+          size="lg"
+          className="flex-1"
+          disabled={!name.trim()}
+          onClick={() => onSave(name.trim())}
+        >
           Enregistrer
         </Button>
       </div>
     </Modal>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-      {children}
-    </label>
   );
 }

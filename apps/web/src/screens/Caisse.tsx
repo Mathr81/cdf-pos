@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   formatCents,
   soireeCarte,
@@ -6,16 +6,121 @@ import {
   type CarteEntry,
   type PaymentMethod,
 } from "@cdf/shared";
+import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
+import { ConfettiIcon } from "@phosphor-icons/react/dist/csr/Confetti";
+import { ForkKnifeIcon } from "@phosphor-icons/react/dist/csr/ForkKnife";
+import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
+import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { ShoppingCartIcon } from "@phosphor-icons/react/dist/csr/ShoppingCart";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { useCart } from "../lib/cart.js";
 import { useSession } from "../lib/session.js";
 import { emitSale } from "../lib/actions.js";
-import { Button, Card } from "../components/ui.js";
+import { Button, EmptyState, StepButton, StockChip } from "../components/ui.js";
+import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { PaymentModal } from "../components/PaymentModal.js";
 import { NoSoiree } from "../components/NoSoiree.js";
 import { cn } from "../lib/cn.js";
+
+/* ─── Dimensionnement de la grille produit ────────────────────────
+   Remplir la hauteur ne suffit pas : mesuré sur banc de test, une grille
+   à colonnes figées remplissait bien l'écran mais produisait des tuiles
+   de 257x506 pour 5 produits sur iPad portrait, soit des barres de
+   couleur étirées dans des cadres vides.
+
+   On choisit donc le nombre de colonnes qui rapproche le plus la tuile
+   d'une proportion lisible (un peu plus large que haute), sous contrainte
+   de largeur et de hauteur minimales. Le calcul dépend des dimensions
+   réelles du conteneur, d'où la mesure plutôt qu'une media query. */
+const GAP = 12;
+const MIN_TILE_W = 140;
+const MIN_TILE_H = 104;
+/** Au-delà, une tuile est plus haute que son contenu ne le justifie. */
+const MAX_TILE_H = 240;
+/** hauteur / largeur visée : une tuile un peu plus large que haute. */
+const TARGET_RATIO = 0.66;
+
+/**
+ * La hauteur maximale est une CONTRAINTE sur le choix des colonnes, pas un
+ * plafond appliqué après coup. Plafonner après coup ramènerait la bande vide
+ * d'origine : sur iPad portrait, 5 produits en 2 colonnes donnent 3 lignes de
+ * 333px, et les rogner à 240px laisserait 370px de vide en bas. La bonne
+ * réponse est de réduire le nombre de colonnes, donc d'augmenter le nombre de
+ * lignes, jusqu'à ce que des lignes de hauteur raisonnable remplissent l'écran.
+ *
+ * `capped` n'est vrai que si aucune combinaison ne tient sous la contrainte
+ * (carte à 1 ou 2 produits) : la ligne est alors figée et la grille cadrée
+ * en haut, ce qui est plus honnête qu'une tuile de 1000px de haut.
+ */
+function solveGrid(count: number, boxW: number, boxH: number) {
+  const maxCols = Math.max(1, Math.floor((boxW + GAP) / (MIN_TILE_W + GAP)));
+  let fitting: { cols: number; score: number } | null = null;
+  let fallback = { cols: 1, score: Infinity };
+
+  for (let cols = 1; cols <= maxCols; cols++) {
+    const rows = Math.ceil(count / cols);
+    const tileW = (boxW - (cols - 1) * GAP) / cols;
+    // En cas de débordement, la ligne retombe sur sa hauteur minimale et la
+    // grille défile : c'est le comportement attendu au-delà d'une trentaine
+    // de produits.
+    const rowH = Math.max((boxH - (rows - 1) * GAP) / rows, MIN_TILE_H);
+    const score = Math.abs(rowH / tileW - TARGET_RATIO);
+
+    if (rowH <= MAX_TILE_H) {
+      if (!fitting || score < fitting.score) fitting = { cols, score };
+    }
+    if (score < fallback.score) fallback = { cols, score };
+  }
+
+  return fitting
+    ? { cols: fitting.cols, capped: false }
+    : { cols: fallback.cols, capped: true };
+}
+
+/**
+ * Mesure le conteneur et publie `--tile-cols` / `--tile-row-max`.
+ * Le state n'est mis à jour que si le résultat change, pour ne pas
+ * boucler avec le ResizeObserver quand la barre de défilement apparaît.
+ */
+function useTileGrid(count: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [vars, setVars] = useState<CSSProperties>({});
+  const previous = useRef("");
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const compute = () => {
+      const styles = getComputedStyle(el);
+      const boxW = el.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+      const boxH = el.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
+      if (count === 0 || boxW <= 0 || boxH <= 0) return;
+
+      const { cols, capped } = solveGrid(count, boxW, boxH);
+      const next: CSSProperties = {
+        "--tile-cols": String(cols),
+        "--tile-row-max": capped ? `${MAX_TILE_H}px` : "1fr",
+      } as CSSProperties;
+
+      const key = JSON.stringify(next);
+      if (key === previous.current) return;
+      previous.current = key;
+      setVars(next);
+    };
+
+    compute();
+    const observer = new ResizeObserver(compute);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [count]);
+
+  return { ref, vars };
+}
 
 export function CaisseScreen() {
   useRev();
@@ -35,6 +140,7 @@ export function CaisseScreen() {
     return ["Tous", ...[...set].sort()];
   }, [carte]);
   const visible = category === "Tous" ? carte : carte.filter((e) => e.product.category === category);
+  const gridBox = useTileGrid(visible.length);
 
   const lines = Object.entries(cart.items)
     .map(([id, qty]) => ({ entry: carte.find((e) => e.product.id === id), qty }))
@@ -80,18 +186,21 @@ export function CaisseScreen() {
   return (
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
-          <span className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-amber-300">
-            🎉 {soiree.name}
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-line px-3 py-2.5">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-well px-3 py-1.5 text-micro font-bold text-sand">
+            <ConfettiIcon size={14} weight="fill" className="text-lantern" />
+            {soiree.name}
           </span>
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex gap-2">
             {categories.map((c) => (
               <button
                 key={c}
                 onClick={() => setCategory(c)}
                 className={cn(
-                  "whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
-                  category === c ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-300 hover:bg-slate-700",
+                  "min-h-11 rounded-full px-4 text-body font-bold whitespace-nowrap transition-colors active:scale-[0.97]",
+                  category === c
+                    ? "bg-lantern text-night"
+                    : "border border-line bg-well text-sand hover:text-cream",
                 )}
               >
                 {c}
@@ -100,46 +209,95 @@ export function CaisseScreen() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-24 lg:pb-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {visible.map((e) => (
-              <ProductTile key={e.product.id} entry={e} soireeId={soireeId} qty={cart.items[e.product.id] ?? 0} onAdd={() => cart.add(e.product.id)} />
-            ))}
-          </div>
-          {visible.length === 0 && (
-            <p className="mt-10 text-center text-slate-500">
-              Aucun produit sur la carte de cette soirée. Configure-la dans Admin → Soirées.
-            </p>
+        {/* Conteneur en colonne flex : la grille reçoit `flex-1` et occupe
+            donc toute la hauteur restante. Elle déborde et défile
+            normalement quand les produits sont nombreux. */}
+        <div
+          ref={gridBox.ref}
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-y-auto p-3",
+            itemCount > 0 && "pb-28 lg:pb-3",
+          )}
+          style={gridBox.vars}
+        >
+          {visible.length === 0 ? (
+            <EmptyState
+              icon={<ForkKnifeIcon size={44} weight="light" />}
+              title="Carte vide pour cette soirée"
+              hint="Ajoute des produits depuis Soirées, en ouvrant la carte de la soirée active."
+            />
+          ) : (
+            <div className="tile-grid flex-1">
+              {visible.map((e) => (
+                <ProductTile
+                  key={e.product.id}
+                  entry={e}
+                  soireeId={soireeId}
+                  qty={cart.items[e.product.id] ?? 0}
+                  onAdd={() => cart.add(e.product.id)}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
 
-      <aside className="hidden w-96 flex-col border-l border-slate-800 bg-slate-900/50 lg:flex">{cartPanel}</aside>
+      <aside className="hidden w-96 flex-col border-l border-line bg-surface lg:flex">
+        {cartPanel}
+      </aside>
 
       {itemCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-900/95 p-3 backdrop-blur safe-bottom lg:hidden">
-          <Button variant="primary" size="lg" className="flex w-full items-center justify-between" onClick={() => setSheetOpen(true)}>
-            <span>{itemCount} article{itemCount > 1 ? "s" : ""}</span>
-            <span>{formatCents(totalCents)} · Voir le panier</span>
+        <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface p-3 lg:hidden">
+          <Button
+            variant="primary"
+            size="lg"
+            className="flex w-full items-center justify-between"
+            onClick={() => setSheetOpen(true)}
+          >
+            <span className="tnum flex items-center gap-2">
+              <ShoppingCartIcon size={20} weight="fill" />
+              {itemCount} article{itemCount > 1 ? "s" : ""}
+            </span>
+            <span className="tnum">{formatCents(totalCents)}</span>
           </Button>
         </div>
       )}
 
-      <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[85vh] overflow-hidden p-0">
+      <Modal
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        className="max-h-[85vh] overflow-hidden p-0"
+      >
         {cartPanel}
       </Modal>
 
-      <PaymentModal open={payOpen} totalCents={totalCents} onClose={() => setPayOpen(false)} onConfirm={confirmPayment} />
+      <PaymentModal
+        open={payOpen}
+        totalCents={totalCents}
+        onClose={() => setPayOpen(false)}
+        onConfirm={confirmPayment}
+      />
 
       {toast && (
-        <div className="fixed left-1/2 top-4 z-[60] -translate-x-1/2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg animate-fade-in">
-          ✓ {toast}
+        <div className="animate-rise-in fixed left-1/2 top-4 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full bg-mint px-5 py-3 text-body font-bold text-night shadow-lg">
+          <CheckCircleIcon size={20} weight="fill" />
+          {toast}
         </div>
       )}
     </div>
   );
 }
 
+/**
+ * Tuile produit.
+ * Trois signaux, trois places distinctes :
+ *   - couleur du ticket papier → aplat plein à gauche, repère à bout de bras
+ *   - icône                    → dans l'aplat, encre contrastée automatiquement
+ *   - nom                      → à droite, pleine force, suffit SEUL à
+ *                                identifier le produit (aucune dépendance
+ *                                à la couleur)
+ * La sélection (qty > 0) est signalée en lantern, qui ne sert qu'à ça.
+ */
 function ProductTile({
   entry,
   soireeId,
@@ -153,34 +311,42 @@ function ProductTile({
 }) {
   const { product, priceCents } = entry;
   const stock = stockRemaining(projection, soireeId, product.id);
+  const soldOut = stock !== null && stock <= 0;
+
   return (
     <button
       onClick={onAdd}
-      className="relative flex flex-col items-start gap-1 rounded-2xl border border-slate-800 bg-slate-800/60 p-3 text-left transition-transform active:scale-95"
-      style={{ boxShadow: `inset 3px 0 0 ${product.color}` }}
+      className={cn(
+        "relative flex gap-2.5 overflow-hidden rounded-control border bg-surface p-2 text-left",
+        "transition-transform duration-150 active:scale-[0.97]",
+        qty > 0 ? "border-lantern ring-2 ring-lantern" : "border-line",
+      )}
     >
+      <TicketBlock
+        emoji={product.emoji}
+        color={product.color}
+        iconSize={30}
+        dimmed={soldOut}
+        className="w-[28%] min-w-13 max-w-36 self-stretch"
+      />
+
+      {/* Contenu groupé au centre plutôt qu'épinglé haut et bas : sur une
+          tuile haute, `mt-auto` creusait un vide entre le nom et le prix. */}
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 py-1 pr-0.5">
+        <span className="line-clamp-2 text-body font-bold text-cream">{product.name}</span>
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <span className="tnum text-lead font-bold text-cream">{formatCents(priceCents)}</span>
+          <StockChip stock={stock} />
+        </div>
+      </div>
+
       {qty > 0 && (
-        <span className="absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-amber-500 px-1.5 text-sm font-black text-slate-950">
+        <span className="tnum absolute right-1.5 top-1.5 flex h-7 min-w-7 items-center justify-center rounded-full bg-lantern px-1.5 text-body font-black text-night">
           {qty}
         </span>
       )}
-      <span className="text-3xl">{product.emoji}</span>
-      <span className="line-clamp-2 text-sm font-semibold text-slate-100">{product.name}</span>
-      <div className="flex w-full items-center justify-between">
-        <span className="font-bold text-amber-400">{formatCents(priceCents)}</span>
-        <StockBadge stock={stock} />
-      </div>
     </button>
   );
-}
-
-/** `stock === null` = produit en stock illimité (rien à suivre). */
-function StockBadge({ stock }: { stock: number | null }) {
-  if (stock === null) return <span className="text-xs font-semibold text-slate-500">∞</span>;
-  if (stock <= 0)
-    return <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-300">épuisé</span>;
-  const tone = stock <= 10 ? "text-amber-300" : "text-slate-400";
-  return <span className={cn("text-xs font-semibold", tone)}>{stock} en stock</span>;
 }
 
 interface Line {
@@ -207,54 +373,98 @@ function CartPanel({
 }) {
   return (
     <div className="flex h-full max-h-full flex-col">
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-        <h2 className="font-bold text-slate-100">Panier</h2>
+      <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
+        <h2 className="font-display text-lead font-bold text-cream">Panier</h2>
         {lines.length > 0 && (
-          <button onClick={onClear} className="text-xs font-semibold text-slate-400 hover:text-rose-400">
+          <button
+            onClick={onClear}
+            className="min-h-11 px-2 text-body font-semibold text-ash transition-colors hover:text-signal"
+          >
             Vider
           </button>
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {lines.length === 0 ? (
-          <p className="mt-10 text-center text-sm text-slate-500">Touche un produit pour l'ajouter.</p>
+          <EmptyState
+            icon={<ShoppingCartIcon size={40} weight="light" />}
+            title="Panier vide"
+            hint="Touche un produit pour l'ajouter."
+          />
         ) : (
-          <div className="space-y-2">
+          /* Deux niveaux plutôt qu'une seule ligne : sur un panneau de 384px,
+             aligner nom + stepper + total + suppression laissait moins de
+             50px au nom, réduit à « Bu… ». Un caissier doit pouvoir relire
+             sa commande avant d'encaisser. */
+          <div className="divide-y divide-line">
             {lines.map((l) => (
-              <Card key={l.entry.product.id} className="flex items-center gap-2 p-2">
-                <span className="text-xl">{l.entry.product.emoji}</span>
+              <div key={l.entry.product.id} className="flex items-start gap-2.5 py-2.5">
+                <TicketBlock
+                  emoji={l.entry.product.emoji}
+                  color={l.entry.product.color}
+                  iconSize={18}
+                  className="mt-0.5 h-10 w-10"
+                />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-100">{l.entry.product.name}</div>
-                  <div className="text-xs text-slate-400">{formatCents(l.entry.priceCents)}</div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 truncate text-body font-bold text-cream">
+                      {l.entry.product.name}
+                    </span>
+                    <span className="tnum shrink-0 text-body font-bold text-cream">
+                      {formatCents(l.entry.priceCents * l.qty)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="tnum text-micro text-ash">
+                      {formatCents(l.entry.priceCents)}
+                    </span>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <StepButton
+                        aria-label={`Retirer un ${l.entry.product.name}`}
+                        onClick={() => onDec(l.entry.product.id)}
+                      >
+                        <MinusIcon size={18} weight="bold" />
+                      </StepButton>
+                      <span className="tnum w-7 text-center text-lead font-bold text-cream">
+                        {l.qty}
+                      </span>
+                      <StepButton
+                        aria-label={`Ajouter un ${l.entry.product.name}`}
+                        onClick={() => onInc(l.entry.product.id)}
+                      >
+                        <PlusIcon size={18} weight="bold" />
+                      </StepButton>
+                      <button
+                        onClick={() => onRemove(l.entry.product.id)}
+                        aria-label={`Supprimer ${l.entry.product.name}`}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center text-ash transition-colors hover:text-signal"
+                      >
+                        <XIcon size={16} weight="bold" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => onDec(l.entry.product.id)}>
-                    −
-                  </Button>
-                  <span className="w-6 text-center font-bold text-slate-100">{l.qty}</span>
-                  <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => onInc(l.entry.product.id)}>
-                    +
-                  </Button>
-                </div>
-                <div className="w-16 text-right text-sm font-bold text-amber-400">
-                  {formatCents(l.entry.priceCents * l.qty)}
-                </div>
-                <button onClick={() => onRemove(l.entry.product.id)} className="px-1 text-slate-500 hover:text-rose-400">
-                  ✕
-                </button>
-              </Card>
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="border-t border-slate-800 p-4 safe-bottom">
+      <div className="safe-bottom shrink-0 border-t border-line p-4">
         <div className="mb-3 flex items-baseline justify-between">
-          <span className="text-slate-400">Total</span>
-          <span className="text-3xl font-black text-slate-100">{formatCents(totalCents)}</span>
+          <span className="text-body text-sand">Total</span>
+          <span className="font-display tnum text-display font-bold text-lantern">
+            {formatCents(totalCents)}
+          </span>
         </div>
-        <Button variant="primary" size="xl" className="w-full" disabled={lines.length === 0} onClick={onPay}>
+        <Button
+          variant="primary"
+          size="xl"
+          className="w-full"
+          disabled={lines.length === 0}
+          onClick={onPay}
+        >
           Encaisser
         </Button>
       </div>

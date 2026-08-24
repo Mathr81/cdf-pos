@@ -1,4 +1,66 @@
+/* ═══════════════════════════════════════════════════════════════
+   CDF Caisse - Guinguette nocturne
+   ───────────────────────────────────────────────────────────────
+   Direction : soirée de village, 19h-23h, dehors, au doigt.
+   Base neutre chaude (jamais le bleu-ardoise de dashboard), une
+   couleur = un seul métier, contrastes vérifiés pour l'extérieur.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Polices auto-hébergées (aucun appel réseau tiers : l'app doit
+   démarrer hors ligne). Axe de graisse seul = fichiers les plus légers.
+   Le service worker les précache déjà via globPatterns ("woff2"). */
+@import "@fontsource-variable/bricolage-grotesque/wght.css";
+@import "@fontsource-variable/archivo/wght.css";
+
 @import "tailwindcss";
+
+@theme {
+  /* ─── Base neutre chaude ───────────────────────────────────
+     Contrastes mesurés sur --color-night :
+       cream 22.5:1 · sand 9.9:1 · ash 5.9:1
+     `ash` remplace l'ancien slate-500 (3.96:1, sous le seuil AA). */
+  --color-night: #14100f; /* fond de page */
+  --color-surface: #1e1917; /* cartes, header, modales */
+  --color-well: #2a2320; /* inputs, puits de saisie */
+  --color-line: #3a302c; /* filets */
+  --color-cream: #f7f0e8; /* texte principal */
+  --color-sand: #c7b9ae; /* texte secondaire */
+  --color-ash: #9c8c82; /* métadonnées, hints */
+
+  /* ─── Rôles sémantiques : une couleur, un seul métier ──────
+     Aucune de ces couleurs n'est jamais utilisée décorativement. */
+  --color-lantern: #f5b63c; /* SÉLECTION + action primaire. Rien d'autre. */
+  --color-mint: #4cc08d; /* CONFIRMATION : préparé, en ligne, réappro */
+  --color-signal: #ff6b57; /* DANGER RÉEL : épuisé, hors ligne, annulé, perte */
+  --color-dusk: #6fa8dc; /* INFO NEUTRE : carte bancaire, stock illimité */
+
+  /* ─── Typographie ─────────────────────────────────────────
+     Deux familles, variables, OFL, auto-hébergées.
+     Display = les grands moments (marque, titres, gros chiffres).
+     Sans = tout le reste, avec chiffres tabulaires. */
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Échelle à 6 pas. Ce sont les seules tailles employées dans l'app. */
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.1rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.4;
+  --text-lead: 1.125rem;
+  --text-lead--line-height: 1.35;
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.05;
+  --text-hero: 4rem;
+  --text-hero--line-height: 0.95;
+
+  /* ─── Verrou de forme (une seule règle, appliquée partout) ─
+     Surfaces 20px · Contrôles 14px · Pastilles plein arrondi.
+     Le rayon d'un bouton ne dépend plus jamais de sa taille. */
+  --radius-surface: 20px;
+  --radius-control: 14px;
+}
 
 /* ─── Base ─────────────────────────────────────────────────── */
 :root {
@@ -13,13 +75,21 @@ body,
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: #0b1120;
-  color: #e2e8f0;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  background: var(--color-night);
+  color: var(--color-cream);
   -webkit-font-smoothing: antialiased;
   /* App tactile : pas de sélection ni de tap-highlight parasites. */
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+}
+
+/* Chiffres tabulaires par défaut sur tout ce qui compte de l'argent
+   ou des quantités : les colonnes cessent de sauter pendant la saisie. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 /* Zones tactiles : pas de sélection de texte sur les boutons. */
@@ -29,17 +99,23 @@ button {
   touch-action: manipulation;
 }
 
-/* Scrollbars discrètes */
+/* Scrollbars discrètes, accordées à la base chaude. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--color-line);
   border-radius: 9999px;
 }
 
-/* ─── Utilitaires ──────────────────────────────────────────── */
+/* Anneau de focus : visible au clavier, jamais au doigt. */
+:focus-visible {
+  outline: 2px solid var(--color-lantern);
+  outline-offset: 2px;
+}
+
+/* ─── Utilitaires d'encoche ────────────────────────────────── */
 @utility safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -47,17 +123,120 @@ button {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Animation d'apparition légère */
-@keyframes fade-in {
+/* ─── Grain nocturne ───────────────────────────────────────────
+   Posé UNE seule fois, sur un pseudo-élément fixe et non cliquable :
+   jamais sur un conteneur qui défile (sinon repaint GPU continu sur
+   iPad). C'est ce qui donne la texture d'air de soirée. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Guirlande ────────────────────────────────────────────────
+   Le seul motif décoratif de l'app. Deux emplacements uniquement :
+   sous le header, et sur l'écran de connexion. Jamais sur Caisse ni
+   Cuisine, qui sont des surfaces de travail. */
+.guirlande {
+  height: 2px;
+  background-image: radial-gradient(
+    circle at center,
+    var(--color-lantern) 0 1px,
+    transparent 1.6px
+  );
+  background-size: 14px 2px;
+  background-repeat: repeat-x;
+  opacity: 0.55;
+}
+
+/* ─── Grille de tuiles produit ─────────────────────────────────
+   Correctif du bug de layout Caisse.
+
+   `grid-auto-rows: minmax(min, 1fr)` combiné au `flex-1` du parent fait
+   que les lignes s'étirent pour occuper toute la hauteur disponible, au
+   lieu d'être dimensionnées par leur contenu : c'est ce qui supprime la
+   bande vide du bas.
+
+   Mais remplir ne suffit pas. Avec un nombre de colonnes figé, 5 produits
+   sur iPad portrait remplissaient bien l'écran... sous forme de tuiles de
+   257x506, c'est-à-dire des barres de couleur étirées dans des cadres
+   quasi vides. Le nombre de colonnes est donc calculé par useTileGrid()
+   (Caisse.tsx) à partir des dimensions réelles du conteneur, pour viser
+   une proportion de tuile lisible.
+
+   `--tile-row-max` vaut 1fr dans le cas courant, et bascule sur une valeur
+   fixe quand le nombre de produits est trop faible pour remplir sans
+   produire des tuiles absurdes (carte à 1 ou 2 produits). */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--tile-cols, 2), minmax(0, 1fr));
+  grid-auto-rows: minmax(var(--tile-min-h, 6.5rem), var(--tile-row-max, 1fr));
+  align-content: start;
+  gap: 0.75rem;
+}
+
+/* ─── Motion ───────────────────────────────────────────────────
+   MOTION_INTENSITY 3. Quatre mouvements, chacun motivé :
+   retour tactile, arrivée d'une donnée distante, toast, modale.
+   Rien d'autre : sur un outil tactile répétitif, une animation non
+   justifiée est une latence perçue. */
+@keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
-.animate-fade-in {
-  animation: fade-in 0.15s ease-out;
+.animate-rise-in {
+  animation: rise-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-sheet-in {
+  animation: sheet-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Fondu court d'un compteur quand sa valeur change par le réseau :
+   signale visuellement qu'une vente distante vient d'arriver. */
+@keyframes value-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-value-in {
+  animation: value-in 0.22s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
