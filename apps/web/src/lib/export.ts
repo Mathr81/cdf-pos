@@ -1,4 +1,5 @@
 import { formatAmount, type ProjectionState } from "@cdf/shared";
+import { download } from "./download.js";
 
 /** Échappe un champ CSV (séparateur « ; », compatible Excel FR). */
 function cell(v: string | number): string {
@@ -6,15 +7,9 @@ function cell(v: string | number): string {
   return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function download(filename: string, content: string) {
+function downloadCsv(filename: string, content: string) {
   // BOM UTF-8 pour qu'Excel affiche correctement les accents.
-  const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  download(filename, "﻿" + content, "text/csv;charset=utf-8;");
 }
 
 /**
@@ -69,5 +64,5 @@ export function exportOrdersCsv(state: ProjectionState, soireeId: string | null)
 
   const tag = soireeId ? (state.soirees[soireeId]?.name ?? soireeId) : "toutes-soirees";
   const safe = tag.replace(/[^\w-]+/g, "_").toLowerCase();
-  download(`ventes-${safe}.csv`, lines.join("\n"));
+  downloadCsv(`ventes-${safe}.csv`, lines.join("\n"));
 }

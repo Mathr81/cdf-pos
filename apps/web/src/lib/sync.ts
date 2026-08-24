@@ -9,6 +9,7 @@ import type {
 } from "@cdf/shared";
 import { db, getMeta, setMeta } from "./db.js";
 import { getDeviceId } from "./device.js";
+import { pendingCount, wipeLocalData } from "./localData.js";
 import { useSession } from "./session.js";
 import { applyIncoming, useStore } from "./store.js";
 
@@ -22,19 +23,40 @@ async function refreshPending() {
 }
 
 /**
- * Efface toutes les données locales de l'appareil (journal, outbox, curseur).
- * Utilisé après une remise à zéro serveur, ou manuellement depuis l'admin
- * quand un poste est dans un état incohérent.
+ * Purge demandée par le serveur (reset diffusé, ou epoch divergent au
+ * retour du réseau). Suspend la purge si des ventes n'ont jamais été
+ * transmises : elles n'existent que sur cette tablette.
  *
- * ⚠️ Les ventes encore en attente de synchro (outbox) sont perdues : c'est
- * voulu après un reset, mais à éviter si un poste est resté hors ligne.
+ * On ne tente délibérément PAS de les pousser d'abord. Le serveur vient
+ * d'être vidé : les réinjecter ferait réapparaître des ventes que l'admin
+ * a explicitement effacées. C'est à l'écran bloquant de laisser choisir,
+ * sauvegarde en main.
+ *
+ * Renvoie `false` si l'appelant doit s'arrêter (purge suspendue ou
+ * rechargement en cours).
  */
-export async function wipeLocalData(): Promise<void> {
-  await db.transaction("rw", db.log, db.outbox, db.meta, async () => {
-    await db.log.clear();
-    await db.outbox.clear();
-    await db.meta.clear();
-  });
+async function wipeForServer(reason: "reset" | "epoch", epoch?: string | null): Promise<boolean> {
+  const count = await pendingCount();
+  if (count > 0) {
+    useStore.getState().setBlocked({ reason, count });
+    return false;
+  }
+  await wipeLocalData();
+  if (epoch) await setMeta(EPOCH_KEY, epoch);
+  window.location.reload();
+  return false;
+}
+
+/** Pousse ce qui reste, puis renvoie le nombre de ventes encore en attente. */
+export async function retryPendingSync(): Promise<number> {
+  await pushOutbox();
+  return pendingCount();
+}
+
+/** Purge acceptée en connaissance de cause, après sauvegarde du secours. */
+export async function forceWipeAndReload(): Promise<void> {
+  await wipeLocalData({ force: true });
+  window.location.reload();
 }
 
 /**
@@ -59,10 +81,7 @@ async function ensureSameEpoch(): Promise<boolean> {
   }
 
   // Remise à zéro détectée : on repart d'une ardoise vierge.
-  await wipeLocalData();
-  await setMeta(EPOCH_KEY, epoch);
-  window.location.reload();
-  return false;
+  return wipeForServer("epoch", epoch);
 }
 
 /** Reconstruit la projection depuis le journal local (démarrage hors-ligne). */
@@ -168,11 +187,7 @@ export function connect(): void {
 
   // Remise à zéro déclenchée depuis l'admin pendant que le poste est ouvert.
   socket.on("server:reset", ({ epoch }) => {
-    void (async () => {
-      await wipeLocalData();
-      if (epoch) await setMeta(EPOCH_KEY, epoch);
-      window.location.reload();
-    })();
+    void wipeForServer("reset", epoch);
   });
 }
 

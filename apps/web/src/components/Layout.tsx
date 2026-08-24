@@ -18,7 +18,9 @@ import { CloudWarningIcon } from "@phosphor-icons/react/dist/csr/CloudWarning";
 import { useSession } from "../lib/session.js";
 import { useStore } from "../lib/store.js";
 import { disconnect } from "../lib/sync.js";
+import { useWakeLock } from "../lib/wakeLock.js";
 import { cn } from "../lib/cn.js";
+import { PendingSalesGuard } from "./PendingSalesGuard.js";
 
 interface NavItem {
   to: string;
@@ -112,10 +114,31 @@ function SyncIndicator() {
   );
 }
 
+/**
+ * Avertit avant de quitter avec des ventes non transmises.
+ * Bonus, pas protection : iOS ne déclenche pas `beforeunload` de façon
+ * fiable quand on balaye l'app. Le vrai rempart est la garde de
+ * `wipeLocalData` — celui-ci ne couvre que desktop et Android.
+ */
+function usePendingExitWarning() {
+  const pending = useStore((s) => s.pending);
+  useEffect(() => {
+    if (pending === 0) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [pending]);
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { role, label, isAdmin, reset } = useSession();
   const navigate = useNavigate();
   const items = navItemsFor(role, isAdmin);
+
+  // Toutes les routes authentifiées : chaque écran de l'app est un écran de
+  // travail pendant le service.
+  useWakeLock();
+  usePendingExitWarning();
 
   const changePoste = () => {
     disconnect();
@@ -176,6 +199,8 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
 
       <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+
+      <PendingSalesGuard />
     </div>
   );
 }

@@ -221,9 +221,27 @@ docker compose exec server pnpm run db:seed -- --force   # réapplique la carte 
 > ⚠️ Une remise à zéro est **définitive** côté application. Les dumps PostgreSQL
 > (`./backups/`) et le miroir Google Sheet, eux, gardent la trace de ce qui a été
 > effacé — pense à récupérer les stats **avant** si la soirée comptait.
->
-> ⚠️ Si une caisse est **hors ligne** avec des ventes en attente au moment du reset,
-> ces ventes sont perdues. Vérifie que tous les postes sont « En ligne » d'abord.
+
+### Ventes non synchronisées : l'app refuse de les détruire
+
+Une tablette hors ligne détient des ventes qui n'existent **nulle part ailleurs**.
+Aucune purge ne peut donc les effacer en silence : les trois chemins possibles
+(bouton admin, remise à zéro lancée depuis un autre poste, reconnexion à un
+serveur déjà réinitialisé) s'arrêtent et affichent un écran bloquant.
+
+Cet écran propose :
+
+- **Réessayer la synchro** — seulement pour une purge demandée sur ce poste. Après
+  une remise à zéro, ce bouton n'apparaît pas : repousser ces ventes les ferait
+  réapparaître dans une base que l'admin vient justement de vider.
+- **Télécharger puis effacer** — écrit un fichier JSON des ventes en attente, puis
+  purge. Le fichier contient les événements bruts du journal : illisible tel quel,
+  mais **rejouable**. Garde-le si la soirée comptait.
+- **Annuler** — referme l'écran sans rien détruire. La caisse continue de
+  fonctionner ; l'indicateur d'en-tête garde le compte des ventes en attente.
+
+Il reste donc préférable de vérifier que tous les postes sont « En ligne » avant un
+reset — simplement, l'oublier ne coûte plus les ventes.
 
 ---
 
@@ -380,6 +398,21 @@ Si le réseau tombe, les caisses **continuent de fonctionner** (les ventes sont
 stockées localement). L'indicateur passe « Hors ligne · N en attente ». Dès le
 retour du réseau, tout se **resynchronise** automatiquement, sans doublon
 (idempotence par UUID).
+
+Ces ventes en attente sont protégées : voir
+[Ventes non synchronisées](#ventes-non-synchronisées--lapp-refuse-de-les-détruire).
+
+### Écran et stockage
+
+- **L'écran ne s'éteint pas** pendant le service (Screen Wake Lock), sur tous les
+  écrans de l'app. Le verrou est repris automatiquement après un passage en
+  arrière-plan. Branche quand même les tablettes : un écran allumé toute la soirée
+  vide une batterie.
+- **Stockage persistant** demandé au démarrage, pour que le navigateur ne puisse pas
+  évincer les ventes hors ligne s'il manque d'espace. Le statut réel de chaque
+  tablette est affiché dans **Admin → Remise à zéro → Stockage de cette tablette**.
+  S'il indique « Non garanti », installe l'app sur l'écran d'accueil puis reviens :
+  iOS 17+ et Chrome accordent la permission aux apps installées.
 
 ---
 

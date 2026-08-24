@@ -16,24 +16,40 @@ export const projection: ProjectionState = emptyProjection();
 
 const appliedIds = new Set<string>();
 
+/**
+ * Purge suspendue faute d'avoir pu sauver les ventes en attente.
+ *  - `manual` : l'utilisateur a demandé la purge depuis Admin
+ *  - `reset`  : remise à zéro diffusée par un AUTRE poste
+ *  - `epoch`  : reconnexion sur une base serveur déjà réinitialisée
+ */
+export interface BlockedWipe {
+  reason: "manual" | "reset" | "epoch";
+  count: number;
+}
+
 interface UiState {
   /** Compteur de révision : bumpé à chaque mutation de la projection. */
   rev: number;
   connected: boolean;
   /** Nombre d'événements en attente de synchro (outbox). */
   pending: number;
+  /** Non nul quand une purge est retenue : l'UI passe en mode bloquant. */
+  blocked: BlockedWipe | null;
   bump: () => void;
   setConnected: (v: boolean) => void;
   setPending: (n: number) => void;
+  setBlocked: (b: BlockedWipe | null) => void;
 }
 
 export const useStore = create<UiState>((set) => ({
   rev: 0,
   connected: false,
   pending: 0,
+  blocked: null,
   bump: () => set((s) => ({ rev: s.rev + 1 })),
   setConnected: (connected) => set({ connected }),
   setPending: (pending) => set({ pending }),
+  setBlocked: (blocked) => set({ blocked }),
 }));
 
 /**
