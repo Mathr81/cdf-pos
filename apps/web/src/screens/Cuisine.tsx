@@ -8,10 +8,15 @@ import {
   toPrepare,
   type ClientProduct,
 } from "@cdf/shared";
+import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
+import { ChefHatIcon } from "@phosphor-icons/react/dist/csr/ChefHat";
+import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { markPrepared } from "../lib/actions.js";
-import { Button } from "../components/ui.js";
+import { Button, EmptyState, StepButton } from "../components/ui.js";
+import { TicketBlock } from "../components/ProductIcon.js";
 import { NoSoiree } from "../components/NoSoiree.js";
 import { cn } from "../lib/cn.js";
 
@@ -68,22 +73,35 @@ export function CuisineScreen() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-3">
-        <select
-          value={stationId}
-          onChange={(e) => changeStation(e.target.value)}
-          className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 font-semibold text-slate-100 outline-none focus:border-amber-400"
-        >
-          {stations.length === 0 && <option value="">Aucune station</option>}
+      <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
+        {/* Segments tactiles plutôt qu'un <select> natif : la station change
+            rarement mais toujours dans l'urgence, gants ou mains grasses. */}
+        <div className="flex min-w-0 gap-2 overflow-x-auto">
+          {stations.length === 0 && <span className="text-body text-ash">Aucune station</span>}
           {stations.map((s) => (
-            <option key={s.id} value={s.id}>
+            <button
+              key={s.id}
+              onClick={() => changeStation(s.id)}
+              className={cn(
+                "min-h-12 rounded-control px-4 text-body font-bold whitespace-nowrap transition-colors active:scale-[0.97]",
+                s.id === stationId
+                  ? "bg-lantern text-night"
+                  : "border border-line bg-well text-sand hover:text-cream",
+              )}
+            >
               {s.name}
-            </option>
+            </button>
           ))}
-        </select>
-        <div className="ml-auto text-right">
-          <div className="text-xs uppercase tracking-wide text-slate-400">Total à préparer</div>
-          <div className={cn("text-3xl font-black leading-none", totalToPrepare > 0 ? "text-amber-400" : "text-emerald-400")}>
+        </div>
+        <div className="ml-auto shrink-0 text-right">
+          <div className="text-micro font-bold tracking-wide text-ash uppercase">À préparer</div>
+          <div
+            key={totalToPrepare}
+            className={cn(
+              "font-display tnum animate-value-in text-title leading-none font-bold",
+              totalToPrepare > 0 ? "text-cream" : "text-mint",
+            )}
+          >
             {totalToPrepare}
           </div>
         </div>
@@ -91,29 +109,40 @@ export function CuisineScreen() {
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {items.length === 0 ? (
-          <p className="mt-10 text-center text-slate-500">Aucun produit pour ce poste sur cette soirée.</p>
+          <EmptyState
+            icon={<ChefHatIcon size={44} weight="light" />}
+            title="Rien pour ce poste"
+            hint="Aucun produit de cette soirée n'est rattaché à cette station."
+          />
         ) : todo.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-emerald-400">
-            <div className="text-6xl">✓</div>
-            <div className="text-xl font-bold">Tout est à jour</div>
-            <div className="text-sm text-slate-500">Rien à préparer pour le moment.</div>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+            <CheckCircleIcon size={64} weight="fill" className="text-mint" />
+            <div className="font-display text-title font-bold text-cream">Tout est à jour</div>
+            <div className="text-body text-sand">Rien à préparer pour le moment.</div>
           </div>
         ) : (
           <>
-            {/* File à faire — priorité visuelle maximale */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {/* File à faire : priorité visuelle maximale. */}
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
               {todo.map((it) => (
                 <TodoCard key={it.product.id} item={it} soireeId={soireeId} stationId={stationId} />
               ))}
             </div>
 
-            {/* À jour — compact et discret */}
+            {/* À jour : compact et discret. */}
             {done.length > 0 && (
               <>
-                <div className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-slate-500">À jour</div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                <div className="mt-6 mb-2 text-micro font-bold tracking-wide text-ash uppercase">
+                  À jour
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                   {done.map((it) => (
-                    <DoneCard key={it.product.id} item={it} soireeId={soireeId} stationId={stationId} />
+                    <DoneCard
+                      key={it.product.id}
+                      item={it}
+                      soireeId={soireeId}
+                      stationId={stationId}
+                    />
                   ))}
                 </div>
               </>
@@ -125,68 +154,135 @@ export function CuisineScreen() {
   );
 }
 
+/** Progression préparé / vendu. Animée en `transform`, jamais en `width`. */
 function ProgressBar({ prepared, sold }: { prepared: number; sold: number }) {
   const pct = sold > 0 ? Math.min(100, Math.round((prepared / sold) * 100)) : 0;
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-700">
-      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+    <div className="h-2 w-full overflow-hidden rounded-full bg-well">
+      <div
+        className="h-full origin-left rounded-full bg-mint transition-transform duration-300"
+        style={{ transform: `scaleX(${pct / 100})`, width: "100%" }}
+      />
     </div>
   );
 }
 
-function TodoCard({ item, soireeId, stationId }: { item: KitchenItem; soireeId: string; stationId: string }) {
+/**
+ * Carte « à faire ».
+ * Le nombre restant n'a pas besoin d'une couleur d'alerte : sa magnitude
+ * est portée par la taille typographique et par le fait que la carte est
+ * dans la file active. Le teinter en lantern le mettrait en collision
+ * avec la sélection, qui est le seul métier de cette couleur.
+ */
+function TodoCard({
+  item,
+  soireeId,
+  stationId,
+}: {
+  item: KitchenItem;
+  soireeId: string;
+  stationId: string;
+}) {
   const { product, sold, prepared, remaining, viaMenus } = item;
   return (
-    <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-4">
-      <div className="flex items-center gap-3">
-        <span className="text-4xl">{product.emoji}</span>
-        <span className="text-xl font-bold text-slate-100">{product.name}</span>
-        <div className="ml-auto text-right">
-          <div className="text-[10px] uppercase tracking-wide text-amber-300/80">À faire</div>
-          <div className="text-5xl font-black leading-none text-amber-400">{remaining}</div>
+    <div className="overflow-hidden rounded-surface border border-line bg-surface">
+      <div className="flex gap-3 p-3">
+        <TicketBlock
+          emoji={product.emoji}
+          color={product.color}
+          imageKey={product.imageKey}
+          imageZoom={product.imageZoom}
+          iconSize={38}
+          className="h-20 w-20 shrink-0"
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-start justify-between gap-2">
+            <span className="font-display min-w-0 text-lead font-bold text-balance text-cream">
+              {product.name}
+            </span>
+            <div className="shrink-0 text-right">
+              <div className="text-micro font-bold tracking-wide text-ash uppercase">À faire</div>
+              <div
+                key={remaining}
+                className="font-display tnum animate-value-in text-display leading-none font-bold text-cream"
+              >
+                {remaining}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-auto pt-3">
+            <ProgressBar prepared={prepared} sold={sold} />
+            <div className="mt-1.5 flex items-center justify-between gap-2 text-micro text-sand">
+              <span className="tnum">
+                Préparé <b className="text-cream">{prepared}</b> / {sold}
+              </span>
+              {viaMenus > 0 && <span className="tnum text-ash">dont {viaMenus} en menu</span>}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-3">
-        <ProgressBar prepared={prepared} sold={sold} />
-        <div className="mt-1.5 flex items-center justify-between text-xs text-slate-400">
-          <span>
-            Préparé <b className="text-slate-200">{prepared}</b> / {sold}
-          </span>
-          {viaMenus > 0 && <span className="text-slate-500">dont {viaMenus} en menu</span>}
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-4 gap-2">
-        <Button variant="secondary" size="sm" className="h-12" onClick={() => markPrepared(product.id, stationId, -1, soireeId)}>
+      {/* Geste le plus répété du service, souvent gants ou mains grasses :
+          cibles portées à 64px, au-delà du minimum de 44. */}
+      <div className="grid grid-cols-4 gap-2 border-t border-line p-2">
+        <Button
+          variant="secondary"
+          size="lg"
+          className="h-16"
+          onClick={() => markPrepared(product.id, stationId, -1, soireeId)}
+        >
           −1
         </Button>
-        <Button variant="success" size="sm" className="h-12 text-base" onClick={() => markPrepared(product.id, stationId, 1, soireeId)}>
-          +1
-        </Button>
-        <Button variant="success" size="sm" className="h-12 text-base" onClick={() => markPrepared(product.id, stationId, 5, soireeId)}>
-          +5
-        </Button>
-        <Button variant="success" size="sm" className="h-12 text-base" onClick={() => markPrepared(product.id, stationId, 10, soireeId)}>
-          +10
-        </Button>
+        {[1, 5, 10].map((n) => (
+          <Button
+            key={n}
+            variant="success"
+            size="lg"
+            className="h-16"
+            onClick={() => markPrepared(product.id, stationId, n, soireeId)}
+          >
+            +{n}
+          </Button>
+        ))}
       </div>
     </div>
   );
 }
 
-function DoneCard({ item, soireeId, stationId }: { item: KitchenItem; soireeId: string; stationId: string }) {
+function DoneCard({
+  item,
+  soireeId,
+  stationId,
+}: {
+  item: KitchenItem;
+  soireeId: string;
+  stationId: string;
+}) {
   const { product, sold, prepared } = item;
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 p-2.5">
-      <span className="text-xl">{product.emoji}</span>
+    <div className="flex items-center gap-2.5 rounded-control border border-line bg-surface p-2">
+      <TicketBlock
+        emoji={product.emoji}
+        color={product.color}
+        imageKey={product.imageKey}
+        imageZoom={product.imageZoom}
+        iconSize={18}
+        className="h-10 w-10"
+      />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-slate-300">{product.name}</div>
-        <div className="text-xs text-emerald-400">✓ {prepared}/{sold}</div>
+        <div className="truncate text-body font-bold text-cream">{product.name}</div>
+        <div className="tnum flex items-center gap-1 text-micro text-mint">
+          <CheckCircleIcon size={13} weight="fill" />
+          {prepared}/{sold}
+        </div>
       </div>
-      <Button variant="ghost" size="sm" className="h-8 w-8 !px-0" onClick={() => markPrepared(product.id, stationId, 1, soireeId)}>
-        +
-      </Button>
+      <StepButton
+        aria-label={`Préparer un ${product.name} de plus`}
+        onClick={() => markPrepared(product.id, stationId, 1, soireeId)}
+      >
+        <PlusIcon size={18} weight="bold" />
+      </StepButton>
     </div>
   );
 }

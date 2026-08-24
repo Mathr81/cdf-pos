@@ -17,13 +17,35 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [/^\/api/, /^\/socket\.io/],
+        // Les images produit ne sont pas connues au build : elles sont
+        // uploadées en cours d'exploitation. Elles sont donc mises en cache à
+        // l'exécution, au premier affichage, pour rester disponibles hors ligne.
+        //
+        // CacheFirst est ici exact et pas seulement pratique : le nom de
+        // fichier est le hash du contenu, une clé donnée ne peut donc jamais
+        // changer de contenu. Rien à revalider. Changer d'image change l'URL.
+        //
+        // Si une image n'est pas encore en cache et que le poste est hors
+        // ligne, la requête échoue et TicketBlock retombe sur l'icône du
+        // produit (voir components/ProductIcon.tsx).
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith("/api/media/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "cdf-media",
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       manifest: {
         name: "CDF Caisse",
         short_name: "CDF",
         description: "Caisse & cuisine — comité des fêtes",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
+        theme_color: "#14100f",
+        background_color: "#14100f",
         display: "standalone",
         orientation: "any",
         start_url: "/",

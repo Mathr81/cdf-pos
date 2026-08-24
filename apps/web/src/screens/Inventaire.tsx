@@ -7,10 +7,17 @@ import {
   type ClientProduct,
   type StockReason,
 } from "@cdf/shared";
+import { ConfettiIcon } from "@phosphor-icons/react/dist/csr/Confetti";
+import { InfinityIcon } from "@phosphor-icons/react/dist/csr/Infinity";
+import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
+import { PackageIcon } from "@phosphor-icons/react/dist/csr/Package";
+import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { adjustStock } from "../lib/actions.js";
-import { Button } from "../components/ui.js";
+import { Button, EmptyState, StepButton } from "../components/ui.js";
+import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { NoSoiree } from "../components/NoSoiree.js";
 import { cn } from "../lib/cn.js";
@@ -28,74 +35,109 @@ export function InventaireScreen() {
 
   return (
     <div className="mx-auto flex h-full max-w-4xl flex-col p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <h1 className="text-xl font-bold text-slate-100">Inventaire</h1>
-        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-amber-300">🎉 {soiree.name}</span>
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+        <h1 className="font-display text-title font-bold text-cream">Inventaire</h1>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-well px-3 py-1.5 text-micro font-bold text-sand">
+          <ConfettiIcon size={14} weight="fill" className="text-lantern" />
+          {soiree.name}
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="space-y-2">
-          {rows.map(({ product: p }) => {
-            const sold = soldWithComponents(projection, soireeId, p.id);
-            const viaMenus = soldFromComponents(projection, soireeId, p.id);
-            const adj = projection.adjustments[soireeId]?.[p.id] ?? 0;
-            const remaining = stockRemaining(projection, soireeId, p.id);
-            return (
-              <div
-                key={p.id}
-                className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
-              >
-                <span className="text-2xl">{p.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-slate-100">{p.name}</div>
-                  <div className="text-xs text-slate-400">
-                    Vendu {sold}
-                    {viaMenus > 0 && ` (dont ${viaMenus} en menu)`}
-                    {adj !== 0 && ` · Ajust. ${adj > 0 ? "+" : ""}${adj}`}
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={<PackageIcon size={44} weight="light" />}
+            title="Aucun produit sur la carte"
+            hint="Ouvre la carte de cette soirée depuis Soirées pour choisir ce qui est en vente."
+          />
+        ) : (
+          <div className="space-y-2 pb-4">
+            {rows.map(({ product: p }) => {
+              const sold = soldWithComponents(projection, soireeId, p.id);
+              const viaMenus = soldFromComponents(projection, soireeId, p.id);
+              const adj = projection.adjustments[soireeId]?.[p.id] ?? 0;
+              const remaining = stockRemaining(projection, soireeId, p.id);
+              return (
+                <div
+                  key={p.id}
+                  className="flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface p-2.5"
+                >
+                  <TicketBlock
+                    emoji={p.emoji}
+                    color={p.color}
+                    imageKey={p.imageKey}
+                    imageZoom={p.imageZoom}
+                    iconSize={22}
+                    className="h-12 w-12"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-body font-bold text-cream">{p.name}</div>
+                    <div className="tnum text-micro text-sand">
+                      Vendu {sold}
+                      {viaMenus > 0 && ` (dont ${viaMenus} en menu)`}
+                      {adj !== 0 && ` · Ajust. ${adj > 0 ? "+" : ""}${adj}`}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-micro font-bold tracking-wide text-ash uppercase">
+                      Restant
+                    </div>
+                    {remaining === null ? (
+                      <div className="flex justify-end text-dusk" title="Stock illimité">
+                        <InfinityIcon size={28} weight="bold" />
+                      </div>
+                    ) : (
+                      <div
+                        key={remaining}
+                        className={cn(
+                          "font-display tnum animate-value-in text-title leading-none font-bold",
+                          remaining <= 0 ? "text-signal" : "text-cream",
+                        )}
+                      >
+                        {remaining}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    {remaining === null ? (
+                      <span className="text-micro text-ash">rien à suivre</span>
+                    ) : (
+                      <>
+                        <Button
+                          variant="success"
+                          size="sm"
+                          onClick={() => setAdjust({ product: p, kind: "restock" })}
+                        >
+                          <PlusIcon size={16} weight="bold" />
+                          Réappro
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => setAdjust({ product: p, kind: "spoilage" })}
+                        >
+                          <MinusIcon size={16} weight="bold" />
+                          Perte
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Restant</div>
-                  {remaining === null ? (
-                    <div className="text-2xl font-black leading-none text-sky-400" title="Stock illimité">
-                      ∞
-                    </div>
-                  ) : (
-                    <div
-                      className={cn(
-                        "text-2xl font-black leading-none",
-                        remaining <= 0 ? "text-rose-400" : remaining <= 10 ? "text-amber-400" : "text-emerald-400",
-                      )}
-                    >
-                      {remaining}
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {remaining === null ? (
-                    <span className="text-xs text-slate-500">rien à suivre</span>
-                  ) : (
-                    <>
-                      <Button variant="success" size="sm" onClick={() => setAdjust({ product: p, kind: "restock" })}>
-                        + Réappro
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => setAdjust({ product: p, kind: "spoilage" })}>
-                        − Perte
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {rows.length === 0 && (
-            <p className="mt-10 text-center text-slate-500">Aucun produit sur la carte de cette soirée.</p>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {adjust && (
-        <AdjustModal product={adjust.product} kind={adjust.kind} soireeId={soireeId} onClose={() => setAdjust(null)} />
+        <AdjustModal
+          product={adjust.product}
+          kind={adjust.kind}
+          soireeId={soireeId}
+          onClose={() => setAdjust(null)}
+        />
       )}
     </div>
   );
@@ -124,33 +166,51 @@ function AdjustModal({
 
   return (
     <Modal open onClose={onClose}>
-      <h2 className="mb-1 text-lg font-bold text-slate-100">
-        {isRestock ? "Réapprovisionnement" : "Déclarer une perte"}
-      </h2>
-      <p className="mb-4 text-sm text-slate-400">
-        {product.emoji} {product.name} · stock actuel {current ?? "∞"}
-      </p>
-
-      <div className="mb-4 flex items-center justify-center gap-4">
-        <Button variant="secondary" size="lg" className="h-14 w-14 text-2xl" onClick={() => setQty((q) => Math.max(0, q - 1))}>
-          −
-        </Button>
-        <div className="w-24 text-center text-5xl font-black text-slate-100">{qty}</div>
-        <Button variant="secondary" size="lg" className="h-14 w-14 text-2xl" onClick={() => setQty((q) => q + 1)}>
-          +
-        </Button>
+      <div className="mb-4 flex items-center gap-3">
+        <TicketBlock
+          emoji={product.emoji}
+          color={product.color}
+          imageKey={product.imageKey}
+          imageZoom={product.imageZoom}
+          iconSize={22}
+          className="h-12 w-12"
+        />
+        <div className="min-w-0">
+          <h2 className="font-display truncate text-lead font-bold text-cream">
+            {isRestock ? "Réapprovisionnement" : "Déclarer une perte"}
+          </h2>
+          <p className="tnum truncate text-body text-sand">
+            {product.name} · stock actuel {current ?? "illimité"}
+          </p>
+        </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-4 gap-2">
+      <div className="mb-4 flex items-center justify-center gap-5">
+        <StepButton
+          aria-label="Diminuer"
+          className="h-16 w-16"
+          onClick={() => setQty((q) => Math.max(0, q - 1))}
+        >
+          <MinusIcon size={26} weight="bold" />
+        </StepButton>
+        <div className="font-display tnum w-28 text-center text-hero font-bold text-cream">
+          {qty}
+        </div>
+        <StepButton aria-label="Augmenter" className="h-16 w-16" onClick={() => setQty((q) => q + 1)}>
+          <PlusIcon size={26} weight="bold" />
+        </StepButton>
+      </div>
+
+      <div className="mb-5 grid grid-cols-4 gap-2">
         {[5, 10, 25, 50].map((n) => (
-          <Button key={n} variant="ghost" size="sm" onClick={() => setQty((q) => q + n)}>
+          <Button key={n} variant="secondary" size="lg" onClick={() => setQty((q) => q + n)}>
             +{n}
           </Button>
         ))}
       </div>
 
       <div className="flex gap-2">
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
         <Button

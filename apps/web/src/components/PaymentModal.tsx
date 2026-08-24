@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { formatCents, parseAmountToCents, type PaymentMethod } from "@cdf/shared";
+import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
+import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
 import { Modal } from "./Modal.js";
 import { Numpad } from "./Numpad.js";
 import { Button } from "./ui.js";
@@ -39,27 +41,29 @@ export function PaymentModal({
 
   return (
     <Modal open={open} onClose={close}>
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="text-lg font-bold text-slate-100">Encaissement</h2>
-        <div className="text-3xl font-black text-amber-400">{formatCents(totalCents)}</div>
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <h2 className="font-display text-lead font-bold text-cream">Encaissement</h2>
+        <div className="font-display tnum text-display font-bold text-lantern">
+          {formatCents(totalCents)}
+        </div>
       </div>
 
       {mode === "choose" && (
         <div className="grid grid-cols-2 gap-3">
           <Button
             variant="secondary"
-            className="h-28 flex-col gap-2 text-xl"
+            className="h-32 flex-col gap-3 text-lead"
             onClick={() => setMode("cash")}
           >
-            <span className="text-4xl">💶</span>
+            <CoinsIcon size={40} weight="fill" className="text-lantern" />
             Espèces
           </Button>
           <Button
-            variant="success"
-            className="h-28 flex-col gap-2 text-xl"
+            variant="secondary"
+            className="h-32 flex-col gap-3 text-lead"
             onClick={() => onConfirm("card")}
           >
-            <span className="text-4xl">💳</span>
+            <CreditCardIcon size={40} weight="fill" className="text-dusk" />
             Carte
           </Button>
         </div>
@@ -67,33 +71,39 @@ export function PaymentModal({
 
       {mode === "cash" && (
         <div className="space-y-4">
-          <div className="rounded-xl bg-slate-800 p-4">
-            <div className="flex items-center justify-between text-sm text-slate-400">
-              <span>Reçu</span>
-              <span className="text-2xl font-bold text-slate-100">
-                {received ? formatCents(receivedCents) : "—"}
+          <div className="rounded-control border border-line bg-well p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-body text-sand">Reçu</span>
+              <span className="tnum text-title font-bold text-cream">
+                {received ? formatCents(receivedCents) : "aucun"}
               </span>
             </div>
-            <div className="mt-2 flex items-center justify-between border-t border-slate-700 pt-2">
-              <span className="text-sm text-slate-400">Rendu monnaie</span>
+            <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-line pt-2">
+              <span className="text-body text-sand">Rendu monnaie</span>
               <span
                 className={
                   changeCents >= 0
-                    ? "text-2xl font-black text-emerald-400"
-                    : "text-2xl font-black text-rose-400"
+                    ? "font-display tnum text-display font-bold text-mint"
+                    : "font-display tnum text-display font-bold text-signal"
                 }
               >
-                {received ? formatCents(Math.max(0, changeCents)) : "—"}
+                {received ? formatCents(Math.max(0, changeCents)) : "0,00 €"}
               </span>
             </div>
             {received !== "" && changeCents < 0 && (
-              <p className="mt-1 text-right text-xs text-rose-400">Montant insuffisant</p>
+              <p className="mt-1 text-right text-micro font-bold text-signal">Montant insuffisant</p>
             )}
           </div>
 
           <div className="grid grid-cols-4 gap-2">
             {quick.map((c) => (
-              <Button key={c} variant="ghost" size="sm" onClick={() => setReceived(centsToInput(c))}>
+              <Button
+                key={c}
+                variant="secondary"
+                size="sm"
+                className="tnum"
+                onClick={() => setReceived(centsToInput(c))}
+              >
                 {formatCents(c)}
               </Button>
             ))}
@@ -102,7 +112,7 @@ export function PaymentModal({
           <Numpad value={received} onChange={setReceived} />
 
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={reset}>
+            <Button variant="ghost" size="lg" onClick={reset}>
               Retour
             </Button>
             <Button

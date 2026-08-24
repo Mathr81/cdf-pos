@@ -8,11 +8,29 @@ import {
   type ClientOrder,
   type PaymentMethod,
 } from "@cdf/shared";
+import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
+import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
+import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
+import { NotebookIcon } from "@phosphor-icons/react/dist/csr/Notebook";
+import { PencilSimpleIcon } from "@phosphor-icons/react/dist/csr/PencilSimple";
+import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { ProhibitIcon } from "@phosphor-icons/react/dist/csr/Prohibit";
+
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { amendOrder, voidOrder } from "../lib/actions.js";
-import { Badge, Button } from "../components/ui.js";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  SelectInput,
+  StepButton,
+  TextInput,
+} from "../components/ui.js";
+import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
+import { ConfirmModal } from "../components/ConfirmModal.js";
 import { cn } from "../lib/cn.js";
 
 function fmtTime(iso: string): string {
@@ -41,7 +59,9 @@ export function JournalScreen() {
         (o) =>
           o.registerLabel.toLowerCase().includes(needle) ||
           (o.cashierName ?? "").toLowerCase().includes(needle) ||
-          o.items.some((i) => (projection.products[i.productId]?.name ?? "").toLowerCase().includes(needle)),
+          o.items.some((i) =>
+            (projection.products[i.productId]?.name ?? "").toLowerCase().includes(needle),
+          ),
       );
     }
     return list;
@@ -51,66 +71,108 @@ export function JournalScreen() {
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col p-4">
-      <h1 className="mb-3 text-xl font-bold text-slate-100">Journal des transactions</h1>
+      <h1 className="font-display mb-3 shrink-0 text-title font-bold text-cream">
+        Journal des transactions
+      </h1>
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        <select value={soireeId} onChange={(e) => setSoireeId(e.target.value)} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100">
+      <div className="mb-3 flex shrink-0 flex-wrap gap-2">
+        <SelectInput value={soireeId} onChange={(e) => setSoireeId(e.target.value)}>
           {soirees.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name} ({s.date})
             </option>
           ))}
-        </select>
-        <select value={pay} onChange={(e) => setPay(e.target.value as typeof pay)} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100">
+        </SelectInput>
+        <SelectInput value={pay} onChange={(e) => setPay(e.target.value as typeof pay)}>
           <option value="all">Tous paiements</option>
           <option value="cash">Espèces</option>
           <option value="card">Carte</option>
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100">
+        </SelectInput>
+        <SelectInput value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="all">Tous statuts</option>
           <option value="paid">Payées</option>
           <option value="void">Annulées</option>
-        </select>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher…"
-          className="min-w-32 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-        />
+        </SelectInput>
+        <div className="relative min-w-40 flex-1">
+          <MagnifyingGlassIcon
+            size={17}
+            weight="bold"
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ash"
+          />
+          <TextInput
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher"
+            aria-label="Rechercher une transaction"
+            className="pl-9"
+          />
+        </div>
       </div>
 
-      <div className="mb-2 text-xs text-slate-400">
-        {orders.length} transaction{orders.length > 1 ? "s" : ""} · CA payé {formatCents(revenue)}
+      <div className="tnum mb-2 shrink-0 text-micro text-sand">
+        {orders.length} transaction{orders.length > 1 ? "s" : ""} · CA payé{" "}
+        <b className="text-cream">{formatCents(revenue)}</b>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pb-4">
-        {orders.map((o) => (
-          <button
-            key={o.id}
-            onClick={() => setDetail(o)}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-left transition-colors hover:bg-slate-800/60",
-              o.status === "void" && "opacity-50",
-            )}
-          >
-            <div className="text-sm tabular-nums text-slate-400">{fmtTime(o.createdAt)}</div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-slate-100">
-                {o.registerLabel}
-                {o.cashierName && <span className="text-slate-400"> · {o.cashierName}</span>}
-              </div>
-              <div className="truncate text-xs text-slate-500">
-                {o.items.reduce((s, i) => s + i.qty, 0)} article(s) · {o.paymentMethod === "cash" ? "espèces" : "carte"}
-              </div>
-            </div>
-            {o.amended && <Badge tone="amber">modifiée</Badge>}
-            {o.status === "void" && <Badge tone="rose">annulée</Badge>}
-            <div className={cn("w-20 text-right font-bold", o.status === "void" ? "text-slate-500 line-through" : "text-amber-400")}>
-              {formatCents(o.totalCents)}
-            </div>
-          </button>
-        ))}
-        {orders.length === 0 && <p className="mt-10 text-center text-slate-500">Aucune transaction.</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        {orders.length === 0 ? (
+          <EmptyState
+            icon={<NotebookIcon size={44} weight="light" />}
+            title="Aucune transaction"
+            hint="Les ventes encaissées apparaîtront ici, les plus récentes en premier."
+          />
+        ) : (
+          <div className="divide-y divide-line">
+            {orders.map((o) => {
+              const voided = o.status === "void";
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => setDetail(o)}
+                  className="flex w-full items-center gap-3 px-1 py-3 text-left transition-colors hover:bg-surface"
+                >
+                  <div className="tnum shrink-0 text-body text-ash">{fmtTime(o.createdAt)}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-body font-bold text-cream">
+                      {o.registerLabel}
+                      {o.cashierName && <span className="text-sand"> · {o.cashierName}</span>}
+                    </div>
+                    <div className="tnum flex items-center gap-1.5 text-micro text-ash">
+                      {o.paymentMethod === "cash" ? (
+                        <CoinsIcon size={13} weight="fill" />
+                      ) : (
+                        <CreditCardIcon size={13} weight="fill" />
+                      )}
+                      {o.items.reduce((s, i) => s + i.qty, 0)} article(s)
+                    </div>
+                  </div>
+                  {/* Glyphes distincts : en deutéranopie, lantern et signal
+                      convergent (ΔE00 ≈ 11). La forme porte l'information. */}
+                  {o.amended && (
+                    <Badge tone="lantern">
+                      <PencilSimpleIcon size={12} weight="bold" />
+                      modifiée
+                    </Badge>
+                  )}
+                  {voided && (
+                    <Badge tone="signal">
+                      <ProhibitIcon size={12} weight="bold" />
+                      annulée
+                    </Badge>
+                  )}
+                  <div
+                    className={cn(
+                      "tnum w-20 text-right text-body font-bold",
+                      voided ? "text-ash line-through" : "text-cream",
+                    )}
+                  >
+                    {formatCents(o.totalCents)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {detail && (
@@ -137,58 +199,89 @@ function OrderDetail({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const doVoid = () => {
-    if (confirm("Annuler cette commande ? Elle sera retirée du chiffre d'affaires.")) {
-      void voidOrder(order.id);
-      onClose();
-    }
-  };
+  const [confirmVoid, setConfirmVoid] = useState(false);
+
   return (
-    <Modal open onClose={onClose}>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-slate-100">Ticket</h2>
-        <span className="text-sm text-slate-400">{new Date(order.createdAt).toLocaleString("fr-FR")}</span>
-      </div>
-      <div className="mb-3 text-xs text-slate-400">
-        {order.registerLabel}
-        {order.cashierName && ` · ${order.cashierName}`} · {order.paymentMethod === "cash" ? "espèces" : "carte"}
-        {order.status === "void" && " · ANNULÉE"}
-        {order.amended && " · modifiée"}
-      </div>
-      <div className="space-y-1 border-y border-slate-800 py-2">
-        {order.items.map((it, idx) => (
-          <div key={idx} className="flex items-center justify-between text-sm">
-            <span className="text-slate-200">
-              {it.qty}× {projection.products[it.productId]?.name ?? it.productId}
-            </span>
-            <span className="tabular-nums text-slate-400">{formatCents(it.qty * it.unitPriceCents)}</span>
+    <>
+      <Modal open onClose={onClose}>
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-lead font-bold text-cream">Ticket</h2>
+          <span className="tnum text-body text-sand">
+            {new Date(order.createdAt).toLocaleString("fr-FR")}
+          </span>
+        </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-micro text-sand">
+          <span>{order.registerLabel}</span>
+          {order.cashierName && <span>· {order.cashierName}</span>}
+          <span>· {order.paymentMethod === "cash" ? "espèces" : "carte"}</span>
+          {order.status === "void" && (
+            <Badge tone="signal">
+              <ProhibitIcon size={12} weight="bold" />
+              annulée
+            </Badge>
+          )}
+          {order.amended && (
+            <Badge tone="lantern">
+              <PencilSimpleIcon size={12} weight="bold" />
+              modifiée
+            </Badge>
+          )}
+        </div>
+
+        <div className="divide-y divide-line border-y border-line">
+          {order.items.map((it, idx) => (
+            <div key={idx} className="flex items-center justify-between gap-3 py-2 text-body">
+              <span className="tnum min-w-0 truncate text-cream">
+                {it.qty}× {projection.products[it.productId]?.name ?? it.productId}
+              </span>
+              <span className="tnum shrink-0 text-sand">
+                {formatCents(it.qty * it.unitPriceCents)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 flex items-baseline justify-between">
+          <span className="text-body text-sand">Total</span>
+          <span className="font-display tnum text-display font-bold text-lantern">
+            {formatCents(order.totalCents)}
+          </span>
+        </div>
+        {order.paymentMethod === "cash" && order.cashReceivedCents != null && (
+          <div className="tnum mt-1 text-right text-micro text-ash">
+            Reçu {formatCents(order.cashReceivedCents)} · rendu{" "}
+            {formatCents(Math.max(0, order.cashReceivedCents - order.totalCents))}
           </div>
-        ))}
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-slate-400">Total</span>
-        <span className="text-2xl font-black text-amber-400">{formatCents(order.totalCents)}</span>
-      </div>
-      {order.paymentMethod === "cash" && order.cashReceivedCents != null && (
-        <div className="mt-1 text-right text-xs text-slate-500">
-          Reçu {formatCents(order.cashReceivedCents)} · rendu {formatCents(Math.max(0, order.cashReceivedCents - order.totalCents))}
-        </div>
-      )}
-      {order.status !== "void" && (
-        <div className="mt-5 flex gap-2">
-          <Button variant="danger" onClick={doVoid}>
-            Annuler
-          </Button>
-          <div className="flex-1" />
-          <Button variant="secondary" onClick={onEdit}>
-            Modifier
-          </Button>
-          <Button variant="ghost" onClick={onClose}>
-            Fermer
-          </Button>
-        </div>
-      )}
-    </Modal>
+        )}
+
+        {order.status !== "void" && (
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button variant="danger" onClick={() => setConfirmVoid(true)}>
+              Annuler
+            </Button>
+            <div className="flex-1" />
+            <Button variant="secondary" onClick={onEdit}>
+              Modifier
+            </Button>
+            <Button variant="ghost" onClick={onClose}>
+              Fermer
+            </Button>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmModal
+        open={confirmVoid}
+        title="Annuler cette commande ?"
+        body="Elle sera retirée du chiffre d'affaires sur tous les postes."
+        confirmLabel="Annuler la commande"
+        onConfirm={() => {
+          void voidOrder(order.id);
+          onClose();
+        }}
+        onClose={() => setConfirmVoid(false)}
+      />
+    </>
   );
 }
 
@@ -201,6 +294,7 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
     return m;
   });
   const [method, setMethod] = useState<PaymentMethod>(order.paymentMethod);
+  const [error, setError] = useState<string | null>(null);
 
   const priceOf = (productId: string): number => {
     const existing = order.items.find((i) => i.productId === productId);
@@ -209,7 +303,10 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
   };
 
   const carte = soireeCarte(projection, order.soireeId);
-  const setQty = (id: string, qty: number) => setQtys((m) => ({ ...m, [id]: Math.max(0, qty) }));
+  const setQty = (id: string, qty: number) => {
+    setError(null);
+    setQtys((m) => ({ ...m, [id]: Math.max(0, qty) }));
+  };
 
   const lines = Object.entries(qtys)
     .filter(([, q]) => q > 0)
@@ -218,7 +315,7 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
 
   const save = () => {
     if (lines.length === 0) {
-      alert("Une commande doit contenir au moins un article (sinon, annule-la).");
+      setError("Une commande doit contenir au moins un article. Sinon, annule-la.");
       return;
     }
     void amendOrder({ orderId: order.id, items: lines, totalCents, paymentMethod: method });
@@ -227,47 +324,79 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
 
   // Produits proposables : ceux déjà dans la commande + ceux de la carte.
   const proposable = new Map<string, string>();
-  for (const it of order.items) proposable.set(it.productId, projection.products[it.productId]?.name ?? it.productId);
+  for (const it of order.items)
+    proposable.set(it.productId, projection.products[it.productId]?.name ?? it.productId);
   for (const e of carte) proposable.set(e.product.id, e.product.name);
 
   return (
     <Modal open onClose={onClose}>
-      <h2 className="mb-3 text-lg font-bold text-slate-100">Modifier la commande</h2>
-      <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
+      <h2 className="font-display mb-3 text-lead font-bold text-cream">Modifier la commande</h2>
+
+      <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
         {[...proposable.entries()].map(([id, name]) => {
           const q = qtys[id] ?? 0;
+          const product = projection.products[id];
           return (
-            <div key={id} className={cn("flex items-center gap-2 rounded-lg p-1.5", q > 0 ? "bg-slate-800/60" : "")}>
-              <span className="text-lg">{projection.products[id]?.emoji ?? "•"}</span>
+            <div
+              key={id}
+              className={cn(
+                "flex items-center gap-2.5 rounded-control border p-1.5",
+                q > 0 ? "border-lantern/50 bg-lantern/10" : "border-transparent",
+              )}
+            >
+              {product ? (
+                <TicketBlock
+                  emoji={product.emoji}
+                  color={product.color}
+                  imageKey={product.imageKey}
+                  imageZoom={product.imageZoom}
+                  iconSize={16}
+                  className="h-9 w-9"
+                />
+              ) : (
+                <div className="h-9 w-9 shrink-0 rounded-control border border-line" />
+              )}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-slate-100">{name}</div>
-                <div className="text-xs text-slate-500">{formatCents(priceOf(id))}</div>
+                <div className="truncate text-body text-cream">{name}</div>
+                <div className="tnum text-micro text-ash">{formatCents(priceOf(id))}</div>
               </div>
-              <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => setQty(id, q - 1)}>
-                −
-              </Button>
-              <span className="w-6 text-center font-bold text-slate-100">{q}</span>
-              <Button variant="secondary" size="sm" className="h-8 w-8 !px-0" onClick={() => setQty(id, q + 1)}>
-                +
-              </Button>
+              <StepButton aria-label={`Retirer un ${name}`} onClick={() => setQty(id, q - 1)}>
+                <MinusIcon size={17} weight="bold" />
+              </StepButton>
+              <span className="tnum w-6 text-center text-body font-bold text-cream">{q}</span>
+              <StepButton aria-label={`Ajouter un ${name}`} onClick={() => setQty(id, q + 1)}>
+                <PlusIcon size={17} weight="bold" />
+              </StepButton>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <span className="text-sm text-slate-400">Paiement</span>
-        <Button variant={method === "cash" ? "primary" : "secondary"} size="sm" onClick={() => setMethod("cash")}>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-body text-sand">Paiement</span>
+        <Button
+          variant={method === "cash" ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setMethod("cash")}
+        >
           Espèces
         </Button>
-        <Button variant={method === "card" ? "primary" : "secondary"} size="sm" onClick={() => setMethod("card")}>
+        <Button
+          variant={method === "card" ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setMethod("card")}
+        >
           Carte
         </Button>
-        <div className="ml-auto text-2xl font-black text-amber-400">{formatCents(totalCents)}</div>
+        <div className="font-display tnum ml-auto text-title font-bold text-lantern">
+          {formatCents(totalCents)}
+        </div>
       </div>
 
+      {error && <p className="mt-3 text-body font-semibold text-signal">{error}</p>}
+
       <div className="mt-4 flex gap-2">
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
         <Button variant="primary" size="lg" className="flex-1" onClick={save}>
