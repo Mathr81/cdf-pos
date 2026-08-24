@@ -22,6 +22,7 @@ import { emitSale } from "../lib/actions.js";
 import { Button, EmptyState, StepButton, StockChip } from "../components/ui.js";
 import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
+import { ConfirmModal } from "../components/ConfirmModal.js";
 import { PaymentModal } from "../components/PaymentModal.js";
 import { NoSoiree } from "../components/NoSoiree.js";
 import { cn } from "../lib/cn.js";
@@ -131,6 +132,10 @@ export function CaisseScreen() {
   const [payOpen, setPayOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [askOversell, setAskOversell] = useState<CarteEntry | null>(null);
+  /** Produits pour lesquels le dépassement de stock a déjà été confirmé
+      dans le panier en cours : on ne redemande pas à chaque unité. */
+  const oversellOk = useRef<Set<string>>(new Set());
 
   const soireeId = soiree?.id ?? "";
   const carte = useMemo(() => (soiree ? soireeCarte(projection, soiree.id) : []), [soiree, useRev()]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -150,6 +155,35 @@ export function CaisseScreen() {
 
   if (!soiree) return <NoSoiree />;
 
+  /**
+   * Ajoute une unité, en demandant confirmation si la vente dépasse le stock
+   * restant. Friction plutôt que blocage : en soirée, un stock initial mal
+   * saisi ne doit pas empêcher d'encaisser, et le négatif qui en résulte est
+   * une information utile à l'inventaire.
+   *
+   * La garde reste indicative : avec plusieurs caisses hors ligne, rien ne
+   * réserve une unité, deux caisses peuvent vendre la dernière simultanément.
+   */
+  const addUnit = (entry: CarteEntry) => {
+    const stock = stockRemaining(projection, soireeId, entry.product.id);
+    const inCart = cart.items[entry.product.id] ?? 0;
+    if (stock !== null && inCart + 1 > stock && !oversellOk.current.has(entry.product.id)) {
+      setAskOversell(entry);
+      return;
+    }
+    cart.add(entry.product.id);
+  };
+
+  const addUnitById = (id: string) => {
+    const entry = carte.find((e) => e.product.id === id);
+    if (entry) addUnit(entry);
+  };
+
+  const clearCart = () => {
+    oversellOk.current.clear();
+    cart.clear();
+  };
+
   const confirmPayment = (method: PaymentMethod, cashReceivedCents?: number) => {
     void emitSale({
       soireeId,
@@ -164,7 +198,7 @@ export function CaisseScreen() {
       totalCents,
       cashReceivedCents,
     });
-    cart.clear();
+    clearCart();
     setPayOpen(false);
     setSheetOpen(false);
     setToast(`Encaissé ${formatCents(totalCents)} · ${method === "cash" ? "espèces" : "carte"}`);
@@ -175,10 +209,10 @@ export function CaisseScreen() {
     <CartPanel
       lines={lines}
       totalCents={totalCents}
-      onInc={(id) => cart.add(id)}
+      onInc={addUnitById}
       onDec={(id) => cart.add(id, -1)}
       onRemove={(id) => cart.remove(id)}
-      onClear={cart.clear}
+      onClear={clearCart}
       onPay={() => setPayOpen(true)}
     />
   );
@@ -216,7 +250,9 @@ export function CaisseScreen() {
           ref={gridBox.ref}
           className={cn(
             "flex min-h-0 flex-1 flex-col overflow-y-auto p-3",
-            itemCount > 0 && "pb-28 lg:pb-3",
+            // Réserve la hauteur de la barre panier fixe, encoche comprise :
+            // sinon la dernière ligne de tuiles reste sous la barre sur iOS.
+            itemCount > 0 && "pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-3",
           )}
           style={gridBox.vars}
         >
@@ -234,7 +270,7 @@ export function CaisseScreen() {
                   entry={e}
                   soireeId={soireeId}
                   qty={cart.items[e.product.id] ?? 0}
-                  onAdd={() => cart.add(e.product.id)}
+                  onAdd={() => addUnit(e)}
                 />
               ))}
             </div>
@@ -247,7 +283,7 @@ export function CaisseScreen() {
       </aside>
 
       {itemCount > 0 && (
-        <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface p-3 lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
           <Button
             variant="primary"
             size="lg"
@@ -263,20 +299,54 @@ export function CaisseScreen() {
         </div>
       )}
 
-      <Modal
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        className="max-h-[85vh] overflow-hidden p-0"
-      >
+      {/* `padded={false}` : le panier gère lui-même son défilement, pour que
+          la liste seule défile et que le pied « Total + Encaisser » reste
+          visible quel que soit le nombre de lignes. */}
+      <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} padded={false}>
         {cartPanel}
       </Modal>
 
-      <PaymentModal
-        open={payOpen}
-        totalCents={totalCents}
-        onClose={() => setPayOpen(false)}
-        onConfirm={confirmPayment}
-      />
+      {payOpen && (
+        <PaymentModal
+          totalCents={totalCents}
+          onClose={() => setPayOpen(false)}
+          onConfirm={confirmPayment}
+        />
+      )}
+
+      {askOversell && (
+        <ConfirmModal
+          open
+          title="Stock épuisé"
+          body={
+            <>
+              Stock restant de <b className="text-cream">{askOversell.product.name}</b> :{" "}
+              <b className="tnum text-cream">
+                {stockRemaining(projection, soireeId, askOversell.product.id)}
+              </b>
+              {(cart.items[askOversell.product.id] ?? 0) > 0 && (
+                <>
+                  , et le panier en contient déjà{" "}
+                  <b className="tnum text-cream">{cart.items[askOversell.product.id]}</b>
+                </>
+              )}
+              . Vendre quand même fera passer le stock à{" "}
+              <b className="tnum text-signal">
+                {(stockRemaining(projection, soireeId, askOversell.product.id) ?? 0) -
+                  (cart.items[askOversell.product.id] ?? 0) -
+                  1}
+              </b>
+              .
+            </>
+          }
+          confirmLabel="Vendre quand même"
+          onConfirm={() => {
+            oversellOk.current.add(askOversell.product.id);
+            cart.add(askOversell.product.id);
+          }}
+          onClose={() => setAskOversell(null)}
+        />
+      )}
 
       {toast && (
         <div className="animate-rise-in fixed left-1/2 top-4 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full bg-mint px-5 py-3 text-body font-bold text-night shadow-lg">
@@ -373,8 +443,14 @@ function CartPanel({
   onClear: () => void;
   onPay: () => void;
 }) {
+  /* `min-h-0 flex-1` et non `h-full` : les deux parents (l'aside du bureau et
+     le cadre de la feuille mobile) sont des colonnes flex, mais aucun n'a de
+     hauteur *définie* — la feuille n'a qu'un `max-height`. Un `height: 100%`
+     s'y résout en `auto`, la liste ne se contraint donc jamais, et c'est le
+     pied « Total + Encaisser » qui était poussé hors du cadre puis rogné.
+     En item flex rétractable, c'est la liste qui absorbe le débordement. */
   return (
-    <div className="flex h-full max-h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
         <h2 className="font-display text-lead font-bold text-cream">Panier</h2>
         {lines.length > 0 && (
@@ -455,7 +531,7 @@ function CartPanel({
         )}
       </div>
 
-      <div className="safe-bottom shrink-0 border-t border-line p-4">
+      <div className="shrink-0 border-t border-line px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mb-3 flex items-baseline justify-between">
           <span className="text-body text-sand">Total</span>
           <span className="font-display tnum text-display font-bold text-lantern">
