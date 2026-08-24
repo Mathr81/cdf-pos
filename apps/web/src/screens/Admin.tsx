@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   formatAmount,
   formatCents,
@@ -26,7 +26,8 @@ import { useRev } from "../lib/hooks.js";
 import { newId } from "../lib/device.js";
 import { deleteProduct, deleteStation, upsertProduct, upsertStation } from "../lib/actions.js";
 import { api } from "../lib/api.js";
-import { wipeLocalData } from "../lib/sync.js";
+import { PendingSalesError, pendingCount, wipeLocalData } from "../lib/localData.js";
+import { estimateStorage, requestPersistentStorage, type PersistStatus } from "../lib/persist.js";
 import {
   Button,
   Card,
@@ -976,6 +977,79 @@ function StationEditor({ station, onClose }: { station: ClientStation; onClose: 
 }
 
 /**
+ * Santé du stockage local de CETTE tablette.
+ *
+ * Sans stockage persistant, le navigateur peut évincer IndexedDB — et les
+ * ventes hors ligne avec. Le statut est affiché plutôt que supposé : un refus
+ * silencieux ne vaudrait pas mieux que ne rien demander. La demande est
+ * rejouée ici parce que les heuristiques (app installée sur l'écran d'accueil,
+ * engagement) peuvent l'accorder aujourd'hui après l'avoir refusée hier.
+ */
+function StorageCard() {
+  const [status, setStatus] = useState<PersistStatus | null>(null);
+  const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null);
+  const [waiting, setWaiting] = useState(0);
+
+  const refresh = () => {
+    void requestPersistentStorage().then(setStatus);
+    void estimateStorage().then(setUsage);
+    void pendingCount().then(setWaiting);
+  };
+
+  useEffect(refresh, []);
+
+  const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} Mo`;
+  const ok = status === "persisted";
+
+  return (
+    <Card className="p-4">
+      <h2 className="font-display flex items-center gap-2 text-lead font-bold text-cream">
+        {ok ? (
+          <CheckCircleIcon size={20} weight="fill" className="text-mint" />
+        ) : (
+          <WarningIcon size={20} weight="fill" className="text-signal" />
+        )}
+        Stockage de cette tablette
+      </h2>
+
+      <p className="mt-2 text-body text-sand">
+        {status === null && "Vérification…"}
+        {status === "persisted" && (
+          <>
+            <b className="text-mint">Persistant.</b> Le navigateur ne peut pas effacer les ventes
+            hors ligne pour faire de la place.
+          </>
+        )}
+        {status === "denied" && (
+          <>
+            <b className="text-signal">Non garanti.</b> Le navigateur a refusé le stockage
+            persistant : il pourrait effacer les ventes hors ligne s'il manque d'espace. Installe
+            l'app sur l'écran d'accueil, puis reviens ici.
+          </>
+        )}
+        {status === "unsupported" && (
+          <>
+            <b className="text-signal">Non garanti.</b> Ce navigateur ne gère pas le stockage
+            persistant (iOS antérieur à 17). Évite de laisser une caisse hors ligne longtemps.
+          </>
+        )}
+      </p>
+
+      <p className="mt-2 text-micro text-ash">
+        {usage && `${mb(usage.usage)} utilisés sur ${mb(usage.quota)} disponibles. `}
+        {waiting > 0
+          ? `${waiting} vente(s) en attente de synchro sur ce poste.`
+          : "Aucune vente en attente sur ce poste."}
+      </p>
+
+      <Button variant="secondary" size="md" className="mt-3" onClick={refresh}>
+        Revérifier
+      </Button>
+    </Card>
+  );
+}
+
+/**
  * Remise à zéro. Le journal d'événements étant répliqué sur chaque appareil,
  * le serveur change son `epoch` : tous les postes connectés purgent alors leur
  * copie locale et se rechargent automatiquement.
@@ -987,6 +1061,7 @@ function ResetPanel() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const setBlocked = useStore((s) => s.setBlocked);
 
   const run = async () => {
     if (!pending) return;
@@ -1003,8 +1078,15 @@ function ResetPanel() {
       setTyped("");
       // Le serveur diffuse « server:reset » : cet appareil aussi se purge et
       // se recharge. On force le passage au cas où le socket serait coupé.
-      await wipeLocalData();
-      setTimeout(() => window.location.reload(), 1200);
+      try {
+        await wipeLocalData();
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (e) {
+        // Ce poste avait lui-même des ventes non transmises : l'écran
+        // bloquant prend la main plutôt que de les détruire.
+        if (e instanceof PendingSalesError) setBlocked({ reason: "reset", count: e.count });
+        else throw e;
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1016,6 +1098,8 @@ function ResetPanel() {
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-4">
+      <StorageCard />
+
       {/* C'est l'écran le plus dangereux de l'app : il reçoit désormais
           l'emphase correspondante, au lieu d'une bordure imperceptible. */}
       <Card tone="danger" className="p-4">
@@ -1081,8 +1165,13 @@ function ResetPanel() {
         tone="primary"
         onConfirm={() => {
           void (async () => {
-            await wipeLocalData();
-            window.location.reload();
+            try {
+              await wipeLocalData();
+              window.location.reload();
+            } catch (e) {
+              if (e instanceof PendingSalesError) setBlocked({ reason: "manual", count: e.count });
+              else throw e;
+            }
           })();
         }}
         onClose={() => setConfirmWipe(false)}
