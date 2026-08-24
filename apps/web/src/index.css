@@ -70,7 +70,14 @@
 html,
 body,
 #root {
+  /* `dvh` et NON `%`. En PWA plein écran iOS, une hauteur en pourcentage se
+     résout contre un viewport plus court que l'écran : la mise en page
+     s'arrêtait avant le bord bas, et la bande restante n'était plus peinte
+     que par le fond de canevas. Mesuré sur iPad Pro 12,9" : le haut couvrait
+     bien la ligne 0, mais 32px CSS manquaient en bas, d'où un liseré sombre
+     sous le panneau panier. `%` reste en repli avant iOS 15.4. */
   height: 100%;
+  height: 100dvh;
 }
 
 body {
