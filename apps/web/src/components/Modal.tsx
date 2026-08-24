@@ -41,9 +41,10 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {padded ? (
-          /* Le padding bas ADDITIONNE l'encoche à sa base — voir le
-             commentaire des utilitaires d'encoche dans index.css. */
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          /* `max()` et non une addition : le padding de base couvre déjà
+             l'encoche quand celle-ci est plus petite — voir le commentaire
+             des utilitaires d'encoche dans index.css. */
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             {children}
           </div>
         ) : (
