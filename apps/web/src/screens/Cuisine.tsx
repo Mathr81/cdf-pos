@@ -8,6 +8,7 @@ import {
   toPrepare,
   type ClientProduct,
 } from "@cdf/shared";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
 import { ChefHatIcon } from "@phosphor-icons/react/dist/csr/ChefHat";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
@@ -35,6 +36,7 @@ export function CuisineScreen() {
   const [stationId, setStationId] = useState<string>(
     () => localStorage.getItem("cdf.stationId") ?? stations[0]?.id ?? "",
   );
+  const [showIdle, setShowIdle] = useState(false);
 
   const changeStation = (id: string) => {
     setStationId(id);
@@ -66,8 +68,15 @@ export function CuisineScreen() {
   const todo = items
     .filter((i) => i.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining || a.product.sortOrder - b.product.sortOrder);
+  /* « À jour » ne montre que ce qui a effectivement été traité. Un produit ni
+     vendu ni préparé a lui aussi `remaining === 0` : les lister ici remplissait
+     la section de cartes « 0/0 » qui n'apprennent rien. Ils restent atteignables
+     sous un dépliant, replié par défaut, pour pouvoir préparer en avance. */
   const done = items
-    .filter((i) => i.remaining === 0)
+    .filter((i) => i.remaining === 0 && (i.sold > 0 || i.prepared > 0))
+    .sort((a, b) => a.product.sortOrder - b.product.sortOrder);
+  const idle = items
+    .filter((i) => i.remaining === 0 && i.sold === 0 && i.prepared === 0)
     .sort((a, b) => a.product.sortOrder - b.product.sortOrder);
   const totalToPrepare = todo.reduce((s, i) => s + i.remaining, 0);
 
@@ -114,20 +123,35 @@ export function CuisineScreen() {
             title="Rien pour ce poste"
             hint="Aucun produit de cette soirée n'est rattaché à cette station."
           />
-        ) : todo.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-            <CheckCircleIcon size={64} weight="fill" className="text-mint" />
-            <div className="font-display text-title font-bold text-cream">Tout est à jour</div>
-            <div className="text-body text-sand">Rien à préparer pour le moment.</div>
-          </div>
         ) : (
           <>
-            {/* File à faire : priorité visuelle maximale. */}
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-              {todo.map((it) => (
-                <TodoCard key={it.product.id} item={it} soireeId={soireeId} stationId={stationId} />
-              ))}
-            </div>
+            {/* File à faire : priorité visuelle maximale. Quand elle est vide,
+                le message ne prend toute la hauteur que s'il est seul : sinon
+                il repousserait hors écran le dépliant de préparation en avance,
+                justement utile à ce moment-là. */}
+            {todo.length === 0 ? (
+              <div
+                className={cn(
+                  "flex flex-col items-center justify-center gap-3 text-center",
+                  done.length > 0 || idle.length > 0 ? "py-10" : "h-full",
+                )}
+              >
+                <CheckCircleIcon size={64} weight="fill" className="text-mint" />
+                <div className="font-display text-title font-bold text-cream">Tout est à jour</div>
+                <div className="text-body text-sand">Rien à préparer pour le moment.</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                {todo.map((it) => (
+                  <TodoCard
+                    key={it.product.id}
+                    item={it}
+                    soireeId={soireeId}
+                    stationId={stationId}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* À jour : compact et discret. */}
             {done.length > 0 && (
@@ -145,6 +169,37 @@ export function CuisineScreen() {
                     />
                   ))}
                 </div>
+              </>
+            )}
+
+            {/* Le reste du poste : rien de vendu, rien de préparé. Replié, mais
+                accessible pour lancer une préparation en avance. */}
+            {idle.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowIdle((v) => !v)}
+                  aria-expanded={showIdle}
+                  className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-control border border-line bg-well px-4 text-body font-bold text-sand transition-colors hover:text-cream"
+                >
+                  <CaretDownIcon
+                    size={16}
+                    weight="bold"
+                    className={cn("transition-transform", showIdle && "rotate-180")}
+                  />
+                  {showIdle ? "Masquer" : "Voir"} tous les produits du poste ({idle.length})
+                </button>
+                {showIdle && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {idle.map((it) => (
+                      <DoneCard
+                        key={it.product.id}
+                        item={it}
+                        soireeId={soireeId}
+                        stationId={stationId}
+                      />
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </>

@@ -115,10 +115,19 @@ button {
   outline-offset: 2px;
 }
 
-/* ─── Utilitaires d'encoche ────────────────────────────────── */
-@utility safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
+/* ─── Utilitaires d'encoche ──────────────────────────────────
+   Il n'existe PAS de `safe-bottom` : un utilitaire qui pose seulement
+   `padding-bottom: env(safe-area-inset-bottom)` est un piège. Sa
+   spécificité est celle de `p-5`, mais il est émis après dans la
+   feuille : il ÉCRASE le padding de base au lieu de s'y ajouter.
+   Sur iOS l'encoche (~34px) donne l'illusion d'un padding correct ;
+   sur Chrome desktop et Android `env()` vaut 0 et le contenu se
+   retrouve collé au bord. Écrire le calcul en clair sur le côté
+   concerné, sans jamais laisser un `p-*` couvrir ce même côté :
+     px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]
+
+   `safe-top` n'a pas ce problème (aucun `p-*` concurrent là où il est
+   utilisé), mais la même règle s'applique s'il venait à en croiser un. */
 @utility safe-top {
   padding-top: env(safe-area-inset-top);
 }

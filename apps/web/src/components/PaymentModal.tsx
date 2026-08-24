@@ -6,13 +6,17 @@ import { Modal } from "./Modal.js";
 import { Numpad } from "./Numpad.js";
 import { Button } from "./ui.js";
 
+/**
+ * Monté uniquement pendant l'encaissement (voir Caisse.tsx) : c'est le
+ * démontage qui remet l'écran de choix Espèces / Carte. Garder le composant
+ * monté en le pilotant par une prop `open` laissait `mode` à "cash" après
+ * une vente en espèces, et le panier suivant s'ouvrait sur la calculatrice.
+ */
 export function PaymentModal({
-  open,
   totalCents,
   onClose,
   onConfirm,
 }: {
-  open: boolean;
   totalCents: number;
   onClose: () => void;
   onConfirm: (method: PaymentMethod, cashReceivedCents?: number) => void;
@@ -30,17 +34,14 @@ export function PaymentModal({
     return [...new Set(opts)].slice(0, 4);
   }, [totalCents]);
 
+  /** Retour à l'écran de choix sans fermer (bouton « Retour »). */
   const reset = () => {
     setMode("choose");
     setReceived("");
   };
-  const close = () => {
-    reset();
-    onClose();
-  };
 
   return (
-    <Modal open={open} onClose={close}>
+    <Modal open onClose={onClose}>
       <div className="mb-4 flex items-baseline justify-between gap-3">
         <h2 className="font-display text-lead font-bold text-cream">Encaissement</h2>
         <div className="font-display tnum text-display font-bold text-lantern">
