@@ -30,6 +30,47 @@
 #  parser l'intégralité du script AVANT d'exécuter quoi que ce soit.
 set -e
 
+# ─────────────────────────────────────────────────────────────
+#  Plafond mémoire du build, déduit de la RAM de la machine.
+#
+#  60 % de la RAM totale : PostgreSQL, le serveur en cours d'exécution et le
+#  noyau doivent continuer à vivre pendant le build.
+#
+#  PLANCHER À 1536 Mo, et ce n'est pas un chiffre au hasard : mesuré, le `tsc`
+#  du serveur échoue à 1024 Mo et passe à 1280 (les types générés par Prisma
+#  sont énormes). En dessous de 1536, l'image ne peut tout simplement pas se
+#  construire — mieux vaut tenter et échouer franchement que garantir l'échec.
+#
+#  Si /proc/meminfo est illisible (macOS, environnement exotique) : 2048.
+# ─────────────────────────────────────────────────────────────
+MIN_BUILD_MEM=1536
+MAX_BUILD_MEM=3072
+
+detect_build_memory() {
+  total_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || true)
+  if [ -z "$total_kb" ]; then
+    echo 2048
+    return
+  fi
+  mb=$(( total_kb / 1024 * 60 / 100 ))
+  [ "$mb" -lt "$MIN_BUILD_MEM" ] && mb=$MIN_BUILD_MEM
+  [ "$mb" -gt "$MAX_BUILD_MEM" ] && mb=$MAX_BUILD_MEM
+  echo "$mb"
+}
+
+# Rappelle la RAM de la machine, et prévient si elle est juste.
+report_memory() {
+  total_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || true)
+  [ -z "$total_kb" ] && return
+  total_mb=$(( total_kb / 1024 ))
+  echo "   RAM de la machine : ${total_mb} Mo"
+  if [ "$total_mb" -lt 2048 ]; then
+    echo "   ⚠️ Moins de 2 Go : le build du serveur est juste. Si tu vois"
+    echo "      « JavaScript heap out of memory », ajoute du swap ou construis"
+    echo "      les images ailleurs puis pousse-les sur le VPS."
+  fi
+}
+
 main() {
   cd "$(dirname "$0")/.."
   ROOT=$(pwd)
@@ -63,12 +104,20 @@ main() {
 
   # Plafond du tas V8 pendant le build. Sans lui, V8 grossit jusqu'à ce que le
   # noyau tue le processus — et emporte parfois d'autres conteneurs avec. Avec,
-  # un build trop gourmand échoue proprement, en le disant. Ajustable :
-  #   NODE_BUILD_MEMORY_MB=2048 ./scripts/update.sh
+  # un build trop gourmand échoue proprement, en le disant.
+  #
+  # Le plafond est calculé à partir de la RAM de LA machine, pas figé : 1024 Mo
+  # convenaient à la PWA mais pas au `tsc` du serveur, que les types générés
+  # par Prisma poussent au-delà du gigaoctet. Un chiffre en dur ne peut pas
+  # convenir à la fois à un VPS de 2 Go et à une machine de 16.
   #
   # Passé en --build-arg et NON en variable d'environnement : le build tourne
   # dans un conteneur isolé, il n'hérite pas de l'environnement de ce script.
-  BUILD_MEM=${NODE_BUILD_MEMORY_MB:-1024}
+  BUILD_MEM=${NODE_BUILD_MEMORY_MB:-$(detect_build_memory)}
+
+  echo
+  echo "→ Plafond mémoire retenu pour les builds : ${BUILD_MEM} Mo"
+  report_memory
 
   for service in $SERVICES; do
     echo
