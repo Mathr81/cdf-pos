@@ -105,9 +105,15 @@ NPM proxifie le domaine vers ce port.
 2. **Lancement** :
 
    ```bash
-   cd docker
-   docker compose --env-file ../.env up -d --build
+   ./scripts/update.sh
    ```
+
+   Le script construit les images **une par une** puis démarre la stack. Il fait
+   aussi un `git pull`, sans effet ici puisque tu viens de cloner.
+
+   > ⚠️ N'utilise pas `docker compose up -d --build` : cette commande construit
+   > `server` et `web` **en parallèle**, et les deux builds Node saturent la
+   > mémoire d'un petit VPS. Voir [Mise à jour](#mise-à-jour).
 
    Le conteneur serveur applique automatiquement les migrations Prisma au démarrage.
    Le conteneur `web` écoute sur `http://<ip-vps>:${WEB_PORT}` (défaut 8080).
