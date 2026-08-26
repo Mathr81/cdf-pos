@@ -146,6 +146,26 @@ model Prepared {
   @@index([soireeId])
 }
 
+/// Caisse d'un poste pour une soirée : fond de monnaie déposé avant le
+/// service, et comptage réel de la boîte après. L'écart se déduit
+/// (compté − fond − espèces encaissées) et n'est donc pas stocké : le
+/// calculer évite qu'il mente si une vente arrive après le comptage.
+model CashSession {
+  id            String    @id @default(uuid())
+  soireeId      String
+  /// Poste, tel qu'il apparaît dans Order.registerLabel (« Caisse 1 »).
+  registerLabel String
+  floatCents    Int       @default(0)
+  /// null tant que la boîte n'a pas été comptée.
+  countedCents  Int?
+  countedNote   String?
+  openedAt      DateTime?
+  countedAt     DateTime?
+
+  @@unique([soireeId, registerLabel])
+  @@index([soireeId])
+}
+
 // ─── Métadonnées serveur (clé/valeur) ────────────────────────
 /// Contient notamment `epoch` : identifiant de la « session de données »
 /// courante. Une remise à zéro le change, ce qui signale à chaque appareil

@@ -206,10 +206,34 @@ describe("computeCashup", () => {
       }),
     );
 
+    // Égalité exacte volontaire : la forme de la ligne fait partie du contrat.
+    // Sans fond ni comptage, l'attendu se réduit aux espèces encaissées.
     const cashup = computeCashup(state, SOIREE);
     expect(cashup.rows).toEqual([
-      { registerLabel: "Caisse 1", orders: 2, cashCents: 800, cardCents: 300, totalCents: 1100 },
-      { registerLabel: "Caisse 2", orders: 1, cashCents: 1600, cardCents: 0, totalCents: 1600 },
+      {
+        registerLabel: "Caisse 1",
+        orders: 2,
+        cashCents: 800,
+        cardCents: 300,
+        totalCents: 1100,
+        floatCents: 0,
+        expectedCashCents: 800,
+        countedCents: null,
+        varianceCents: null,
+        countedAt: null,
+      },
+      {
+        registerLabel: "Caisse 2",
+        orders: 1,
+        cashCents: 1600,
+        cardCents: 0,
+        totalCents: 1600,
+        floatCents: 0,
+        expectedCashCents: 1600,
+        countedCents: null,
+        varianceCents: null,
+        countedAt: null,
+      },
     ]);
   });
 

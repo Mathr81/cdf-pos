@@ -63,6 +63,35 @@ export const OrderAmendPayloadSchema = z.object({
 });
 export type OrderAmendPayload = z.infer<typeof OrderAmendPayloadSchema>;
 
+/**
+ * Ouverture d'une caisse : fond de monnaie déposé dans la boîte avant le
+ * service. Sans lui, l'espèce comptée en fin de soirée n'est comparable à
+ * rien.
+ */
+export const CashOpenPayloadSchema = z.object({
+  soireeId: z.string().min(1),
+  /** Poste concerné, tel qu'il apparaît dans les ventes (« Caisse 1 »). */
+  registerLabel: z.string().min(1),
+  floatCents: z.number().int().nonnegative(),
+});
+export type CashOpenPayload = z.infer<typeof CashOpenPayloadSchema>;
+
+/**
+ * Comptage réel de la boîte en fin de service. L'écart avec le théorique
+ * (fond + espèces encaissées) est ce qui révèle une erreur de rendu monnaie
+ * le soir même, plutôt qu'au dépôt en banque.
+ *
+ * Rejouable : un recomptage plus récent remplace le précédent
+ * (last-write-wins), on ne cumule pas.
+ */
+export const CashCountPayloadSchema = z.object({
+  soireeId: z.string().min(1),
+  registerLabel: z.string().min(1),
+  countedCents: z.number().int().nonnegative(),
+  note: z.string().optional(),
+});
+export type CashCountPayload = z.infer<typeof CashCountPayloadSchema>;
+
 /** Ajustement manuel de stock (réappro, perte, correction), pour une soirée. */
 export const StockAdjustPayloadSchema = z.object({
   soireeId: z.string().min(1),
@@ -237,6 +266,8 @@ export const EventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEnvelope, type: z.literal("order_void"), payload: OrderVoidPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("order_amend"), payload: OrderAmendPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("stock_adjust"), payload: StockAdjustPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("cash_open"), payload: CashOpenPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("cash_count"), payload: CashCountPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("prepared"), payload: PreparedPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("product_upsert"), payload: ProductUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("product_delete"), payload: ProductDeletePayloadSchema }),
