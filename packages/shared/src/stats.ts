@@ -133,6 +133,20 @@ export interface CashupRow {
   cashCents: number;
   cardCents: number;
   totalCents: number;
+  /** Fond de monnaie déposé avant le service (0 si non déclaré). */
+  floatCents: number;
+  /** Espèces qui devraient se trouver dans la boîte : fond + encaissé. */
+  expectedCashCents: number;
+  /** Comptage réel, ou null tant que la boîte n'a pas été comptée. */
+  countedCents: number | null;
+  /**
+   * Compté − attendu. Négatif = il manque, positif = excédent.
+   * `null` sans comptage : zéro signifierait « ça tombe juste », ce qui
+   * serait un mensonge.
+   */
+  varianceCents: number | null;
+  countedNote?: string;
+  countedAt: string | null;
 }
 
 export interface Cashup {
@@ -141,34 +155,82 @@ export interface Cashup {
   totalCardCents: number;
   totalCents: number;
   orders: number;
+  totalFloatCents: number;
+  /** Somme des écarts des postes DÉJÀ comptés. */
+  totalVarianceCents: number;
+  countedRegisters: number;
+  totalRegisters: number;
 }
 
-/** Clôture de caisse d'une soirée : réparti espèces/carte par poste. */
+/**
+ * Clôture de caisse d'une soirée : espèces/carte par poste, plus le fond,
+ * le comptage réel et l'écart.
+ *
+ * Un poste apparaît dès qu'il a vendu OU qu'un fond y a été déposé : un fond
+ * placé dans une caisse restée inactive serait sinon invisible à la clôture,
+ * et l'argent avec.
+ */
 export function computeCashup(state: ProjectionState, soireeId: string): Cashup {
   const byReg = new Map<string, CashupRow>();
+  const sessions = state.cashSessions[soireeId] ?? {};
+
+  const row = (registerLabel: string): CashupRow => {
+    let r = byReg.get(registerLabel);
+    if (!r) {
+      const session = sessions[registerLabel];
+      r = {
+        registerLabel,
+        orders: 0,
+        cashCents: 0,
+        cardCents: 0,
+        totalCents: 0,
+        floatCents: session?.floatCents ?? 0,
+        expectedCashCents: 0,
+        countedCents: session?.countedCents ?? null,
+        varianceCents: null,
+        countedNote: session?.countedNote,
+        countedAt: session?.countedAt ?? null,
+      };
+      byReg.set(registerLabel, r);
+    }
+    return r;
+  };
+
+  // Les postes ayant une caisse ouverte existent même sans vente.
+  for (const label of Object.keys(sessions)) row(label);
+
   let totalCashCents = 0;
   let totalCardCents = 0;
   let orders = 0;
 
   for (const o of paidOrders(state, soireeId)) {
     orders++;
-    const row = byReg.get(o.registerLabel) ?? {
-      registerLabel: o.registerLabel,
-      orders: 0,
-      cashCents: 0,
-      cardCents: 0,
-      totalCents: 0,
-    };
-    row.orders++;
-    row.totalCents += o.totalCents;
+    const r = row(o.registerLabel);
+    r.orders++;
+    r.totalCents += o.totalCents;
     if (o.paymentMethod === "cash") {
-      row.cashCents += o.totalCents;
+      r.cashCents += o.totalCents;
       totalCashCents += o.totalCents;
     } else {
-      row.cardCents += o.totalCents;
+      // La carte ne passe pas par la boîte : elle n'entre jamais dans
+      // l'attendu, sous peine d'un écart négatif à chaque clôture.
+      r.cardCents += o.totalCents;
       totalCardCents += o.totalCents;
     }
-    byReg.set(o.registerLabel, row);
+  }
+
+  let totalFloatCents = 0;
+  let totalVarianceCents = 0;
+  let countedRegisters = 0;
+
+  for (const r of byReg.values()) {
+    r.expectedCashCents = r.floatCents + r.cashCents;
+    totalFloatCents += r.floatCents;
+    if (r.countedCents !== null) {
+      r.varianceCents = r.countedCents - r.expectedCashCents;
+      totalVarianceCents += r.varianceCents;
+      countedRegisters++;
+    }
   }
 
   return {
@@ -177,5 +239,9 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
     totalCardCents,
     totalCents: totalCashCents + totalCardCents,
     orders,
+    totalFloatCents,
+    totalVarianceCents,
+    countedRegisters,
+    totalRegisters: byReg.size,
   };
 }

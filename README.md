@@ -390,6 +390,30 @@ décomposé.
 - **Inventaire** : réapprovisionnez ou déclarez des pertes ; le stock restant est
   recalculé partout.
 - **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
+
+### Clôture de caisse (fond et écart)
+
+**Stats → Clôture de caisse** compare ce qu'il *devrait* y avoir dans la boîte à
+ce qu'on y compte réellement.
+
+| | |
+|---|---|
+| **Fond de caisse** | la monnaie déposée dans le poste **avant** le service |
+| **Attendu** | fond + espèces encaissées |
+| **Compté** | ce qu'on trouve dans la boîte en fin de service |
+| **Écart** | compté − attendu. Négatif = il manque |
+
+Bouton **Fond de caisse** pour déclarer la monnaie de départ, **Compter** sur une
+ligne pour saisir le comptage final. Un recomptage **remplace** le précédent.
+
+- Les paiements **carte n'entrent pas** dans l'attendu : ils ne passent pas par la
+  boîte. Les inclure créerait un écart négatif à chaque clôture.
+- Un poste sans comptage affiche `—`, jamais `0,00 €` : « pas encore compté »
+  n'est pas « ça tombe juste ».
+- L'écart total ne porte que sur les postes **déjà comptés**, et le nombre de
+  postes restants est rappelé sous le tableau.
+- Un poste où l'on a déposé un fond apparaît **même s'il n'a rien vendu** — sinon
+  cet argent serait invisible à la clôture.
 - **Stats** (PIN requis) : tableau de bord live (fonctionne aussi hors-ligne).
 
 ### Comportement hors-ligne

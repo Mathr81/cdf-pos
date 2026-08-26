@@ -86,6 +86,21 @@ export interface ClientOrder {
   amended?: boolean;
 }
 
+/**
+ * Caisse d'un poste pour une soirée : fond déposé avant le service, et
+ * comptage réel après. Les deux sont indépendants — un poste peut avoir un
+ * fond sans avoir encore été compté, ou l'inverse.
+ */
+export interface CashSession {
+  floatCents: number;
+  /** null tant que la boîte n'a pas été comptée. */
+  countedCents: number | null;
+  countedNote?: string;
+  /** Horodatages client, qui servent aussi de base au last-write-wins. */
+  openedAt: string | null;
+  countedAt: string | null;
+}
+
 /** Compteurs imbriqués : soireeId → productId → nombre. */
 type NestedCount = Record<string, Record<string, number>>;
 
@@ -104,6 +119,8 @@ export interface ProjectionState {
   /** soireeId → productId → somme des ajustements manuels de stock. */
   adjustments: NestedCount;
   orders: Record<string, ClientOrder>;
+  /** soireeId → registerLabel → fond et comptage de la boîte. */
+  cashSessions: Record<string, Record<string, CashSession>>;
   // Horodatages pour le last-write-wins.
   productUpdatedAt: Record<string, number>;
   soireeUpdatedAt: Record<string, number>;
@@ -123,6 +140,7 @@ export function emptyProjection(): ProjectionState {
     prepared: {},
     adjustments: {},
     orders: {},
+    cashSessions: {},
     productUpdatedAt: {},
     soireeUpdatedAt: {},
     presetUpdatedAt: {},
@@ -137,6 +155,21 @@ function addNested(map: NestedCount, soireeId: string, productId: string, delta:
 
 function getNested(map: NestedCount, soireeId: string, productId: string): number {
   return map[soireeId]?.[productId] ?? 0;
+}
+
+/** Caisse d'un poste, créée à la volée au premier événement qui la concerne. */
+function ensureCashSession(
+  state: ProjectionState,
+  soireeId: string,
+  registerLabel: string,
+): CashSession {
+  const inner = (state.cashSessions[soireeId] ??= {});
+  return (inner[registerLabel] ??= {
+    floatCents: 0,
+    countedCents: null,
+    openedAt: null,
+    countedAt: null,
+  });
 }
 
 /** Applique un événement à l'état (mutation en place). */
@@ -185,6 +218,28 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
     case "stock_adjust":
       addNested(state.adjustments, ev.payload.soireeId, ev.payload.productId, ev.payload.delta);
       break;
+
+    /* Fond et comptage sont en last-write-wins, pas cumulés : redéclarer un
+       fond le corrige, recompter la boîte remplace le comptage. Un cumul
+       ferait grossir l'attendu à chaque correction. */
+    case "cash_open": {
+      const p = ev.payload;
+      const session = ensureCashSession(state, p.soireeId, p.registerLabel);
+      if (session.openedAt !== null && Date.parse(session.openedAt) > ts) break;
+      session.openedAt = ev.createdAt;
+      session.floatCents = p.floatCents;
+      break;
+    }
+
+    case "cash_count": {
+      const p = ev.payload;
+      const session = ensureCashSession(state, p.soireeId, p.registerLabel);
+      if (session.countedAt !== null && Date.parse(session.countedAt) > ts) break;
+      session.countedAt = ev.createdAt;
+      session.countedCents = p.countedCents;
+      session.countedNote = p.note;
+      break;
+    }
     case "prepared":
       addNested(state.prepared, ev.payload.soireeId, ev.payload.productId, ev.payload.qty);
       break;
@@ -264,6 +319,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       delete state.sold[id];
       delete state.prepared[id];
       delete state.adjustments[id];
+      delete state.cashSessions[id];
       if (state.activeSoireeId === id) state.activeSoireeId = null;
       for (const o of Object.values(state.orders)) {
         if (o.soireeId === id) delete state.orders[o.id];
