@@ -3,6 +3,11 @@
 #  Contexte de build attendu : racine du monorepo.
 # ─────────────────────────────────────────────────────────────
 FROM node:22-slim AS build
+# Plafond du tas V8 pendant le build uniquement. L'étape `runtime` ci-dessous
+# repart d'une image neuve : le serveur en production n'hérite pas de cette
+# limite, qui l'étoufferait.
+ARG NODE_BUILD_MEMORY_MB=1024
+ENV NODE_OPTIONS=--max-old-space-size=${NODE_BUILD_MEMORY_MB}
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 WORKDIR /app

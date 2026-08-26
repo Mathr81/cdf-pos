@@ -5,6 +5,12 @@
 #  Contexte de build attendu : racine du monorepo.
 # ─────────────────────────────────────────────────────────────
 FROM node:22-slim AS build
+# Plafond du tas V8 pendant le build (Rollup est le poste le plus gourmand).
+# Sans lui, un petit VPS se fait tuer par l'OOM killer au lieu d'obtenir une
+# erreur de build lisible. Ne concerne QUE cette étape : l'image finale est
+# un Nginx, sans Node.
+ARG NODE_BUILD_MEMORY_MB=1024
+ENV NODE_OPTIONS=--max-old-space-size=${NODE_BUILD_MEMORY_MB}
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 WORKDIR /app
 
