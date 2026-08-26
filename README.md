@@ -98,7 +98,7 @@ NPM proxifie le domaine vers ce port.
 
    Édite au minimum : `WEB_PORT` (port exposé, défaut `8080`), `PUBLIC_ORIGIN`
    (l'URL publique finale, ex. `https://pos.mondomaine.fr`), `POSTGRES_PASSWORD`,
-   `APP_ACCESS_CODE`, `ADMIN_PIN`, `JWT_SECRET`.
+   `APP_ACCESS_CODE`, `ADMIN_PIN`.
    Mets `SEED_ON_START=true` pour charger la carte du soir au 1er lancement
    (voir [La carte](#-la-carte)) ; sans effet si des produits existent déjà.
 
@@ -144,8 +144,34 @@ Le script fait exactement ceci — tu peux aussi le taper à la main :
 ```bash
 git pull                                              # 1. récupérer le code
 cd docker
-docker compose --env-file ../.env up -d --build       # 2. rebuild + redémarrage
+docker compose --env-file ../.env build server        # 2. UNE image à la fois
+docker compose --env-file ../.env build web
+docker compose --env-file ../.env build backup-cron
+docker compose --env-file ../.env up -d               # 3. redémarrage
 ```
+
+> ⚠️ **Ne remplace pas ça par `up -d --build`.** Cette commande construit tous
+> les services **en parallèle** : `server` et `web` lancent chacun un
+> `pnpm install` puis un build Node (tsc, puis Rollup pour la PWA), et côte à
+> côte les deux saturent la mémoire d'un petit VPS — l'OOM killer tue alors des
+> conteneurs en plein service. Séquentiellement, chaque build passe sans peine ;
+> ça coûte seulement quelques minutes de plus.
+
+Reconstruire un seul service quand tu sais que lui seul a changé :
+
+```bash
+./scripts/update.sh web        # ou server, ou backup-cron
+```
+
+Si un build échoue avec une erreur mémoire de Node (« JavaScript heap out of
+memory »), relève le plafond :
+
+```bash
+NODE_BUILD_MEMORY_MB=2048 ./scripts/update.sh
+```
+
+Ce plafond ne s'applique qu'**au build** : le serveur en production repart d'une
+image neuve et n'en hérite pas.
 
 - Les **migrations Prisma** sont appliquées automatiquement au démarrage du
   conteneur serveur : rien à lancer de plus.
@@ -406,6 +432,30 @@ vont manquer, pour lancer une cuisson *avant* la rupture plutôt que la constate
 Les statistiques indiquent aussi l'écart de chiffre d'affaires avec le **service
 précédent** (« +18 % vs 14 juin »).
 - **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
+
+### Clôture de caisse (fond et écart)
+
+**Stats → Clôture de caisse** compare ce qu'il *devrait* y avoir dans la boîte à
+ce qu'on y compte réellement.
+
+| | |
+|---|---|
+| **Fond de caisse** | la monnaie déposée dans le poste **avant** le service |
+| **Attendu** | fond + espèces encaissées |
+| **Compté** | ce qu'on trouve dans la boîte en fin de service |
+| **Écart** | compté − attendu. Négatif = il manque |
+
+Bouton **Fond de caisse** pour déclarer la monnaie de départ, **Compter** sur une
+ligne pour saisir le comptage final. Un recomptage **remplace** le précédent.
+
+- Les paiements **carte n'entrent pas** dans l'attendu : ils ne passent pas par la
+  boîte. Les inclure créerait un écart négatif à chaque clôture.
+- Un poste sans comptage affiche `—`, jamais `0,00 €` : « pas encore compté »
+  n'est pas « ça tombe juste ».
+- L'écart total ne porte que sur les postes **déjà comptés**, et le nombre de
+  postes restants est rappelé sous le tableau.
+- Un poste où l'on a déposé un fond apparaît **même s'il n'a rien vendu** — sinon
+  cet argent serait invisible à la clôture.
 - **Stats** (PIN requis) : tableau de bord live (fonctionne aussi hors-ligne).
 
 ### Comportement hors-ligne
@@ -437,5 +487,12 @@ Ces ventes en attente sont protégées : voir
 - **Code d'accès** partagé (`APP_ACCESS_CODE`) demandé au lancement — évite que
   n'importe qui sur le domaine utilise la caisse.
 - **PIN admin** (`ADMIN_PIN`) pour l'administration et les statistiques.
-- Changez impérativement `JWT_SECRET`, `POSTGRES_PASSWORD`, `APP_ACCESS_CODE` et
-  `ADMIN_PIN` avant la mise en production.
+- Changez impérativement `POSTGRES_PASSWORD`, `APP_ACCESS_CODE` et `ADMIN_PIN`
+  avant la mise en production.
+- La route de vérification `/api/auth/check` est **limitée à 10 tentatives par
+  minute et par IP** : sans cela, un code d'accès court se devine par force brute.
+
+> ℹ️ Le modèle est volontairement simple : un secret partagé entre bénévoles,
+> pas de comptes individuels ni de sessions signées. Il protège d'un passant qui
+> tomberait sur le domaine, pas d'un attaquant déterminé — et il n'a jamais
+> prétendu faire mieux.

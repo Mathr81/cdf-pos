@@ -165,6 +165,35 @@ export function stockAdjust(
   };
 }
 
+export function cashOpen(
+  registerLabel: string,
+  floatCents: number,
+  over: { soireeId?: string; createdAt?: string } = {},
+): EventOf<"cash_open"> {
+  return {
+    ...meta(over.createdAt ?? at("19:00")),
+    type: "cash_open",
+    payload: { soireeId: over.soireeId ?? SOIREE, registerLabel, floatCents },
+  };
+}
+
+export function cashCount(
+  registerLabel: string,
+  countedCents: number,
+  over: { soireeId?: string; createdAt?: string; note?: string } = {},
+): EventOf<"cash_count"> {
+  return {
+    ...meta(over.createdAt ?? at("23:30")),
+    type: "cash_count",
+    payload: {
+      soireeId: over.soireeId ?? SOIREE,
+      registerLabel,
+      countedCents,
+      note: over.note,
+    },
+  };
+}
+
 export function prepared(productId: string, qty: number, stationId = "grill"): EventOf<"prepared"> {
   return {
     ...meta(at("20:20")),

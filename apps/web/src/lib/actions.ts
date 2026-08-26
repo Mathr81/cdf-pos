@@ -86,6 +86,31 @@ export function adjustStock(
   });
 }
 
+// ─── Caisse (fond et comptage) ───────────────────────────────
+
+/** Déclare le fond de monnaie déposé dans un poste avant le service. */
+export function openCash(registerLabel: string, floatCents: number, soireeId?: string) {
+  return dispatch({
+    ...meta(),
+    type: "cash_open",
+    payload: { soireeId: soireeId ?? activeSoireeIdOrThrow(), registerLabel, floatCents },
+  });
+}
+
+/** Enregistre le comptage réel de la boîte. Un recomptage remplace le précédent. */
+export function countCash(
+  registerLabel: string,
+  countedCents: number,
+  note?: string,
+  soireeId?: string,
+) {
+  return dispatch({
+    ...meta(),
+    type: "cash_count",
+    payload: { soireeId: soireeId ?? activeSoireeIdOrThrow(), registerLabel, countedCents, note },
+  });
+}
+
 export function markPrepared(productId: string, stationId: string, qty: number, soireeId?: string) {
   return dispatch({
     ...meta(),

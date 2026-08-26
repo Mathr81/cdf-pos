@@ -15,7 +15,9 @@ import {
   compareToPrevious,
   computeCashup,
   computeStats,
+  formatAmount,
   formatCents,
+  parseAmountToCents,
   soireeSummaries,
   sortedSoirees,
   type SoireeComparison,
@@ -28,9 +30,11 @@ import { TrendDownIcon } from "@phosphor-icons/react/dist/csr/TrendDown";
 
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
+import { countCash, openCash } from "../lib/actions.js";
 import { exportOrdersCsv } from "../lib/export.js";
 import { PALETTE } from "../lib/palette.js";
-import { Button, Card, SelectInput } from "../components/ui.js";
+import { Button, Card, Field, SelectInput, TextInput } from "../components/ui.js";
+import { Modal } from "../components/Modal.js";
 import { cn } from "../lib/cn.js";
 
 export function StatsScreen() {
@@ -38,6 +42,7 @@ export function StatsScreen() {
   const active = useActiveSoiree();
   const soirees = sortedSoirees(projection);
   const [scope, setScope] = useState<string>(active?.id ?? "all");
+  const [cashEdit, setCashEdit] = useState<{ registerLabel: string } | null>(null);
   const soireeId = scope === "all" ? null : scope;
 
   const stats = useMemo(() => computeStats(projection, soireeId), [soireeId, rev]);
@@ -252,52 +257,112 @@ export function StatsScreen() {
       </div>
 
       {/* Rapport Z (clôture de caisse) : seulement pour une soirée. */}
-      {cashup && cashup.orders > 0 && (
+      {cashup && (cashup.orders > 0 || cashup.totalRegisters > 0) && soireeId && (
         <Card className="mt-4 p-4">
-          <h2 className="font-display text-lead font-bold text-cream">
-            Clôture de caisse (rapport Z)
-          </h2>
-          <p className="mt-1 mb-3 text-micro text-ash">
-            Montants attendus par poste, à comparer avec la caisse comptée.
-          </p>
-          <div className="overflow-x-auto">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lead font-bold text-cream">
+                Clôture de caisse (rapport Z)
+              </h2>
+              <p className="mt-1 text-micro text-ash">
+                Attendu = fond de caisse + espèces encaissées. La carte ne passe pas par la boîte.
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setCashEdit({ registerLabel: "" })}>
+              <CoinsIcon size={16} weight="bold" />
+              Fond de caisse
+            </Button>
+          </div>
+
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full text-body">
               <thead>
                 <tr className="text-left text-micro font-bold tracking-wide text-ash uppercase">
                   <th className="py-1.5">Caisse</th>
-                  <th className="py-1.5 text-right">Cmd</th>
                   <th className="py-1.5 text-right">Espèces</th>
                   <th className="py-1.5 text-right">Carte</th>
-                  <th className="py-1.5 text-right">Total</th>
+                  <th className="py-1.5 text-right">Fond</th>
+                  <th className="py-1.5 text-right">Attendu</th>
+                  <th className="py-1.5 text-right">Compté</th>
+                  <th className="py-1.5 text-right">Écart</th>
+                  <th className="py-1.5" />
                 </tr>
               </thead>
               <tbody className="tnum">
                 {cashup.rows.map((r) => (
                   <tr key={r.registerLabel} className="border-t border-line">
                     <td className="py-2 font-semibold text-cream">{r.registerLabel}</td>
-                    <td className="py-2 text-right text-ash">{r.orders}</td>
                     <td className="py-2 text-right text-mint">{formatCents(r.cashCents)}</td>
                     <td className="py-2 text-right text-dusk">{formatCents(r.cardCents)}</td>
+                    <td className="py-2 text-right text-sand">{formatCents(r.floatCents)}</td>
                     <td className="py-2 text-right font-bold text-cream">
-                      {formatCents(r.totalCents)}
+                      {formatCents(r.expectedCashCents)}
+                    </td>
+                    <td className="py-2 text-right text-sand">
+                      {r.countedCents === null ? "—" : formatCents(r.countedCents)}
+                    </td>
+                    <td className="py-2 text-right">
+                      <Variance cents={r.varianceCents} />
+                    </td>
+                    <td className="py-2 pl-2 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCashEdit({ registerLabel: r.registerLabel })}
+                      >
+                        {r.countedCents === null ? "Compter" : "Modifier"}
+                      </Button>
                     </td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-sand/40 font-bold">
                   <td className="py-2 text-cream">Total</td>
-                  <td className="py-2 text-right text-sand">{cashup.orders}</td>
                   <td className="py-2 text-right text-mint">
                     {formatCents(cashup.totalCashCents)}
                   </td>
                   <td className="py-2 text-right text-dusk">
                     {formatCents(cashup.totalCardCents)}
                   </td>
-                  <td className="py-2 text-right text-lantern">{formatCents(cashup.totalCents)}</td>
+                  <td className="py-2 text-right text-sand">
+                    {formatCents(cashup.totalFloatCents)}
+                  </td>
+                  <td className="py-2 text-right text-lantern">
+                    {formatCents(cashup.totalFloatCents + cashup.totalCashCents)}
+                  </td>
+                  <td className="py-2 text-right text-ash">
+                    {cashup.countedRegisters}/{cashup.totalRegisters}
+                  </td>
+                  <td className="py-2 text-right">
+                    {/* Muet tant qu'aucun poste n'est compté : un « 0,00 € »
+                        se lirait « tout tombe juste », ce qui serait faux. */}
+                    {cashup.countedRegisters > 0 ? (
+                      <Variance cents={cashup.totalVarianceCents} />
+                    ) : (
+                      <span className="text-ash">—</span>
+                    )}
+                  </td>
+                  <td />
                 </tr>
               </tbody>
             </table>
           </div>
+
+          {cashup.countedRegisters < cashup.totalRegisters && cashup.totalRegisters > 0 && (
+            <p className="mt-3 text-micro text-ash">
+              {cashup.totalRegisters - cashup.countedRegisters} poste(s) pas encore compté(s) :
+              l'écart total ne porte que sur les {cashup.countedRegisters} déjà comptés.
+            </p>
+          )}
         </Card>
+      )}
+
+      {cashEdit && soireeId && (
+        <CashModal
+          soireeId={soireeId}
+          initialLabel={cashEdit.registerLabel}
+          registers={cashup?.rows.map((r) => r.registerLabel) ?? []}
+          onClose={() => setCashEdit(null)}
+        />
       )}
 
       {summaries.length > 1 && (
@@ -342,6 +407,129 @@ export function StatsScreen() {
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Écart de caisse. Le signe est porté par le texte ET la couleur : en
+ * deutéranopie, mint et signal se rapprochent, un « −4,00 € » vert serait
+ * lu comme un excédent.
+ *
+ * Zéro est vert, pas neutre : « ça tombe juste » est une bonne nouvelle et
+ * mérite d'être lisible d'un coup d'œil sur une table de dix postes.
+ */
+function Variance({ cents }: { cents: number | null }) {
+  if (cents === null) return <span className="text-ash">—</span>;
+  if (cents === 0) return <span className="font-bold text-mint">juste</span>;
+  const manque = cents < 0;
+  return (
+    <span className={cn("font-bold", manque ? "text-signal" : "text-lantern")}>
+      {manque ? "−" : "+"}
+      {formatCents(Math.abs(cents))}
+    </span>
+  );
+}
+
+/**
+ * Saisie du fond de caisse et du comptage pour un poste.
+ * Les deux vivent dans la même modale parce que c'est le même geste mental
+ * — « faire la caisse » — à deux moments du service.
+ */
+function CashModal({
+  soireeId,
+  initialLabel,
+  registers,
+  onClose,
+}: {
+  soireeId: string;
+  initialLabel: string;
+  registers: string[];
+  onClose: () => void;
+}) {
+  const [label, setLabel] = useState(initialLabel);
+  const [fond, setFond] = useState("");
+  const [compte, setCompte] = useState("");
+  const [note, setNote] = useState("");
+
+  const session = label ? computeCashup(projection, soireeId).rows.find((r) => r.registerLabel === label) : undefined;
+
+  const valider = () => {
+    const poste = label.trim();
+    if (!poste) return;
+    if (fond.trim()) void openCash(poste, parseAmountToCents(fond), soireeId);
+    if (compte.trim()) void countCash(poste, parseAmountToCents(compte), note.trim() || undefined, soireeId);
+    onClose();
+  };
+
+  return (
+    <Modal open onClose={onClose}>
+      <h2 className="font-display text-title font-bold text-cream">Faire la caisse</h2>
+
+      <div className="mt-4 space-y-4">
+        <Field label="Poste">
+          {/* Saisie libre plutôt qu'une liste fermée : un fond peut être posé
+              dans une caisse qui n'a encore rien vendu, donc inconnue ici. */}
+          <TextInput
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Caisse 1"
+            list="cdf-registers"
+          />
+          <datalist id="cdf-registers">
+            {registers.map((r) => (
+              <option key={r} value={r} />
+            ))}
+          </datalist>
+        </Field>
+
+        {session && (
+          <p className="tnum rounded-control border border-line bg-well p-3 text-body text-sand">
+            Espèces encaissées <b className="text-cream">{formatCents(session.cashCents)}</b> · fond
+            actuel <b className="text-cream">{formatCents(session.floatCents)}</b> · attendu{" "}
+            <b className="text-lantern">{formatCents(session.expectedCashCents)}</b>
+          </p>
+        )}
+
+        <Field label="Fond de caisse (€) — au début du service">
+          <TextInput
+            value={fond}
+            onChange={(e) => setFond(e.target.value)}
+            inputMode="decimal"
+            placeholder={session ? formatAmount(session.floatCents) : "150,00"}
+          />
+        </Field>
+
+        <Field label="Compté dans la boîte (€) — en fin de service">
+          <TextInput
+            value={compte}
+            onChange={(e) => setCompte(e.target.value)}
+            inputMode="decimal"
+            placeholder={session?.countedCents != null ? formatAmount(session.countedCents) : "0,00"}
+          />
+        </Field>
+
+        <Field label="Note (facultatif)">
+          <TextInput
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="un billet de 20 manquant"
+          />
+        </Field>
+      </div>
+
+      <p className="mt-3 text-micro text-ash">
+        Laisse un champ vide pour ne pas y toucher. Un recomptage remplace le précédent.
+      </p>
+
+      <div className="mt-5 flex gap-2">
+        <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
+          Annuler
+        </Button>
+        <Button variant="primary" size="lg" className="flex-1" onClick={valider} disabled={!label.trim()}>
+          Enregistrer
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

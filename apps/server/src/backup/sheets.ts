@@ -84,6 +84,34 @@ async function eventToRow(ev: {
     ];
   }
 
+  // Mouvements de caisse : lisibles au même titre qu'une vente. Si la prod
+  // tombe, le fond et le comptage doivent se relire dans le tableur.
+  if (ev.type === "cash_open") {
+    return [
+      when,
+      "FOND DE CAISSE",
+      String(p.registerLabel ?? ""),
+      "Espèces",
+      formatAmount(Number(p.floatCents ?? 0)),
+      "",
+      "",
+      ev.id,
+    ];
+  }
+
+  if (ev.type === "cash_count") {
+    return [
+      when,
+      "COMPTAGE CAISSE",
+      String(p.registerLabel ?? ""),
+      "Espèces",
+      formatAmount(Number(p.countedCents ?? 0)),
+      String(p.note ?? ""),
+      "",
+      ev.id,
+    ];
+  }
+
   // Autres types : ligne générique compacte.
   return [when, ev.type, "", "", "", "", JSON.stringify(p), ev.id];
 }

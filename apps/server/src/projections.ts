@@ -126,6 +126,46 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       break;
     }
 
+    /* Last-write-wins comme côté client : un fond redéclaré le corrige, un
+       recomptage remplace le précédent. Le `where` sur l'horodatage rend
+       l'opération sûre quel que soit l'ordre d'arrivée des événements. */
+    case "cash_open": {
+      const p = ev.payload;
+      const key = { soireeId_registerLabel: { soireeId: p.soireeId, registerLabel: p.registerLabel } };
+      const current = await tx.cashSession.findUnique({ where: key, select: { openedAt: true } });
+      if (current?.openedAt && current.openedAt > createdAt) break;
+      await tx.cashSession.upsert({
+        where: key,
+        update: { floatCents: p.floatCents, openedAt: createdAt },
+        create: {
+          soireeId: p.soireeId,
+          registerLabel: p.registerLabel,
+          floatCents: p.floatCents,
+          openedAt: createdAt,
+        },
+      });
+      break;
+    }
+
+    case "cash_count": {
+      const p = ev.payload;
+      const key = { soireeId_registerLabel: { soireeId: p.soireeId, registerLabel: p.registerLabel } };
+      const current = await tx.cashSession.findUnique({ where: key, select: { countedAt: true } });
+      if (current?.countedAt && current.countedAt > createdAt) break;
+      await tx.cashSession.upsert({
+        where: key,
+        update: { countedCents: p.countedCents, countedNote: p.note ?? null, countedAt: createdAt },
+        create: {
+          soireeId: p.soireeId,
+          registerLabel: p.registerLabel,
+          countedCents: p.countedCents,
+          countedNote: p.note ?? null,
+          countedAt: createdAt,
+        },
+      });
+      break;
+    }
+
     case "prepared": {
       const p = ev.payload;
       await tx.prepared.create({
@@ -175,6 +215,7 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       await tx.order.deleteMany({ where: { soireeId: ev.payload.soireeId } });
       await tx.stockMovement.deleteMany({ where: { soireeId: ev.payload.soireeId } });
       await tx.prepared.deleteMany({ where: { soireeId: ev.payload.soireeId } });
+      await tx.cashSession.deleteMany({ where: { soireeId: ev.payload.soireeId } });
       await tx.soiree.deleteMany({ where: { id: ev.payload.soireeId } });
       const active = await tx.appMeta.findUnique({ where: { key: "activeSoiree" } });
       if (active?.value === ev.payload.soireeId) {

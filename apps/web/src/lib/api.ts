@@ -1,4 +1,3 @@
-import type { StatsResponse } from "@cdf/shared";
 import { downscaleForUpload } from "./downscale.js";
 import { useSession } from "./session.js";
 
@@ -42,7 +41,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ accessCode, adminPin }),
     }),
-  getStats: () => request<StatsResponse>("/api/stats"),
   getState: () =>
     request<{ stations: { id: string; name: string; sortOrder: number }[] }>("/api/state"),
   /**

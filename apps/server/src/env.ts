@@ -22,7 +22,6 @@ export const env = {
   mediaDir: process.env.MEDIA_DIR ?? "./.media",
   appAccessCode: required("APP_ACCESS_CODE", "fete2026"),
   adminPin: required("ADMIN_PIN", "1234"),
-  jwtSecret: required("JWT_SECRET", "dev-insecure-secret"),
   backup: {
     sheetsEnabled: (process.env.BACKUP_SHEETS_ENABLED ?? "false") === "true",
     sheetsId: process.env.BACKUP_SHEETS_ID ?? "",

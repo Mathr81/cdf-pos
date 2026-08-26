@@ -20,7 +20,22 @@ import { purgeMedia } from "./media.js";
 const EPOCH_KEY = "epoch";
 
 /** Types d'événements liés à l'exploitation (par opposition à la configuration). */
-const OPERATIONAL_EVENT_TYPES = ["sale", "order_void", "order_amend", "stock_adjust", "prepared"];
+/**
+ * Événements d'exploitation, effacés par `scope: "sales"`.
+ *
+ * Les événements de caisse en font partie : garder un fond et un comptage
+ * alors que les ventes ont disparu produirait un écart faux et inexplicable
+ * au service suivant.
+ */
+const OPERATIONAL_EVENT_TYPES = [
+  "sale",
+  "order_void",
+  "order_amend",
+  "stock_adjust",
+  "prepared",
+  "cash_open",
+  "cash_count",
+];
 
 export type ResetScope =
   /** Efface les ventes / stocks / préparations, garde produits et stations. */
@@ -73,6 +88,7 @@ export async function resetData(scope: ResetScope): Promise<ResetResult> {
     const stockMovements = await tx.stockMovement.deleteMany({});
     await tx.orderItem.deleteMany({});
     const orders = await tx.order.deleteMany({});
+    await tx.cashSession.deleteMany({});
     await tx.backupQueue.deleteMany({});
 
     // `scope: "sales"` ne retire que les événements d'exploitation : les
