@@ -19,6 +19,7 @@ import { markPrepared } from "../lib/actions.js";
 import { Button, EmptyState, StepButton } from "../components/ui.js";
 import { TicketBlock } from "../components/ProductIcon.js";
 import { NoSoiree } from "../components/NoSoiree.js";
+import { DepletionHint } from "../components/DepletionHint.js";
 import { cn } from "../lib/cn.js";
 
 interface KitchenItem {
@@ -267,6 +268,9 @@ function TodoCard({
           </div>
 
           <div className="mt-auto pt-3">
+            {/* Au-dessus de la barre : c'est une raison de lancer une cuisson
+                maintenant, pas une statistique de fin de service. */}
+            <DepletionHint soireeId={soireeId} productId={product.id} className="mb-1.5" />
             <ProgressBar prepared={prepared} sold={sold} />
             <div className="mt-1.5 flex items-center justify-between gap-2 text-micro text-sand">
               <span className="tnum">

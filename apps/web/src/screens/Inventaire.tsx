@@ -20,6 +20,7 @@ import { Button, EmptyState, StepButton } from "../components/ui.js";
 import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { NoSoiree } from "../components/NoSoiree.js";
+import { DepletionHint } from "../components/DepletionHint.js";
 import { cn } from "../lib/cn.js";
 
 type AdjustKind = "restock" | "spoilage";
@@ -77,6 +78,7 @@ export function InventaireScreen() {
                       {viaMenus > 0 && ` (dont ${viaMenus} en menu)`}
                       {adj !== 0 && ` · Ajust. ${adj > 0 ? "+" : ""}${adj}`}
                     </div>
+                    <DepletionHint soireeId={soireeId} productId={p.id} className="mt-0.5" />
                   </div>
 
                   <div className="text-right">

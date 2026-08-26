@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { computeCashup, computeStats, soireeSummaries } from "./stats.js";
+import { compareToPrevious, computeCashup, computeStats, soireeSummaries } from "./stats.js";
 import {
   SOIREE,
   activate,
@@ -265,5 +265,80 @@ describe("soireeSummaries", () => {
       items: 0,
       avgBasketCents: 0,
     });
+  });
+});
+
+describe("compareToPrevious", () => {
+  /** Deux soirées : « juin » à 2400, « sept » à 3000 (+25 %). */
+  function deuxSoirees() {
+    return [
+      soiree("juin", "Juin", "2026-06-14"),
+      soiree("sept", "Septembre", "2026-09-01"),
+      product(BURGER, { priceCents: 100 }),
+      onCarte(BURGER, { soireeId: "juin", stockInitial: 100 }),
+      onCarte(BURGER, { soireeId: "sept", stockInitial: 100 }),
+      sale({ soireeId: "juin", items: [{ productId: BURGER, qty: 24, unitPriceCents: 100 }] }),
+      sale({ soireeId: "sept", items: [{ productId: BURGER, qty: 30, unitPriceCents: 100 }] }),
+    ];
+  }
+
+  test("compare à la soirée qui précède par la date", () => {
+    const comparison = compareToPrevious(replay(...deuxSoirees()), "sept");
+
+    expect(comparison?.current.revenueCents).toBe(3000);
+    expect(comparison?.previous?.soireeId).toBe("juin");
+  });
+
+  test("calcule l'écart de chiffre d'affaires en pourcentage", () => {
+    const comparison = compareToPrevious(replay(...deuxSoirees()), "sept");
+
+    expect(comparison?.revenueDeltaPct).toBe(25);
+  });
+
+  test("une baisse donne un pourcentage négatif", () => {
+    const state = replay(
+      ...deuxSoirees(),
+      soiree("dec", "Décembre", "2026-12-31"),
+      onCarte(BURGER, { soireeId: "dec", stockInitial: 100 }),
+      sale({ soireeId: "dec", items: [{ productId: BURGER, qty: 15, unitPriceCents: 100 }] }),
+    );
+
+    // 1500 après 3000 → −50 %.
+    expect(compareToPrevious(state, "dec")?.revenueDeltaPct).toBe(-50);
+  });
+
+  test("la première soirée n'a rien à quoi se comparer", () => {
+    const comparison = compareToPrevious(replay(...deuxSoirees()), "juin");
+
+    expect(comparison?.current.soireeId).toBe("juin");
+    expect(comparison?.revenueDeltaPct).toBeNull();
+  });
+
+  test("ignore les soirées postérieures", () => {
+    const state = replay(
+      ...deuxSoirees(),
+      soiree("dec", "Décembre", "2026-12-31"),
+    );
+
+    expect(compareToPrevious(state, "sept")?.previous?.soireeId).toBe("juin");
+  });
+
+  test("ne divise pas par zéro quand la soirée précédente n'a rien vendu", () => {
+    const state = replay(
+      soiree("vide", "Vide", "2026-06-14"),
+      soiree("sept", "Septembre", "2026-09-01"),
+      product(BURGER, { priceCents: 100 }),
+      onCarte(BURGER, { soireeId: "sept", stockInitial: 100 }),
+      sale({ soireeId: "sept", items: [{ productId: BURGER, qty: 30, unitPriceCents: 100 }] }),
+    );
+
+    const comparison = compareToPrevious(state, "sept");
+
+    expect(comparison?.previous?.soireeId).toBe("vide");
+    expect(comparison?.revenueDeltaPct).toBeNull();
+  });
+
+  test("renvoie null pour une soirée inconnue", () => {
+    expect(compareToPrevious(replay(...deuxSoirees()), "fantome")).toBeNull();
   });
 });

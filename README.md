@@ -389,6 +389,22 @@ décomposé.
   à jour en direct. Marquez les articles préparés avec `+1 / +5 / +10`.
 - **Inventaire** : réapprovisionnez ou déclarez des pertes ; le stock restant est
   recalculé partout.
+
+### Prévision de rupture
+
+Cuisine et Inventaire affichent **« épuisé vers 21h40 »** sur les produits qui
+vont manquer, pour lancer une cuisson *avant* la rupture plutôt que la constater.
+
+- Le rythme est mesuré sur les **20 dernières minutes**, pas sur toute la soirée :
+  un coup de feu à 20h ne doit pas dicter la prévision de 22h.
+- L'estimation n'apparaît qu'**à moins d'une heure** de la rupture, et passe en
+  rouge sous 20 minutes — au-delà, elle n'appelle aucune décision.
+- Rien n'est affiché tant que le service est trop jeune (moins de 5 minutes de
+  ventes), pour un stock illimité, ou sans vente récente : mieux vaut se taire
+  qu'annoncer « épuisé dans 8 min » au premier client servi.
+
+Les statistiques indiquent aussi l'écart de chiffre d'affaires avec le **service
+précédent** (« +18 % vs 14 juin »).
 - **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
 - **Stats** (PIN requis) : tableau de bord live (fonctionne aussi hors-ligne).
 
