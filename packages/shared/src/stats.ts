@@ -126,6 +126,41 @@ export function soireeSummaries(state: ProjectionState): SoireeSummary[] {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+export interface SoireeComparison {
+  current: SoireeSummary;
+  /** Soirée précédente par la date, ou null si c'est la première. */
+  previous: SoireeSummary | null;
+  /**
+   * Écart de chiffre d'affaires en pourcentage, arrondi à l'entier.
+   * `null` s'il n'y a pas de précédente, ou si elle n'a rien vendu —
+   * un pourcentage d'évolution depuis zéro n'a pas de sens.
+   */
+  revenueDeltaPct: number | null;
+}
+
+/**
+ * Situe une soirée par rapport au service précédent : « +18 % vs 14 juin ».
+ * Renvoie `null` si la soirée est inconnue.
+ */
+export function compareToPrevious(
+  state: ProjectionState,
+  soireeId: string,
+): SoireeComparison | null {
+  const summaries = soireeSummaries(state); // triées par date croissante
+  const index = summaries.findIndex((s) => s.soireeId === soireeId);
+  if (index === -1) return null;
+
+  const current = summaries[index];
+  const previous = index > 0 ? summaries[index - 1] : null;
+
+  const revenueDeltaPct =
+    previous && previous.revenueCents > 0
+      ? Math.round(((current.revenueCents - previous.revenueCents) / previous.revenueCents) * 100)
+      : null;
+
+  return { current, previous, revenueDeltaPct };
+}
+
 /** Ligne de clôture de caisse (rapport Z) par poste de caisse. */
 export interface CashupRow {
   registerLabel: string;

@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  compareToPrevious,
   computeCashup,
   computeStats,
   formatAmount,
@@ -19,10 +20,13 @@ import {
   parseAmountToCents,
   soireeSummaries,
   sortedSoirees,
+  type SoireeComparison,
 } from "@cdf/shared";
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/csr/DownloadSimple";
+import { TrendUpIcon } from "@phosphor-icons/react/dist/csr/TrendUp";
+import { TrendDownIcon } from "@phosphor-icons/react/dist/csr/TrendDown";
 
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
@@ -47,6 +51,12 @@ export function StatsScreen() {
     [soireeId, rev],
   );
   const summaries = useMemo(() => soireeSummaries(projection), [rev]);
+  // Uniquement sur une soirée précise : « toutes soirées » n'a pas de
+  // service précédent auquel se comparer.
+  const comparison = useMemo(
+    () => (soireeId ? compareToPrevious(projection, soireeId) : null),
+    [soireeId, rev],
+  );
 
   const topProducts = stats.topProducts.slice(0, 8);
   const paidTotal = stats.byPaymentMethod.reduce((s, m) => s + m.revenueCents, 0);
@@ -86,7 +96,12 @@ export function StatsScreen() {
           texte plein. C'est ce qui recrée la hiérarchie que le « tout ambre »
           avait effacée. */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Chiffre d'affaires" value={formatCents(stats.totalRevenueCents)} accent />
+        <StatTile
+          label="Chiffre d'affaires"
+          value={formatCents(stats.totalRevenueCents)}
+          accent
+          comparison={comparison}
+        />
         <StatTile label="Commandes" value={String(stats.orderCount)} />
         <StatTile label="Panier moyen" value={formatCents(stats.avgBasketCents)} />
         <StatTile label="Articles vendus" value={String(stats.itemCount)} />
@@ -518,7 +533,17 @@ function CashModal({
   );
 }
 
-function StatTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function StatTile({
+  label,
+  value,
+  accent,
+  comparison,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  comparison?: SoireeComparison | null;
+}) {
   return (
     <Card className="p-4">
       <div className="text-micro font-bold tracking-wide text-ash uppercase">{label}</div>
@@ -531,7 +556,41 @@ function StatTile({ label, value, accent }: { label: string; value: string; acce
       >
         {value}
       </div>
+      {comparison && <DeltaLine comparison={comparison} />}
     </Card>
+  );
+}
+
+/**
+ * « +18 % vs 14 juin ». Un chiffre d'affaires seul ne dit pas si la soirée
+ * marche : c'est la comparaison au service précédent qui le dit.
+ *
+ * Muet quand la comparaison n'a pas de sens (première soirée, ou précédente
+ * sans aucune vente) plutôt que d'afficher un « +∞ % » ou un « 0 % » faux.
+ */
+function DeltaLine({ comparison }: { comparison: SoireeComparison }) {
+  const { previous, revenueDeltaPct } = comparison;
+  if (!previous || revenueDeltaPct === null) return null;
+
+  const hausse = revenueDeltaPct >= 0;
+  const date = new Date(previous.date).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+  });
+
+  return (
+    <div className="mt-2 flex items-center gap-1.5 text-micro font-bold">
+      {hausse ? (
+        <TrendUpIcon size={14} weight="bold" className="shrink-0 text-mint" />
+      ) : (
+        <TrendDownIcon size={14} weight="bold" className="shrink-0 text-signal" />
+      )}
+      <span className={cn("tnum", hausse ? "text-mint" : "text-signal")}>
+        {hausse ? "+" : ""}
+        {revenueDeltaPct} %
+      </span>
+      <span className="truncate text-ash">vs {date}</span>
+    </div>
   );
 }
 
