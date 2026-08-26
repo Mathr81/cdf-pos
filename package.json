@@ -17,6 +17,7 @@
     "db:seed": "pnpm --filter @cdf/server db:seed",
     "db:reset": "pnpm --filter @cdf/server db:reset",
     "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
