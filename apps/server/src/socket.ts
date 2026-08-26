@@ -135,6 +135,11 @@ export function createSocketServer(httpServer: HttpServer) {
         ack?.({ events: [], cursor, hasMore: false });
       }
     });
+
+    socket.on("disconnect", () => {
+      presence.leave(socket.id);
+      broadcastPresence();
+    });
   });
 
   return io;
