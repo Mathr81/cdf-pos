@@ -144,8 +144,34 @@ Le script fait exactement ceci — tu peux aussi le taper à la main :
 ```bash
 git pull                                              # 1. récupérer le code
 cd docker
-docker compose --env-file ../.env up -d --build       # 2. rebuild + redémarrage
+docker compose --env-file ../.env build server        # 2. UNE image à la fois
+docker compose --env-file ../.env build web
+docker compose --env-file ../.env build backup-cron
+docker compose --env-file ../.env up -d               # 3. redémarrage
 ```
+
+> ⚠️ **Ne remplace pas ça par `up -d --build`.** Cette commande construit tous
+> les services **en parallèle** : `server` et `web` lancent chacun un
+> `pnpm install` puis un build Node (tsc, puis Rollup pour la PWA), et côte à
+> côte les deux saturent la mémoire d'un petit VPS — l'OOM killer tue alors des
+> conteneurs en plein service. Séquentiellement, chaque build passe sans peine ;
+> ça coûte seulement quelques minutes de plus.
+
+Reconstruire un seul service quand tu sais que lui seul a changé :
+
+```bash
+./scripts/update.sh web        # ou server, ou backup-cron
+```
+
+Si un build échoue avec une erreur mémoire de Node (« JavaScript heap out of
+memory »), relève le plafond :
+
+```bash
+NODE_BUILD_MEMORY_MB=2048 ./scripts/update.sh
+```
+
+Ce plafond ne s'applique qu'**au build** : le serveur en production repart d'une
+image neuve et n'en hérite pas.
 
 - Les **migrations Prisma** sont appliquées automatiquement au démarrage du
   conteneur serveur : rien à lancer de plus.
