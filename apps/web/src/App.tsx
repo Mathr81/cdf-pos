@@ -9,7 +9,7 @@ import { CaisseScreen } from "./screens/Caisse.js";
 import { CuisineScreen } from "./screens/Cuisine.js";
 import { InventaireScreen } from "./screens/Inventaire.js";
 import { StatsScreen } from "./screens/Stats.js";
-import { AdminScreen } from "./screens/Admin.js";
+import { AdminScreen } from "./screens/admin/AdminScreen.js";
 import { SoireesScreen } from "./screens/Soirees.js";
 import { JournalScreen } from "./screens/Journal.js";
 
