@@ -98,7 +98,7 @@ NPM proxifie le domaine vers ce port.
 
    Édite au minimum : `WEB_PORT` (port exposé, défaut `8080`), `PUBLIC_ORIGIN`
    (l'URL publique finale, ex. `https://pos.mondomaine.fr`), `POSTGRES_PASSWORD`,
-   `APP_ACCESS_CODE`, `ADMIN_PIN`, `JWT_SECRET`.
+   `APP_ACCESS_CODE`, `ADMIN_PIN`.
    Mets `SEED_ON_START=true` pour charger la carte du soir au 1er lancement
    (voir [La carte](#-la-carte)) ; sans effet si des produits existent déjà.
 
@@ -447,5 +447,12 @@ Ces ventes en attente sont protégées : voir
 - **Code d'accès** partagé (`APP_ACCESS_CODE`) demandé au lancement — évite que
   n'importe qui sur le domaine utilise la caisse.
 - **PIN admin** (`ADMIN_PIN`) pour l'administration et les statistiques.
-- Changez impérativement `JWT_SECRET`, `POSTGRES_PASSWORD`, `APP_ACCESS_CODE` et
-  `ADMIN_PIN` avant la mise en production.
+- Changez impérativement `POSTGRES_PASSWORD`, `APP_ACCESS_CODE` et `ADMIN_PIN`
+  avant la mise en production.
+- La route de vérification `/api/auth/check` est **limitée à 10 tentatives par
+  minute et par IP** : sans cela, un code d'accès court se devine par force brute.
+
+> ℹ️ Le modèle est volontairement simple : un secret partagé entre bénévoles,
+> pas de comptes individuels ni de sessions signées. Il protège d'un passant qui
+> tomberait sur le domaine, pas d'un attaquant déterminé — et il n'a jamais
+> prétendu faire mieux.
