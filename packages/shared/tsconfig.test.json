@@ -1,0 +1,7 @@
+{
+  // `tsconfig.json` exclut les tests pour garder `dist` propre. Ils doivent
+  // malgré tout être typés : cette config les réintègre, sans rien émettre.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "exclude": []
+}

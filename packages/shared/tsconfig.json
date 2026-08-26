@@ -5,5 +5,8 @@
     "rootDir": "./src",
     "moduleResolution": "Bundler"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  // Les tests et leurs fixtures vivent à côté des sources mais ne sont pas
+  // compilés dans `dist` : ce paquet est consommé par le serveur et la PWA.
+  "exclude": ["src/**/*.test.ts", "src/test-utils/**"]
 }
