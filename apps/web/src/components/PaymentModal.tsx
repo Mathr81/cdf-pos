@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { formatCents, parseAmountToCents, type PaymentMethod } from "@cdf/shared";
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
+import { GiftIcon } from "@phosphor-icons/react/dist/csr/Gift";
 import { Modal } from "./Modal.js";
 import { Numpad } from "./Numpad.js";
 import { Button } from "./ui.js";
@@ -66,6 +67,19 @@ export function PaymentModal({
           >
             <CreditCardIcon size={40} weight="fill" className="text-dusk" />
             Carte
+          </Button>
+
+          {/* Sur toute la largeur et visuellement en retrait : c'est le geste
+              rare. Le mettre à égalité avec Espèces et Carte inviterait à le
+              toucher par erreur, et un repas encaissé en « Offert » ne se voit
+              qu'au dépouillement. */}
+          <Button
+            variant="ghost"
+            className="col-span-2 h-16 gap-3 text-body"
+            onClick={() => onConfirm("offert")}
+          >
+            <GiftIcon size={24} weight="fill" className="text-mint" />
+            Offert (bénévole, invité)
           </Button>
         </div>
       )}

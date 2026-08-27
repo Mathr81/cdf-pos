@@ -1,5 +1,5 @@
 import { google, type sheets_v4 } from "googleapis";
-import { formatAmount } from "@cdf/shared";
+import { formatAmount, paymentLabel } from "@cdf/shared";
 import type { IoServer } from "../ingest.js";
 import { prisma } from "../db.js";
 import { env } from "../env.js";
@@ -76,7 +76,7 @@ async function eventToRow(ev: {
       when,
       "VENTE",
       String(p.registerLabel ?? ""),
-      p.paymentMethod === "cash" ? "Espèces" : "Carte",
+      paymentLabel(String(p.paymentMethod ?? "")),
       formatAmount(Number(p.totalCents ?? 0)),
       itemsStr,
       String(p.cashierName ?? ""),

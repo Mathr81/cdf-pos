@@ -21,6 +21,7 @@ import {
   soireeSummaries,
   sortedSoirees,
   type SoireeComparison,
+  paymentLabel,
 } from "@cdf/shared";
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
@@ -105,6 +106,15 @@ export function StatsScreen() {
         <StatTile label="Commandes" value={String(stats.orderCount)} />
         <StatTile label="Panier moyen" value={formatCents(stats.avgBasketCents)} />
         <StatTile label="Articles vendus" value={String(stats.itemCount)} />
+        {/* N'apparaît que s'il y a eu des gratuités : une tuile « 0,00 € »
+            occuperait une place dans la grille sans rien apprendre. */}
+        {stats.giftedValueCents > 0 && (
+          <StatTile
+            label="Offert"
+            value={formatCents(stats.giftedValueCents)}
+            hint={`${stats.giftedItems} article(s), hors chiffre d'affaires`}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -242,7 +252,7 @@ export function StatsScreen() {
                       <CreditCardIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
                     )}
                     <span className="font-semibold text-cream">
-                      {m.method === "cash" ? "Espèces" : "Carte"}
+                      {paymentLabel(m.method)}
                     </span>
                     <span className="tnum ml-auto text-sand">{formatCents(m.revenueCents)}</span>
                     <span className="tnum w-14 text-right text-ash">
@@ -538,11 +548,13 @@ function StatTile({
   value,
   accent,
   comparison,
+  hint,
 }: {
   label: string;
   value: string;
   accent?: boolean;
   comparison?: SoireeComparison | null;
+  hint?: string;
 }) {
   return (
     <Card className="p-4">
@@ -556,6 +568,7 @@ function StatTile({
       >
         {value}
       </div>
+      {hint && <div className="mt-1.5 text-micro text-ash">{hint}</div>}
       {comparison && <DeltaLine comparison={comparison} />}
     </Card>
   );

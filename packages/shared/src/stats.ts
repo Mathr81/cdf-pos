@@ -13,11 +13,41 @@ export interface StatsResponse {
   /** Courbe d'évolution cumulée du CA (un point par commande). */
   revenueTimeline: { t: string; cumulativeCents: number; orders: number }[];
   voidCount: number;
+  /**
+   * Repas offerts (bénévoles, invités). Exclus de tout ce qui précède : ce
+   * n'est pas du chiffre d'affaires. Chiffré quand même, parce que « ce que
+   * les gratuités ont coûté » est une question que l'asso se pose.
+   */
+  giftedOrders: number;
+  giftedItems: number;
+  giftedValueCents: number;
 }
 
+/**
+ * Commandes réellement ENCAISSÉES : ni annulées, ni offertes.
+ *
+ * Point de passage unique de tout ce qui parle d'argent — computeStats,
+ * computeCashup et soireeSummaries en dépendent. Un repas offert a de vrais
+ * prix dans la commande (pour pouvoir chiffrer les gratuités), donc il faut
+ * l'exclure ICI et nulle part ailleurs, sinon il gonflerait le chiffre
+ * d'affaires et créerait un faux manque à la clôture de caisse.
+ */
 function paidOrders(state: ProjectionState, soireeId: string | null): ClientOrder[] {
   return Object.values(state.orders).filter(
-    (o) => o.status === "paid" && (soireeId === null || o.soireeId === soireeId),
+    (o) =>
+      o.status === "paid" &&
+      o.paymentMethod !== "offert" &&
+      (soireeId === null || o.soireeId === soireeId),
+  );
+}
+
+/** Commandes offertes, non annulées. */
+function giftedOrders(state: ProjectionState, soireeId: string | null): ClientOrder[] {
+  return Object.values(state.orders).filter(
+    (o) =>
+      o.status === "paid" &&
+      o.paymentMethod === "offert" &&
+      (soireeId === null || o.soireeId === soireeId),
   );
 }
 
@@ -82,6 +112,10 @@ export function computeStats(state: ProjectionState, soireeId: string | null): S
     (o) => o.status === "void" && (soireeId === null || o.soireeId === soireeId),
   ).length;
 
+  const gifted = giftedOrders(state, soireeId);
+  const giftedValueCents = gifted.reduce((a, o) => a + o.totalCents, 0);
+  const giftedItems = gifted.reduce((a, o) => a + o.items.reduce((x, i) => x + i.qty, 0), 0);
+
   return {
     totalRevenueCents,
     orderCount: paid.length,
@@ -93,6 +127,9 @@ export function computeStats(state: ProjectionState, soireeId: string | null): S
     salesByHour: [...byHour.entries()].map(([hour, v]) => ({ hour, ...v })).sort((a, b) => a.hour.localeCompare(b.hour)),
     revenueTimeline,
     voidCount,
+    giftedOrders: gifted.length,
+    giftedItems,
+    giftedValueCents,
   };
 }
 
