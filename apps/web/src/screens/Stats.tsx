@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   ResponsiveContainer,
   Tooltip,
@@ -60,15 +61,45 @@ export function StatsScreen() {
   );
 
   const topProducts = stats.topProducts.slice(0, 8);
+  const peak = stats.salesByHour.reduce<(typeof stats.salesByHour)[number] | null>(
+    (best, h) => (best === null || h.orders > best.orders ? h : best),
+    null,
+  );
+  const bestRegister = stats.byRegister.reduce<(typeof stats.byRegister)[number] | null>(
+    (best, r) => (best === null || r.revenueCents > best.revenueCents ? r : best),
+    null,
+  );
   const paidTotal = stats.byPaymentMethod.reduce((s, m) => s + m.revenueCents, 0);
   const timeline = stats.revenueTimeline.map((p) => ({
     t: new Date(p.t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
     euros: p.cumulativeCents / 100,
   }));
 
+  /* Tuiles construites en LISTE, puis la grille en déduit ses colonnes.
+     Avant, quatre colonnes en dur recevaient parfois cinq tuiles : la
+     cinquième restait seule avec trois cellules vides à sa droite. */
+  const tiles: TileProps[] = [
+    {
+      label: "Chiffre d'affaires",
+      value: formatCents(stats.totalRevenueCents),
+      accent: true,
+      comparison,
+    },
+    { label: "Commandes", value: String(stats.orderCount) },
+    { label: "Panier moyen", value: formatCents(stats.avgBasketCents) },
+    { label: "Articles vendus", value: String(stats.itemCount) },
+  ];
+  if (stats.giftedValueCents > 0) {
+    tiles.push({
+      label: "Offert",
+      value: formatCents(stats.giftedValueCents),
+      hint: `${stats.giftedItems} article(s), hors CA`,
+    });
+  }
+
   return (
-    <div className="mx-auto h-full max-w-5xl overflow-y-auto p-4">
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+    <div className="mx-auto h-full max-w-7xl overflow-y-auto p-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-title font-bold text-cream">Statistiques</h1>
         <SelectInput
           value={scope}
@@ -93,32 +124,53 @@ export function StatsScreen() {
         </Button>
       </div>
 
-      {/* Une seule tuile porte le lantern : le CA. Les trois autres sont en
-          texte plein. C'est ce qui recrée la hiérarchie que le « tout ambre »
+      {/* Une seule tuile porte le lantern : le CA. Les autres sont en texte
+          plein — c'est ce qui recrée la hiérarchie que le « tout ambre »
           avait effacée. */}
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label="Chiffre d'affaires"
-          value={formatCents(stats.totalRevenueCents)}
-          accent
-          comparison={comparison}
-        />
-        <StatTile label="Commandes" value={String(stats.orderCount)} />
-        <StatTile label="Panier moyen" value={formatCents(stats.avgBasketCents)} />
-        <StatTile label="Articles vendus" value={String(stats.itemCount)} />
-        {/* N'apparaît que s'il y a eu des gratuités : une tuile « 0,00 € »
-            occuperait une place dans la grille sans rien apprendre. */}
-        {stats.giftedValueCents > 0 && (
-          <StatTile
-            label="Offert"
-            value={formatCents(stats.giftedValueCents)}
-            hint={`${stats.giftedItems} article(s), hors chiffre d'affaires`}
-          />
+      <div
+        className={cn(
+          "mb-4 grid grid-cols-2 gap-3",
+          tiles.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4",
         )}
+      >
+        {tiles.map((t, i) => (
+          <StatTile
+            key={t.label}
+            {...t}
+            /* Nombre impair : la dernière tuile occupe les deux colonnes du
+               mobile plutôt que de laisser un demi-vide à côté d'elle. */
+            className={cn(
+              i === tiles.length - 1 && tiles.length % 2 === 1 && "col-span-2 lg:col-span-1",
+            )}
+          />
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard title="Évolution du chiffre d'affaires" hint="Cumul dans le temps" wide>
+      {/* Deux repères que le tableau de bord ne donnait pas et qu'on cherchait
+          dans les graphiques : quand ça a tapé le plus fort, et quel poste a
+          le plus encaissé. */}
+      {(peak || bestRegister) && (
+        <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 px-1 text-body text-sand">
+          {peak && (
+            <span>
+              Pic d'affluence <b className="text-cream">{peak.hour}</b> ·{" "}
+              <span className="tnum">{peak.orders}</span> commandes
+            </span>
+          )}
+          {bestRegister && (
+            <span>
+              Poste le plus actif <b className="text-cream">{bestRegister.registerLabel}</b> ·{" "}
+              <span className="tnum">{formatCents(bestRegister.revenueCents)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Six colonnes plutôt que deux : chaque rangée est remplie
+          exactement, et `items-stretch` aligne les bas de cartes qui
+          partaient auparavant en escalier (308 px contre 360). */}
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-6">
+        <ChartCard title="Évolution du chiffre d'affaires" hint="Cumul dans le temps" span={6}>
           {timeline.length === 0 ? (
             <Empty />
           ) : (
@@ -139,12 +191,15 @@ export function StatsScreen() {
                   interval="preserveStartEnd"
                   minTickGap={40}
                 />
+                {/* 44 px ne suffisaient pas à « 1600€ » : Recharts rognait le
+                    premier chiffre et l'axe affichait « 800€ » pour 1 600 €.
+                    Le graphique mentait. Format compact + largeur adéquate. */}
                 <YAxis
                   tick={{ fill: PALETTE.ash, fontSize: 11 }}
                   tickLine={false}
                   axisLine={false}
-                  width={44}
-                  tickFormatter={(v) => `${v}€`}
+                  width={58}
+                  tickFormatter={compactEuro}
                 />
                 <Tooltip content={<ChartTooltip money />} />
                 <Area
@@ -159,7 +214,7 @@ export function StatsScreen() {
           )}
         </ChartCard>
 
-        <ChartCard title="Affluence par heure" hint="Nombre de commandes">
+        <ChartCard title="Affluence par heure" hint="Nombre de commandes" span={4}>
           {stats.salesByHour.length === 0 ? (
             <Empty />
           ) : (
@@ -183,44 +238,29 @@ export function StatsScreen() {
                   cursor={{ fill: "rgba(247,240,232,0.05)" }}
                   content={<ChartTooltip fmt={(v) => `${v} commande${v > 1 ? "s" : ""}`} />}
                 />
-                <Bar dataKey="orders" fill={PALETTE.lantern} radius={[4, 4, 0, 0]} maxBarSize={44} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Top produits" hint="Quantités vendues">
-          {topProducts.length === 0 ? (
-            <Empty />
-          ) : (
-            <ResponsiveContainer width="100%" height={Math.max(180, topProducts.length * 34)}>
-              <BarChart
-                data={topProducts}
-                layout="vertical"
-                margin={{ top: 0, right: 28, left: 0, bottom: 0 }}
-              >
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fill: PALETTE.ash, fontSize: 12 }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={96}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(247,240,232,0.05)" }}
-                  content={<ChartTooltip fmt={(v) => `${v} vendus`} />}
-                />
-                <Bar dataKey="qty" fill={PALETTE.lantern} radius={[0, 4, 4, 0]} maxBarSize={22}>
-                  <LabelList dataKey="qty" position="right" fill={PALETTE.ash} fontSize={12} />
+                {/* Le pic est plein, les autres barres en retrait : l'heure
+                    de coup de feu se repère sans lire l'axe. */}
+                <Bar dataKey="orders" radius={[4, 4, 0, 0]} maxBarSize={44}>
+                  {stats.salesByHour.map((h) => (
+                    <Cell
+                      key={h.hour}
+                      fill={PALETTE.lantern}
+                      fillOpacity={peak && h.hour === peak.hour ? 1 : 0.45}
+                    />
+                  ))}
+                  <LabelList
+                    dataKey="orders"
+                    position="top"
+                    fill={PALETTE.ash}
+                    fontSize={11}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </ChartCard>
 
-        <ChartCard title="Moyens de paiement" hint="Part du chiffre d'affaires">
+        <ChartCard title="Moyens de paiement" hint="Part du chiffre d'affaires" span={2}>
           {paidTotal === 0 ? (
             <Empty />
           ) : (
@@ -264,6 +304,37 @@ export function StatsScreen() {
             </div>
           )}
         </ChartCard>
+        <ChartCard title="Top produits" hint="Quantités vendues" span={6}>
+          {topProducts.length === 0 ? (
+            <Empty />
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(180, topProducts.length * 34)}>
+              <BarChart
+                data={topProducts}
+                layout="vertical"
+                margin={{ top: 0, right: 28, left: 0, bottom: 0 }}
+              >
+                <XAxis type="number" hide />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fill: PALETTE.ash, fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={96}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(247,240,232,0.05)" }}
+                  content={<ChartTooltip fmt={(v) => `${v} vendus`} />}
+                />
+                <Bar dataKey="qty" fill={PALETTE.lantern} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <LabelList dataKey="qty" position="right" fill={PALETTE.ash} fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+
       </div>
 
       {/* Rapport Z (clôture de caisse) : seulement pour une soirée. */}
@@ -543,28 +614,32 @@ function CashModal({
   );
 }
 
-function StatTile({
-  label,
-  value,
-  accent,
-  comparison,
-  hint,
-}: {
+/** Montant court pour un axe : « 1 434 € » devient « 1,4 k€ ». */
+function compactEuro(v: number): string {
+  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1).replace(".", ",")} k€`;
+  return `${v} €`;
+}
+
+interface TileProps {
   label: string;
   value: string;
   accent?: boolean;
   comparison?: SoireeComparison | null;
   hint?: string;
-}) {
+  className?: string;
+}
+
+function StatTile({ label, value, accent, comparison, hint, className }: TileProps) {
   return (
-    <Card className="p-4">
+    <Card className={cn("p-4", className)}>
       <div className="text-micro font-bold tracking-wide text-ash uppercase">{label}</div>
       <div
-        className={
-          accent
-            ? "font-display tnum mt-1.5 text-display font-bold text-lantern"
-            : "font-display tnum mt-1.5 text-display font-bold text-cream"
-        }
+        /* `text-display` déborde d'une demi-largeur de téléphone : « 1 434,00 € »
+           y perdait son symbole. On monte d'un cran seulement à partir de sm. */
+        className={cn(
+          "font-display tnum mt-1.5 text-title font-bold sm:text-display",
+          accent ? "text-lantern" : "text-cream",
+        )}
       >
         {value}
       </div>
@@ -607,26 +682,42 @@ function DeltaLine({ comparison }: { comparison: SoireeComparison }) {
   );
 }
 
+/**
+ * Carte de graphique.
+ *
+ * `span` est en dur dans une table plutôt que composé (`lg:col-span-${n}`) :
+ * Tailwind compile les classes trouvées dans le source, une classe construite
+ * à l'exécution n'existerait tout simplement pas.
+ */
+const SPANS: Record<number, string> = {
+  2: "lg:col-span-2",
+  3: "lg:col-span-3",
+  4: "lg:col-span-4",
+  6: "lg:col-span-6",
+};
+
 function ChartCard({
   title,
   hint,
   children,
-  wide,
+  span = 3,
   className,
 }: {
   title: string;
   hint?: string;
   children: React.ReactNode;
-  wide?: boolean;
+  span?: 2 | 3 | 4 | 6;
   className?: string;
 }) {
   return (
-    <Card className={`${wide ? "lg:col-span-2" : ""} p-4 ${className ?? ""}`}>
-      <div className="mb-3">
+    <Card className={cn("flex flex-col p-4", SPANS[span], className)}>
+      <div className="mb-3 shrink-0">
         <h2 className="font-display text-lead font-bold text-cream">{title}</h2>
         {hint && <p className="text-micro text-ash">{hint}</p>}
       </div>
-      {children}
+      {/* Le contenu occupe la hauteur restante : deux cartes voisines de
+          titres inégaux gardent malgré tout le même bas. */}
+      <div className="flex min-h-0 flex-1 flex-col justify-center">{children}</div>
     </Card>
   );
 }
