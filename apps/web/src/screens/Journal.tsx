@@ -7,9 +7,12 @@ import {
   sortedSoirees,
   type ClientOrder,
   type PaymentMethod,
+  PAYMENT_METHODS,
+  paymentLabel,
 } from "@cdf/shared";
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
+import { GiftIcon } from "@phosphor-icons/react/dist/csr/Gift";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { NotebookIcon } from "@phosphor-icons/react/dist/csr/Notebook";
@@ -35,6 +38,13 @@ import { cn } from "../lib/cn.js";
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Un glyphe par moyen de paiement — la forme distingue, pas la couleur. */
+function PaymentIcon({ method, size }: { method: PaymentMethod; size: number }) {
+  if (method === "cash") return <CoinsIcon size={size} weight="fill" />;
+  if (method === "offert") return <GiftIcon size={size} weight="fill" />;
+  return <CreditCardIcon size={size} weight="fill" />;
 }
 
 export function JournalScreen() {
@@ -67,7 +77,11 @@ export function JournalScreen() {
     return list;
   }, [soireeId, pay, status, q, useRev()]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const revenue = orders.filter((o) => o.status === "paid").reduce((s, o) => s + o.totalCents, 0);
+  // Les repas offerts ont de vrais prix dans la commande : les additionner ici
+  // gonflerait le « CA payé » du montant des gratuités.
+  const revenue = orders
+    .filter((o) => o.status === "paid" && o.paymentMethod !== "offert")
+    .reduce((s, o) => s + o.totalCents, 0);
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col p-4">
@@ -85,8 +99,11 @@ export function JournalScreen() {
         </SelectInput>
         <SelectInput value={pay} onChange={(e) => setPay(e.target.value as typeof pay)}>
           <option value="all">Tous paiements</option>
-          <option value="cash">Espèces</option>
-          <option value="card">Carte</option>
+          {PAYMENT_METHODS.map((m) => (
+            <option key={m} value={m}>
+              {paymentLabel(m)}
+            </option>
+          ))}
         </SelectInput>
         <SelectInput value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="all">Tous statuts</option>
@@ -138,11 +155,9 @@ export function JournalScreen() {
                       {o.cashierName && <span className="text-sand"> · {o.cashierName}</span>}
                     </div>
                     <div className="tnum flex items-center gap-1.5 text-micro text-ash">
-                      {o.paymentMethod === "cash" ? (
-                        <CoinsIcon size={13} weight="fill" />
-                      ) : (
-                        <CreditCardIcon size={13} weight="fill" />
-                      )}
+                      {/* Un glyphe par mode : sans le cas « offert », une
+                          gratuité s'affichait avec l'icône carte bancaire. */}
+                      <PaymentIcon method={o.paymentMethod} size={13} />
                       {o.items.reduce((s, i) => s + i.qty, 0)} article(s)
                     </div>
                   </div>
@@ -213,7 +228,7 @@ function OrderDetail({
         <div className="mb-3 flex flex-wrap items-center gap-2 text-micro text-sand">
           <span>{order.registerLabel}</span>
           {order.cashierName && <span>· {order.cashierName}</span>}
-          <span>· {order.paymentMethod === "cash" ? "espèces" : "carte"}</span>
+          <span>· {paymentLabel(order.paymentMethod).toLowerCase()}</span>
           {order.status === "void" && (
             <Badge tone="signal">
               <ProhibitIcon size={12} weight="bold" />
@@ -374,20 +389,20 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="text-body text-sand">Paiement</span>
-        <Button
-          variant={method === "cash" ? "primary" : "secondary"}
-          size="sm"
-          onClick={() => setMethod("cash")}
-        >
-          Espèces
-        </Button>
-        <Button
-          variant={method === "card" ? "primary" : "secondary"}
-          size="sm"
-          onClick={() => setMethod("card")}
-        >
-          Carte
-        </Button>
+        {/* Engendré depuis PAYMENT_METHODS plutôt qu'écrit en dur : corriger
+            une vente en « Offert » après coup — on s'aperçoit que c'était un
+            bénévole — est une correction légitime, et un futur mode
+            apparaîtrait ici sans qu'on ait à y penser. */}
+        {PAYMENT_METHODS.map((m) => (
+          <Button
+            key={m}
+            variant={method === m ? "primary" : "secondary"}
+            size="sm"
+            onClick={() => setMethod(m)}
+          >
+            {paymentLabel(m)}
+          </Button>
+        ))}
         <div className="font-display tnum ml-auto text-title font-bold text-lantern">
           {formatCents(totalCents)}
         </div>

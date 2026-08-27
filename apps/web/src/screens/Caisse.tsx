@@ -5,6 +5,7 @@ import {
   stockRemaining,
   type CarteEntry,
   type PaymentMethod,
+  paymentLabel,
 } from "@cdf/shared";
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
 import { ConfettiIcon } from "@phosphor-icons/react/dist/csr/Confetti";
@@ -201,7 +202,7 @@ export function CaisseScreen() {
     clearCart();
     setPayOpen(false);
     setSheetOpen(false);
-    setToast(`Encaissé ${formatCents(totalCents)} · ${method === "cash" ? "espèces" : "carte"}`);
+    setToast(`Encaissé ${formatCents(totalCents)} · ${paymentLabel(method).toLowerCase()}`);
     setTimeout(() => setToast(null), 2200);
   };
 

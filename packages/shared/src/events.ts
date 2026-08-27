@@ -15,8 +15,41 @@ import { z } from "zod";
  *  (Order, OrderItem, StockMovement, Prepared) pour lecture rapide.
  */
 
-export const PAYMENT_METHODS = ["cash", "card"] as const;
+/**
+ * Moyens de paiement.
+ *
+ * `offert` couvre les repas donnés (bénévoles, invités). La commande garde
+ * les VRAIS prix : c'est ce qui permet de rapporter « 47 € offerts ». En
+ * contrepartie, ce mode doit être exclu de toute agrégation d'argent — voir
+ * `paidOrders()` dans stats.ts, qui est le point de passage unique.
+ *
+ * ⚠️ Ajouter une valeur est rétro-compatible (les événements déjà en base
+ * restent valides), en retirer une ne l'est pas : le rejeu du journal
+ * échouerait sur les ventes qui l'utilisaient.
+ */
+export const PAYMENT_METHODS = ["cash", "card", "offert"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * Libellé affichable d'un moyen de paiement.
+ *
+ * Source unique : le ternaire `=== "cash" ? "Espèces" : "Carte"` était
+ * dupliqué dans le miroir Sheets, l'export CSV, la caisse, le journal et les
+ * stats. Chacun aurait silencieusement étiqueté « offert » en « Carte ».
+ *
+ * Tolère une chaîne inconnue et la renvoie telle quelle : le journal étant
+ * immuable, une version future pourrait introduire un mode que ce code ne
+ * connaît pas encore.
+ */
+export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  cash: "Espèces",
+  card: "Carte",
+  offert: "Offert",
+};
+
+export function paymentLabel(method: PaymentMethod | string): string {
+  return PAYMENT_LABELS[method as PaymentMethod] ?? method;
+}
 
 export const STOCK_REASONS = ["restock", "spoilage", "correction"] as const;
 export type StockReason = (typeof STOCK_REASONS)[number];

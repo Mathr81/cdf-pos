@@ -49,10 +49,10 @@ Vérifié et **écarté** : « dupliquer une soirée » existe déjà
   et le mode `offert` est exclu du CA. On peut donc rapporter « 47 € offerts ».
   En contrepartie, chaque agrégation monétaire doit filtrer explicitement — d'où
   le lot 0 en préalable.
-- **Prix de revient figé à la vente.** `unitCostCents` est porté par la ligne de
-  commande, comme `unitPriceCents`. Sans cela, changer un prix d'achat
-  réécrirait rétroactivement la marge des soirées passées. Les ventes
-  antérieures auront une marge *inconnue*, jamais fausse.
+- ~~**Prix de revient figé à la vente.**~~ **Écarté le 27 août 2026** : le prix
+  de revient unitaire d'un produit est le plus souvent incalculable pour l'asso
+  (achats en gros, quantités variables). Le lot 6 se réduit donc aux repas
+  offerts, et ne comporte plus de migration.
 - **`Admin.tsx` : découpage à vue**, en commit isolé sans changement de
   comportement, plutôt que de monter d'abord une infra de test React (jsdom +
   Testing Library). C'est du déplacement de code pur.
@@ -70,7 +70,7 @@ Vérifié et **écarté** : « dupliquer une soirée » existe déjà
 | 3 | Prévision de rupture + comparaison à la soirée précédente | — |
 | 4 | Fond de caisse, comptage réel, écart par poste | `CashSession` |
 | 5 | Postes connectés et ventes en attente visibles dans Admin | — |
-| 6 | Repas offerts + prix de revient et marge | `costCents` |
+| 6 | Repas offerts (prix de revient écarté) | — |
 | 7 | Mode démo / entraînement | — |
 
 L'ordre n'est pas arbitraire : le lot 0 protège les lots 4 et 6, le lot 2 évite

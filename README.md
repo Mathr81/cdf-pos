@@ -453,6 +453,23 @@ Les statistiques indiquent aussi l'écart de chiffre d'affaires avec le **servic
 précédent** (« +18 % vs 14 juin »).
 - **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
 
+### Repas offerts
+
+Le bouton **Offert (bénévole, invité)** à l'encaissement enregistre une commande
+avec ses **vrais prix**, mais **hors chiffre d'affaires**.
+
+- le **stock** est décrémenté et la **cuisine** voit la préparation à sortir —
+  c'était tout le problème : un repas non saisi rendait la cuisine aveugle, et un
+  repas saisi comme vente faussait le CA ;
+- la commande n'entre ni dans le CA, ni dans le panier moyen, ni dans les
+  articles vendus, ni dans la **clôture de caisse** (sinon chaque gratuité aurait
+  créé un faux manque du même montant) ;
+- Stats affiche une tuile **Offert** avec le montant et le nombre d'articles,
+  uniquement s'il y a eu des gratuités.
+
+Une vente peut être corrigée en « Offert » après coup depuis le **Journal**, et
+inversement.
+
 ### Clôture de caisse (fond et écart)
 
 **Stats → Clôture de caisse** compare ce qu'il *devrait* y avoir dans la boîte à

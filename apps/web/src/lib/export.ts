@@ -1,4 +1,4 @@
-import { formatAmount, type ProjectionState } from "@cdf/shared";
+import { formatAmount, paymentLabel, type ProjectionState } from "@cdf/shared";
 import { download } from "./download.js";
 
 /** Échappe un champ CSV (séparateur « ; », compatible Excel FR). */
@@ -50,7 +50,7 @@ export function exportOrdersCsv(state: ProjectionState, soireeId: string | null)
           o.status === "void" ? "annulée" : o.amended ? "modifiée" : "payée",
           o.registerLabel,
           o.cashierName ?? "",
-          o.paymentMethod === "cash" ? "espèces" : "carte",
+          paymentLabel(o.paymentMethod),
           state.products[it.productId]?.name ?? it.productId,
           it.qty,
           formatAmount(it.unitPriceCents),
