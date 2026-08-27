@@ -71,7 +71,7 @@ Vérifié et **écarté** : « dupliquer une soirée » existe déjà
 | 4 | Fond de caisse, comptage réel, écart par poste | `CashSession` |
 | 5 | Postes connectés et ventes en attente visibles dans Admin | — |
 | 6 | Repas offerts (prix de revient écarté) | — |
-| 7 | Mode démo / entraînement | — |
+| 7 | Soirée d'entraînement + aide intégrée | — |
 
 L'ordre n'est pas arbitraire : le lot 0 protège les lots 4 et 6, le lot 2 évite
 d'aggraver `Admin.tsx` avant d'y ajouter quatre écrans, et le lot 3 livre de la

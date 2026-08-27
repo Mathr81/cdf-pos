@@ -14,8 +14,11 @@ import { WifiHighIcon } from "@phosphor-icons/react/dist/csr/WifiHigh";
 import { WifiSlashIcon } from "@phosphor-icons/react/dist/csr/WifiSlash";
 import { CloudArrowUpIcon } from "@phosphor-icons/react/dist/csr/CloudArrowUp";
 import { CloudWarningIcon } from "@phosphor-icons/react/dist/csr/CloudWarning";
+import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
+import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
 
 import { useSession } from "../lib/session.js";
+import { useActiveSoiree } from "../lib/hooks.js";
 import { useStore } from "../lib/store.js";
 import { disconnect } from "../lib/sync.js";
 import { useWakeLock } from "../lib/wakeLock.js";
@@ -38,16 +41,20 @@ function navItemsFor(role: string | null, isAdmin: boolean): NavItem[] {
   const stats = { to: "/stats", label: "Stats", icon: ChartBarIcon };
   const soirees = { to: "/soirees", label: "Soirées", icon: ConfettiIcon };
   const admin = { to: "/admin", label: "Admin", icon: GearIcon };
-  if (isAdmin) return [caisse, cuisine, inventaire, journal, stats, soirees, admin];
+  // L'aide est présente pour TOUS les postes, y compris cuisine qui n'a
+  // qu'un seul autre onglet : c'est justement le poste tenu par les
+  // bénévoles les moins habitués à l'app.
+  const aide = { to: "/aide", label: "Aide", icon: QuestionIcon };
+  if (isAdmin) return [caisse, cuisine, inventaire, journal, stats, soirees, admin, aide];
   switch (role) {
     case "cuisine":
-      return [cuisine];
+      return [cuisine, aide];
     case "stats":
-      return [stats];
+      return [stats, aide];
     case "admin":
-      return [soirees, caisse, cuisine, inventaire, journal, stats, admin];
+      return [soirees, caisse, cuisine, inventaire, journal, stats, admin, aide];
     default:
-      return [caisse, inventaire];
+      return [caisse, inventaire, aide];
   }
 }
 
@@ -130,6 +137,24 @@ function usePendingExitWarning() {
   }, [pending]);
 }
 
+/**
+ * Bandeau permanent en soirée d'entraînement.
+ *
+ * Non refermable, et c'est délibéré : le danger n'est pas d'oublier qu'on
+ * s'entraîne, c'est d'encaisser un vrai client sur une soirée d'exercice et
+ * de ne jamais retrouver l'argent dans les comptes.
+ */
+function TrainingBanner() {
+  const soiree = useActiveSoiree();
+  if (!soiree?.training) return null;
+  return (
+    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern px-3 py-1.5 text-center text-micro font-bold text-night">
+      <GraduationCapIcon size={16} weight="fill" className="shrink-0" />
+      MODE ENTRAÎNEMENT · « {soiree.name} » — ces ventes ne comptent pas dans les chiffres
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { role, label, isAdmin, reset } = useSession();
   const navigate = useNavigate();
@@ -197,6 +222,8 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
         <div className="guirlande" />
       </header>
+
+      <TrainingBanner />
 
       <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
 

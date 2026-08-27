@@ -224,6 +224,14 @@ export const SoireeUpsertPayloadSchema = z.object({
   name: z.string().min(1),
   /** Date de la soirée (ISO, ex "2026-08-15"). */
   date: z.string().min(1),
+  /**
+   * Soirée d'entraînement : sert à former les bénévoles sans polluer les
+   * chiffres. Exclue des totaux « toutes soirées » et des comparaisons.
+   *
+   * `.default(false)` et non `.optional()` : les soirées déjà enregistrées
+   * sont de vraies soirées, et le défaut doit le dire au rejeu du journal.
+   */
+  training: z.boolean().default(false),
 });
 export type SoireeUpsertPayload = z.infer<typeof SoireeUpsertPayloadSchema>;
 

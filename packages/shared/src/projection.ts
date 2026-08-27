@@ -55,6 +55,12 @@ export interface ClientSoiree {
   date: string;
   status: "open" | "closed";
   createdAt: string;
+  /**
+   * Soirée d'entraînement : elle fonctionne exactement comme une vraie, mais
+   * disparaît de tout ce qui agrège plusieurs soirées. Former les bénévoles
+   * ne doit pas déformer les chiffres du comité.
+   */
+  training: boolean;
 }
 
 export interface ClientPreset {
@@ -297,6 +303,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         date: p.date,
         status: existing?.status ?? "open",
         createdAt: existing?.createdAt ?? ev.createdAt,
+        training: p.training ?? false,
       };
       break;
     }
