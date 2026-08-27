@@ -139,8 +139,19 @@ export function deleteStation(id: string) {
 
 // ─── Soirées ─────────────────────────────────────────────────
 
-export function upsertSoiree(payload: { id: string; name: string; date: string }) {
-  return dispatch({ ...meta(), type: "soiree_upsert", payload });
+export function upsertSoiree(payload: {
+  id: string;
+  name: string;
+  date: string;
+  training?: boolean;
+}) {
+  // `training` est requis en sortie du schéma (zod `.default()`) : on le
+  // matérialise ici plutôt que de laisser l'appelant s'en soucier.
+  return dispatch({
+    ...meta(),
+    type: "soiree_upsert",
+    payload: { ...payload, training: payload.training ?? false },
+  });
 }
 
 export function activateSoiree(soireeId: string) {

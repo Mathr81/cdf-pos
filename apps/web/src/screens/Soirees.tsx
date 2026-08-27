@@ -96,6 +96,10 @@ export function SoireesScreen() {
                         </span>
                         {isActive && <Badge tone="mint">Active</Badge>}
                         {s.status === "closed" && <Badge tone="neutral">Clôturée</Badge>}
+                        {/* Visible dès la liste : sans ça, on ne distingue une
+                            session d'exercice d'une vraie soirée qu'en lisant
+                            son nom, et les chiffres semblent avoir disparu. */}
+                        {s.training && <Badge tone="lantern">Entraînement</Badge>}
                       </div>
                       <div className="tnum text-micro text-sand">
                         {s.date} · {carteCount} produit{carteCount > 1 ? "s" : ""} · {orders}{" "}
@@ -177,12 +181,13 @@ function NewSoireeModal({
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [source, setSource] = useState<string>(""); // "" | preset:<id> | soiree:<id>
+  const [training, setTraining] = useState(false);
   const presets = sortedPresets(projection);
   const soirees = sortedSoirees(projection);
 
   const create = () => {
     const id = newId();
-    void upsertSoiree({ id, name: name.trim() || "Soirée", date });
+    void upsertSoiree({ id, name: name.trim() || "Soirée", date, training });
 
     // Applique la source (preset ou carte d'une autre soirée).
     if (source.startsWith("preset:")) {
@@ -221,6 +226,7 @@ function NewSoireeModal({
       date,
       status: "open",
       createdAt: new Date().toISOString(),
+      training,
     });
   };
 
@@ -266,6 +272,25 @@ function NewSoireeModal({
             )}
           </SelectInput>
         </Field>
+
+        {/* Case à cocher plutôt qu'un mode séparé : une soirée d'entraînement
+            doit se comporter EXACTEMENT comme une vraie, sinon on n'entraîne
+            personne. Seuls les chiffres l'ignorent. */}
+        <label className="flex cursor-pointer items-start gap-3 rounded-control border border-line bg-well p-3">
+          <input
+            type="checkbox"
+            checked={training}
+            onChange={(e) => setTraining(e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-lantern"
+          />
+          <span>
+            <span className="block text-body font-bold text-cream">Soirée d'entraînement</span>
+            <span className="block text-micro text-sand">
+              Pour former les bénévoles. Tout fonctionne normalement, mais les ventes n'entrent ni
+              dans les totaux « toutes soirées » ni dans la comparaison avec le service précédent.
+            </span>
+          </span>
+        </label>
       </div>
       <div className="mt-6 flex gap-2">
         <Button variant="ghost" size="lg" onClick={onClose}>

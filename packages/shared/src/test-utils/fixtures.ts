@@ -119,8 +119,17 @@ export function product(
   };
 }
 
-export function soiree(id = SOIREE, name = "Soirée test", date = "2026-08-24"): EventOf<"soiree_upsert"> {
-  return { ...meta(at("09:00")), type: "soiree_upsert", payload: { id, name, date } };
+export function soiree(
+  id = SOIREE,
+  name = "Soirée test",
+  date = "2026-08-24",
+  over: { training?: boolean; createdAt?: string } = {},
+): EventOf<"soiree_upsert"> {
+  return {
+    ...meta(over.createdAt ?? at("09:00")),
+    type: "soiree_upsert",
+    payload: { id, name, date, training: over.training ?? false },
+  };
 }
 
 export function activate(soireeId = SOIREE): EventOf<"soiree_activate"> {

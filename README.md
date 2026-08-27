@@ -453,6 +453,38 @@ Les statistiques indiquent aussi l'écart de chiffre d'affaires avec le **servic
 précédent** (« +18 % vs 14 juin »).
 - **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
 
+### Aide intégrée
+
+L'onglet **Aide** est présent sur **tous les postes**, y compris Cuisine qui n'a
+qu'un seul autre onglet — c'est justement le poste tenu par les bénévoles les
+moins habitués à l'app.
+
+Il s'ouvre sur la section correspondant au poste courant, les autres repliées.
+Le contenu est écrit en **gestes** (« le client change d'avis ») plutôt qu'en
+fonctionnalités, et couvre en priorité ce qui fait paniquer : la coupure réseau
+et l'erreur de saisie.
+
+### Soirée d'entraînement
+
+À la création d'une soirée, coche **Soirée d'entraînement** pour former les
+bénévoles sans fausser les chiffres.
+
+- Tout fonctionne **exactement** comme une vraie soirée — on n'apprend rien sur
+  une version au rabais.
+- Un **bandeau orange permanent**, non refermable, s'affiche sur tous les postes
+  tant qu'elle est active.
+- Ses ventes sont exclues des totaux **« toutes soirées »** et de la
+  **comparaison** avec le service précédent. Sélectionner explicitement la soirée
+  d'entraînement affiche bien ses stats : c'est l'intérêt de l'exercice.
+- La soirée porte un badge **Entraînement** dans la liste.
+
+> ⚠️ Pense à **activer la vraie soirée** avant le service. Une vente réelle
+> encaissée sur une soirée d'entraînement ne se retrouvera pas dans les comptes.
+>
+> ℹ️ Les ventes d'entraînement **restent** dans le miroir Google Sheet et dans les
+> dumps PostgreSQL : ce sont des journaux d'audit, ils enregistrent ce qui s'est
+> passé. Le nom de la soirée permet de les repérer.
+
 ### Repas offerts
 
 Le bouton **Offert (bénévole, invité)** à l'encaissement enregistre une commande

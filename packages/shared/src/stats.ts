@@ -32,12 +32,24 @@ export interface StatsResponse {
  * l'exclure ICI et nulle part ailleurs, sinon il gonflerait le chiffre
  * d'affaires et créerait un faux manque à la clôture de caisse.
  */
+/**
+ * Une soirée d'entraînement est-elle à exclure de ce périmètre ?
+ *
+ * Seulement quand on agrège PLUSIEURS soirées : demander explicitement les
+ * stats d'une session d'entraînement doit les donner, c'est tout l'intérêt
+ * de l'exercice pour le bénévole.
+ */
+function excludedTraining(state: ProjectionState, soireeId: string | null, orderSoireeId: string) {
+  return soireeId === null && (state.soirees[orderSoireeId]?.training ?? false);
+}
+
 function paidOrders(state: ProjectionState, soireeId: string | null): ClientOrder[] {
   return Object.values(state.orders).filter(
     (o) =>
       o.status === "paid" &&
       o.paymentMethod !== "offert" &&
-      (soireeId === null || o.soireeId === soireeId),
+      (soireeId === null || o.soireeId === soireeId) &&
+      !excludedTraining(state, soireeId, o.soireeId),
   );
 }
 
@@ -144,8 +156,16 @@ export interface SoireeSummary {
   avgBasketCents: number;
 }
 
+/**
+ * Résumés des VRAIES soirées, triés par date.
+ *
+ * Les sessions d'entraînement en sont exclues : elles alimentent la
+ * comparaison au service précédent, et « −80 % vs l'exercice de mardi »
+ * n'aurait aucun sens.
+ */
 export function soireeSummaries(state: ProjectionState): SoireeSummary[] {
   return Object.values(state.soirees)
+    .filter((s) => !s.training)
     .map((s) => {
       const paid = paidOrders(state, s.id);
       const revenueCents = paid.reduce((a, o) => a + o.totalCents, 0);

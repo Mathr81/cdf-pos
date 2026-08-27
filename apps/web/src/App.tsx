@@ -12,6 +12,7 @@ import { StatsScreen } from "./screens/Stats.js";
 import { AdminScreen } from "./screens/admin/AdminScreen.js";
 import { SoireesScreen } from "./screens/Soirees.js";
 import { JournalScreen } from "./screens/Journal.js";
+import { AideScreen } from "./screens/Aide.js";
 
 export function App() {
   const role = useSession((s) => s.role);
@@ -49,6 +50,7 @@ export function App() {
         <Route path="/stats" element={<StatsScreen />} />
         <Route path="/soirees" element={<SoireesScreen />} />
         <Route path="/admin" element={<AdminScreen />} />
+        <Route path="/aide" element={<AideScreen />} />
         <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
       </Routes>
     </Layout>
