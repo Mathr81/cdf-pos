@@ -3,6 +3,7 @@ import {
   emptyProjection,
   reduceEvent,
   type AppEvent,
+  type PresenceEntry,
   type ProjectionState,
   type StoredEvent,
 } from "@cdf/shared";
@@ -35,10 +36,13 @@ interface UiState {
   pending: number;
   /** Non nul quand une purge est retenue : l'UI passe en mode bloquant. */
   blocked: BlockedWipe | null;
+  /** Postes connectés, tels que le serveur les voit. Vide si hors ligne. */
+  presence: PresenceEntry[];
   bump: () => void;
   setConnected: (v: boolean) => void;
   setPending: (n: number) => void;
   setBlocked: (b: BlockedWipe | null) => void;
+  setPresence: (p: PresenceEntry[]) => void;
 }
 
 export const useStore = create<UiState>((set) => ({
@@ -46,10 +50,12 @@ export const useStore = create<UiState>((set) => ({
   connected: false,
   pending: 0,
   blocked: null,
+  presence: [],
   bump: () => set((s) => ({ rev: s.rev + 1 })),
   setConnected: (connected) => set({ connected }),
   setPending: (pending) => set({ pending }),
   setBlocked: (blocked) => set({ blocked }),
+  setPresence: (presence) => set({ presence }),
 }));
 
 /**

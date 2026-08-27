@@ -33,6 +33,23 @@ export interface ServerHello {
   epoch: string;
 }
 
+/**
+ * Poste connecté, tel que l'admin le voit.
+ *
+ * `pending` est déclaré par le poste lui-même : le serveur ne peut pas le
+ * deviner, ces événements n'existent que dans l'IndexedDB de la tablette.
+ * C'est précisément ce qui rend l'information utile avant une remise à zéro.
+ */
+export interface PresenceEntry {
+  deviceId: string;
+  role: Role;
+  label?: string;
+  /** Connexion de CE socket (ISO). Repart à zéro à chaque reconnexion. */
+  connectedAt: string;
+  /** Ventes créées sur ce poste et pas encore acquittées par le serveur. */
+  pending: number;
+}
+
 /** Événements émis par le CLIENT vers le SERVEUR. */
 export interface ClientToServerEvents {
   /** Demande l'epoch serveur avant toute synchro. */
@@ -41,6 +58,8 @@ export interface ClientToServerEvents {
   "events:push": (events: AppEvent[], ack: (res: SyncAck) => void) => void;
   /** Rattraper les événements manqués depuis un curseur. */
   "events:pull": (cursor: string | null, ack: (res: PullResponse) => void) => void;
+  /** Déclare le nombre de ventes en attente sur ce poste. */
+  "presence:pending": (count: number) => void;
 }
 
 /** Événements émis par le SERVEUR vers le CLIENT. */
@@ -49,6 +68,8 @@ export interface ServerToClientEvents {
   "events:broadcast": (events: StoredEvent[]) => void;
   /** Une remise à zéro vient d'avoir lieu : les clients doivent se purger. */
   "server:reset": (hello: ServerHello) => void;
+  /** Liste des postes connectés, rediffusée à chaque changement. */
+  "presence:update": (entries: PresenceEntry[]) => void;
 }
 
 /** Données attachées à une connexion (handshake auth). */

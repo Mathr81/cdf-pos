@@ -254,6 +254,20 @@ docker compose exec server pnpm run db:seed -- --force   # réapplique la carte 
 > (`./backups/`) et le miroir Google Sheet, eux, gardent la trace de ce qui a été
 > effacé — pense à récupérer les stats **avant** si la soirée comptait.
 
+### Qui est connecté ?
+
+**Admin → Remise à zéro** liste en tête les **postes connectés**, leur rôle, depuis
+quand, et surtout **combien de ventes chacun retient** faute d'avoir pu les
+transmettre. C'est ce qu'il faut regarder avant d'effacer quoi que ce soit.
+
+Ce compteur ne peut venir que de la tablette elle-même : ces ventes n'existent
+que dans son navigateur, le serveur ne peut pas les deviner.
+
+> ⚠️ Seuls les postes **actuellement connectés** apparaissent. Une tablette
+> éteinte ou hors réseau peut détenir des ventes sans figurer dans la liste.
+> C'est pourquoi la protection ci-dessous existe : elle, elle ne dépend d'aucune
+> connexion.
+
 ### Ventes non synchronisées : l'app refuse de les détruire
 
 Une tablette hors ligne détient des ventes qui n'existent **nulle part ailleurs**.

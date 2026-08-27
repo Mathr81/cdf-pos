@@ -19,7 +19,12 @@ const CURSOR_KEY = "cursor";
 const EPOCH_KEY = "epoch";
 
 async function refreshPending() {
-  useStore.getState().setPending(await db.outbox.count());
+  const count = await db.outbox.count();
+  useStore.getState().setPending(count);
+  // Le serveur ne peut pas deviner ce chiffre : ces événements n'existent que
+  // dans l'IndexedDB de cette tablette. C'est précisément ce qui le rend utile
+  // à l'admin avant une remise à zéro.
+  socket?.emit("presence:pending", count);
 }
 
 /**
@@ -178,7 +183,14 @@ export function connect(): void {
     await pushOutbox();
   });
 
-  socket.on("disconnect", () => useStore.getState().setConnected(false));
+  socket.on("disconnect", () => {
+    useStore.getState().setConnected(false);
+    // Hors ligne, la liste des postes est une information périmée : on
+    // préfère ne rien afficher plutôt qu'un état qui a pu changer depuis.
+    useStore.getState().setPresence([]);
+  });
+
+  socket.on("presence:update", (entries) => useStore.getState().setPresence(entries));
 
   socket.on("events:broadcast", (events) => {
     applyIncoming(events);

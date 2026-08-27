@@ -14,6 +14,7 @@ import {
 import { Button, Card, TextInput } from "../../components/ui.js";
 import { Modal } from "../../components/Modal.js";
 import { ConfirmModal } from "../../components/ConfirmModal.js";
+import { PresencePanel } from "./PresencePanel.js";
 
 function StorageCard() {
   const [status, setStatus] = useState<PersistStatus | null>(null);
@@ -128,6 +129,7 @@ export function ResetPanel() {
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-4">
+      <PresencePanel />
       <StorageCard />
 
       {/* C'est l'écran le plus dangereux de l'app : il reçoit désormais

@@ -12,6 +12,7 @@ import {
 import { env } from "./env.js";
 import { prisma } from "./db.js";
 import { ingestEvents } from "./ingest.js";
+import { PresenceRegistry } from "./presence.js";
 import { getEpoch } from "./reset.js";
 
 const PULL_PAGE_SIZE = 500;
@@ -62,7 +63,38 @@ export function createSocketServer(httpServer: HttpServer) {
     next();
   });
 
+  const presence = new PresenceRegistry();
+  let lastBroadcast = "";
+
+  /**
+   * Rediffuse la liste des postes — mais seulement si elle a changé.
+   * Sans ce garde-fou, chaque vente encaissée sur chaque caisse déclencherait
+   * un message vers tous les appareils (pending 0 → 1 → 0), pour rien.
+   */
+  const broadcastPresence = () => {
+    const entries = presence.list();
+    const snapshot = JSON.stringify(entries);
+    if (snapshot === lastBroadcast) return;
+    lastBroadcast = snapshot;
+    io.emit("presence:update", entries);
+  };
+
   io.on("connection", (socket) => {
+    const auth = socket.handshake.auth as Partial<HandshakeAuth>;
+    presence.join(socket.id, {
+      deviceId: auth.deviceId!,
+      role: auth.role!,
+      label: auth.label,
+    });
+    // Le nouvel arrivant reçoit l'état courant même si rien n'a changé pour
+    // les autres : sans ça, un admin qui ouvre l'app verrait une liste vide.
+    socket.emit("presence:update", presence.list());
+    broadcastPresence();
+
+    socket.on("presence:pending", (count: number) => {
+      presence.setPending(socket.id, count);
+      broadcastPresence();
+    });
     // Epoch de la session de données : le client compare avec le sien avant de
     // se synchroniser, et purge son journal local s'il a changé (remise à zéro).
     socket.on("sync:hello", async (ack) => {
@@ -102,6 +134,11 @@ export function createSocketServer(httpServer: HttpServer) {
       } catch (e) {
         ack?.({ events: [], cursor, hasMore: false });
       }
+    });
+
+    socket.on("disconnect", () => {
+      presence.leave(socket.id);
+      broadcastPresence();
     });
   });
 
