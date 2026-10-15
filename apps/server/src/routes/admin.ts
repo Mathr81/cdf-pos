@@ -1,15 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { getEpoch, resetData, type ResetScope } from "../reset.js";
+import { resetData, type ResetScope } from "../reset.js";
 import { requireAdmin } from "./guards.js";
 
 const SCOPES: ResetScope[] = ["sales", "all"];
 
 export async function adminRoutes(app: FastifyInstance) {
-  /** Epoch courant (session de données) — utile pour diagnostiquer un appareil. */
-  app.get("/admin/epoch", { preHandler: requireAdmin }, async () => ({
-    epoch: await getEpoch(),
-  }));
-
   /**
    * Remise à zéro. `scope: "sales"` efface l'exploitation (ventes, stocks,
    * préparations) et garde la carte ; `scope: "all"` efface aussi les produits

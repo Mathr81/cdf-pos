@@ -16,6 +16,12 @@ import { applyIncoming, useStore } from "./store.js";
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
 const CURSOR_KEY = "cursor";
+/**
+ * Événements par message. Socket.IO coupe la connexion au-delà d'1 Mo : une
+ * tablette restée longtemps hors ligne enverrait sinon toute son outbox d'un
+ * bloc, se ferait déconnecter, et recommencerait en boucle.
+ */
+const PUSH_CHUNK = 200;
 const EPOCH_KEY = "epoch";
 
 async function refreshPending() {
@@ -134,14 +140,14 @@ async function pull(): Promise<void> {
 export async function pushOutbox(): Promise<void> {
   if (!socket || !socket.connected) return;
   const rows = await db.outbox.orderBy("createdAt").toArray();
-  if (rows.length === 0) return;
-  const events = rows.map((r) => r.event);
-  const ack: SyncAck = await socket
-    .timeout(15000)
-    .emitWithAck("events:push", events)
-    .catch(() => ({ acceptedIds: [], rejected: [] }) as SyncAck);
-  if (ack.acceptedIds.length > 0) {
-    await db.outbox.bulkDelete(ack.acceptedIds);
+  for (let i = 0; i < rows.length; i += PUSH_CHUNK) {
+    const events = rows.slice(i, i + PUSH_CHUNK).map((r) => r.event);
+    const ack: SyncAck | null = await socket
+      .timeout(15000)
+      .emitWithAck("events:push", events)
+      .catch(() => null);
+    if (!ack) break; // réseau perdu : la suite repartira à la reconnexion
+    if (ack.acceptedIds.length > 0) await db.outbox.bulkDelete(ack.acceptedIds);
   }
   await refreshPending();
 }
@@ -151,16 +157,21 @@ export async function pushOutbox(): Promise<void> {
  * Fonctionne hors-ligne : l'événement reste dans l'outbox jusqu'à reconnexion.
  */
 export async function dispatch(event: AppEvent): Promise<void> {
-  applyIncoming([event]); // application optimiste immédiate
-  await db.outbox.put({ id: event.id, event, createdAt: Date.now() });
-  await db.log.put({ id: event.id, seq: null, event });
+  // Écrire AVANT d'afficher : si IndexedDB refuse (stockage plein, navigation
+  // privée), l'appelant reçoit l'erreur et rien ne s'affiche. L'inverse
+  // montrerait une vente « encaissée » qui disparaît au rechargement.
+  await db.transaction("rw", db.outbox, db.log, async () => {
+    await db.outbox.put({ id: event.id, event, createdAt: Date.now() });
+    await db.log.put({ id: event.id, seq: null, event });
+  });
+  applyIncoming([event]);
   await refreshPending();
   void pushOutbox();
 }
 
 /** Établit la connexion temps réel et lance la synchro. */
 export function connect(): void {
-  const { accessCode, role, label } = useSession.getState();
+  const { accessCode, adminPin, role, label } = useSession.getState();
   if (!accessCode || !role) return;
   if (socket) {
     socket.connect();
@@ -169,7 +180,14 @@ export function connect(): void {
 
   socket = io({
     path: "/socket.io",
-    auth: { accessCode, role, deviceId: getDeviceId(), label: label ?? undefined },
+    auth: {
+      accessCode,
+      role,
+      deviceId: getDeviceId(),
+      label: label ?? undefined,
+      // Le serveur n'accepte les actions admin que d'un socket qui porte le PIN.
+      adminPin: adminPin ?? undefined,
+    },
     reconnection: true,
     reconnectionDelayMax: 5000,
   });
@@ -181,6 +199,16 @@ export function connect(): void {
     if (!(await ensureSameEpoch())) return;
     await pull();
     await pushOutbox();
+  });
+
+  // Code d'accès ou PIN changé côté serveur : sans ça, le poste resterait
+  // « Hors ligne » pour toujours, comme une simple panne de wifi. On revient
+  // à l'écran de connexion ; l'outbox, elle, est conservée et partira dès la
+  // reconnexion avec le bon code.
+  socket.on("connect_error", (err) => {
+    if (err.message !== "unauthorized") return;
+    disconnect();
+    useSession.getState().reset();
   });
 
   socket.on("disconnect", () => {

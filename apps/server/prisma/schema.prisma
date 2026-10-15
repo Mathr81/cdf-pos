@@ -181,7 +181,7 @@ model BackupQueue {
   id        Int      @id @default(autoincrement())
   eventId   String
   eventType String
-  status    String   @default("pending") // pending | done | error
+  status    String   @default("pending") // pending | done (error : anciennes versions, remis en file au démarrage)
   attempts  Int      @default(0)
   lastError String?
   createdAt DateTime @default(now())

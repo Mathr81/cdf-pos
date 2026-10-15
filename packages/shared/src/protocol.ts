@@ -78,4 +78,6 @@ export interface HandshakeAuth {
   role: Role;
   deviceId: string;
   label?: string;
+  /** PIN admin saisi sur ce poste : seul ce qui autorise les actions admin. */
+  adminPin?: string;
 }

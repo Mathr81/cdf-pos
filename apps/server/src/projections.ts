@@ -33,7 +33,19 @@ export async function applyEvent(ev: AppEvent): Promise<ApplyResult> {
       select: { seq: true, serverReceivedAt: true },
     });
 
-    await project(tx, ev);
+    // Le journal est la source de vérité, les tables de projection n'en sont
+    // qu'une vue. Si la vue refuse l'événement (ex. product_upsert vers une
+    // station supprimée entre-temps par un autre poste : clé étrangère), on
+    // garde quand même l'événement. Sinon il serait rejeté à chaque envoi et
+    // resterait coincé pour toujours dans l'outbox de la tablette.
+    await tx.$executeRawUnsafe("SAVEPOINT projection");
+    try {
+      await project(tx, ev);
+    } catch (e) {
+      await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT projection");
+      // eslint-disable-next-line no-console
+      console.error(`[projection] ${ev.type} ${ev.id} conservé sans projection :`, (e as Error).message);
+    }
 
     return {
       applied: true,

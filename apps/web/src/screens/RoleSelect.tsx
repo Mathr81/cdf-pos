@@ -43,7 +43,9 @@ export function RoleSelect() {
       if (!res.ok) throw new Error("Code d'accès invalide");
       setIsAdmin(res.isAdmin);
       // On stocke le code pour autoriser les appels suivants (/state).
-      setSession({ accessCode: code, adminPin: pin || null, isAdmin: res.isAdmin });
+      // Un PIN faux n'est pas gardé : le socket le présenterait au serveur, qui
+      // refuserait la connexion et renverrait le poste ici en boucle.
+      setSession({ accessCode: code, adminPin: res.isAdmin ? pin : null, isAdmin: res.isAdmin });
       const state = await api.getState().catch(() => ({ stations: [] as Station[] }));
       setStations(state.stations);
       if (state.stations[0]) setStationId(state.stations[0].id);

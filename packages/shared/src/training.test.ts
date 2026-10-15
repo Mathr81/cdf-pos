@@ -10,6 +10,7 @@ import {
   resetIds,
   sale,
   soiree,
+  voidOrder,
 } from "./test-utils/fixtures.js";
 
 /**
@@ -46,6 +47,20 @@ describe("périmètre des statistiques", () => {
     const state = replay(...monde());
 
     expect(computeStats(state, null).totalRevenueCents).toBe(2000);
+  });
+
+  /* Même règle que le chiffre d'affaires : un repas offert ou une vente
+     annulée pendant l'exercice ne compte pas dans « toutes soirées ». */
+  test("« toutes soirées » ignore aussi les offerts et annulations d'entraînement", () => {
+    const offert = sale({ soireeId: "essai", paymentMethod: "offert", items: [{ productId: BURGER, qty: 3, unitPriceCents: 100 }] });
+    const annulee = sale({ soireeId: "essai", items: [{ productId: BURGER, qty: 1, unitPriceCents: 100 }] });
+    const state = replay(...monde(), offert, annulee, voidOrder(annulee.payload.orderId));
+
+    const stats = computeStats(state, null);
+    expect(stats.giftedOrders).toBe(0);
+    expect(stats.giftedValueCents).toBe(0);
+    expect(stats.voidCount).toBe(0);
+    expect(computeStats(state, "essai")).toMatchObject({ giftedOrders: 1, voidCount: 1 });
   });
 
   test("une soirée d'entraînement garde ses propres statistiques", () => {

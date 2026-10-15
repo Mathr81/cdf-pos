@@ -133,6 +133,9 @@ export function CaisseScreen() {
   const [payOpen, setPayOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // L'écriture locale est maintenant attendue : sans ce verrou, un double
+  // appui pendant ces quelques millisecondes encaisserait deux fois.
+  const paying = useRef(false);
   const [askOversell, setAskOversell] = useState<CarteEntry | null>(null);
   /** Produits pour lesquels le dépassement de stock a déjà été confirmé
       dans le panier en cours : on ne redemande pas à chaque unité. */
@@ -185,20 +188,33 @@ export function CaisseScreen() {
     cart.clear();
   };
 
-  const confirmPayment = (method: PaymentMethod, cashReceivedCents?: number) => {
-    void emitSale({
-      soireeId,
-      registerLabel: label ?? "Caisse",
-      cashierName: cashierName ?? undefined,
-      paymentMethod: method,
-      items: lines.map((l) => ({
-        productId: l.entry.product.id,
-        qty: l.qty,
-        unitPriceCents: l.entry.priceCents,
-      })),
-      totalCents,
-      cashReceivedCents,
-    });
+  const confirmPayment = async (method: PaymentMethod, cashReceivedCents?: number) => {
+    if (paying.current) return;
+    paying.current = true;
+    try {
+      await emitSale({
+        soireeId,
+        registerLabel: label ?? "Caisse",
+        cashierName: cashierName ?? undefined,
+        paymentMethod: method,
+        items: lines.map((l) => ({
+          productId: l.entry.product.id,
+          qty: l.qty,
+          unitPriceCents: l.entry.priceCents,
+        })),
+        totalCents,
+        cashReceivedCents,
+      });
+    } catch (e) {
+      // Vente NON enregistrée (stockage de la tablette refusé) : on garde le
+      // panier et on le dit, plutôt qu'un « Encaissé » qui serait faux.
+      setPayOpen(false);
+      setToast(`Vente non enregistrée : ${(e as Error).message}`);
+      setTimeout(() => setToast(null), 6000);
+      return;
+    } finally {
+      paying.current = false;
+    }
     clearCart();
     setPayOpen(false);
     setSheetOpen(false);

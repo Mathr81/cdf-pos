@@ -99,6 +99,9 @@ NPM proxifie le domaine vers ce port.
    Édite au minimum : `WEB_PORT` (port exposé, défaut `8080`), `PUBLIC_ORIGIN`
    (l'URL publique finale, ex. `https://pos.mondomaine.fr`), `POSTGRES_PASSWORD`,
    `APP_ACCESS_CODE`, `ADMIN_PIN`.
+   En production, le serveur **refuse de démarrer** si `APP_ACCESS_CODE` ou
+   `ADMIN_PIN` est vide ou vaut encore la valeur d'exemple : ce dépôt est
+   public, ces valeurs sont connues de tous.
    Mets `SEED_ON_START=true` pour charger la carte du soir au 1er lancement
    (voir [La carte](#-la-carte)) ; sans effet si des produits existent déjà.
 
@@ -353,8 +356,9 @@ affiche l'erreur (`[backup] …`).
 > 🔒 Ce fichier JSON est un **secret** : il donne accès aux documents partagés avec
 > ce compte. Ne le commite jamais (`secrets/` est déjà dans `.gitignore`).
 
-Le worker gère une **file de retry** : si l'API Google est momentanément
-indisponible, les ventes sont renvoyées automatiquement au tick suivant.
+Le worker gère une **file de retry** : si l'API Google est indisponible, les
+ventes sont renvoyées automatiquement au tick suivant, **sans limite d'essais**
+(une panne longue ne laisse donc pas de trou dans le tableur).
 
 ### Dumps PostgreSQL (restauration propre)
 
@@ -555,9 +559,16 @@ Ces ventes en attente sont protégées : voir
 
 - **Code d'accès** partagé (`APP_ACCESS_CODE`) demandé au lancement — évite que
   n'importe qui sur le domaine utilise la caisse.
-- **PIN admin** (`ADMIN_PIN`) pour l'administration et les statistiques.
+- **PIN admin** (`ADMIN_PIN`) pour l'administration et les statistiques. Il est
+  vérifié **par le serveur**, pas seulement par l'interface : sans lui, un poste
+  ne peut que vendre, ajuster le stock et marquer préparé. Annuler ou modifier
+  une vente, toucher la carte, les soirées ou la caisse est refusé — le code
+  d'accès étant partagé par tous les bénévoles, l'annulation après coup serait
+  sinon à la portée de n'importe quelle caisse.
 - Changez impérativement `POSTGRES_PASSWORD`, `APP_ACCESS_CODE` et `ADMIN_PIN`
-  avant la mise en production.
+  avant la mise en production (le serveur refuse les valeurs d'exemple).
+- Après un changement de code ou de PIN, chaque tablette revient d'elle-même à
+  l'écran de connexion ; ses ventes en attente sont conservées.
 - La route de vérification `/api/auth/check` est **limitée à 10 tentatives par
   minute et par IP** : sans cela, un code d'accès court se devine par force brute.
 

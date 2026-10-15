@@ -157,6 +157,19 @@ describe("computeStats — répartitions", () => {
     ]);
   });
 
+  /* Une fête de village finit souvent après minuit : trier sur le libellé
+     mettait « 00h » avant « 23h ». */
+  test("une soirée qui passe minuit garde ses heures dans l'ordre", () => {
+    const apresMinuit = new Date(2026, 7, 25, 0, 20).toISOString();
+    const state = replay(
+      ...decor(),
+      sale({ items: [{ productId: BURGER, qty: 1, unitPriceCents: 800 }], createdAt: at("23:30") }),
+      sale({ items: [{ productId: BURGER, qty: 1, unitPriceCents: 800 }], createdAt: apresMinuit }),
+    );
+
+    expect(computeStats(state, SOIREE).salesByHour.map((h) => h.hour)).toEqual(["23h", "00h"]);
+  });
+
   test("la courbe de CA est cumulée dans l'ordre chronologique", () => {
     const state = replay(
       ...decor(),

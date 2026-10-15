@@ -53,13 +53,14 @@ function paidOrders(state: ProjectionState, soireeId: string | null): ClientOrde
   );
 }
 
-/** Commandes offertes, non annulées. */
+/** Commandes offertes, non annulées. Même périmètre que `paidOrders`. */
 function giftedOrders(state: ProjectionState, soireeId: string | null): ClientOrder[] {
   return Object.values(state.orders).filter(
     (o) =>
       o.status === "paid" &&
       o.paymentMethod === "offert" &&
-      (soireeId === null || o.soireeId === soireeId),
+      (soireeId === null || o.soireeId === soireeId) &&
+      !excludedTraining(state, soireeId, o.soireeId),
   );
 }
 
@@ -121,7 +122,10 @@ export function computeStats(state: ProjectionState, soireeId: string | null): S
     .sort((a, b) => b.qty - a.qty);
 
   const voidCount = Object.values(state.orders).filter(
-    (o) => o.status === "void" && (soireeId === null || o.soireeId === soireeId),
+    (o) =>
+      o.status === "void" &&
+      (soireeId === null || o.soireeId === soireeId) &&
+      !excludedTraining(state, soireeId, o.soireeId),
   ).length;
 
   const gifted = giftedOrders(state, soireeId);
@@ -136,7 +140,10 @@ export function computeStats(state: ProjectionState, soireeId: string | null): S
     byPaymentMethod: [...byMethod.entries()].map(([method, v]) => ({ method, ...v })),
     byRegister: [...byRegister.entries()].map(([registerLabel, v]) => ({ registerLabel, ...v })),
     topProducts,
-    salesByHour: [...byHour.entries()].map(([hour, v]) => ({ hour, ...v })).sort((a, b) => a.hour.localeCompare(b.hour)),
+    // Pas de tri sur le libellé : « 00h » passerait avant « 19h » pour une
+    // soirée qui finit après minuit. Les commandes sont parcourues dans
+    // l'ordre chronologique et la Map garde l'ordre d'insertion.
+    salesByHour: [...byHour.entries()].map(([hour, v]) => ({ hour, ...v })),
     revenueTimeline,
     voidCount,
     giftedOrders: gifted.length,
