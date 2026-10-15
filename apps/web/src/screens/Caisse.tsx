@@ -7,7 +7,6 @@ import {
   type PaymentMethod,
   paymentLabel,
 } from "@cdf/shared";
-import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
 import { ConfettiIcon } from "@phosphor-icons/react/dist/csr/Confetti";
 import { ForkKnifeIcon } from "@phosphor-icons/react/dist/csr/ForkKnife";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
@@ -19,13 +18,15 @@ import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { useCart } from "../lib/cart.js";
 import { useSession } from "../lib/session.js";
-import { emitSale } from "../lib/actions.js";
+import { emitSale, voidOrder } from "../lib/actions.js";
+import { newId } from "../lib/device.js";
 import { Button, EmptyState, StepButton, StockChip } from "../components/ui.js";
 import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { PaymentModal } from "../components/PaymentModal.js";
 import { NoSoiree } from "../components/NoSoiree.js";
+import { Toast, useToast } from "../components/Toast.js";
 import { cn } from "../lib/cn.js";
 
 /* ─── Dimensionnement de la grille produit ────────────────────────
@@ -127,12 +128,12 @@ function useTileGrid(count: number) {
 export function CaisseScreen() {
   useRev();
   const soiree = useActiveSoiree();
-  const { label, cashierName } = useSession();
+  const { label, cashierName, isAdmin } = useSession();
   const cart = useCart();
   const [category, setCategory] = useState<string>("Tous");
   const [payOpen, setPayOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, show: showToast, hide: hideToast } = useToast();
   // L'écriture locale est maintenant attendue : sans ce verrou, un double
   // appui pendant ces quelques millisecondes encaisserait deux fois.
   const paying = useRef(false);
@@ -146,7 +147,9 @@ export function CaisseScreen() {
 
   const categories = useMemo(() => {
     const set = new Set(carte.map((e) => e.product.category));
-    return ["Tous", ...[...set].sort()];
+    // Ordre de la carte (réglable dans Admin → Produits), pas l'ordre
+    // alphabétique qui mettait « Accompagnements » avant « Plats ».
+    return ["Tous", ...set];
   }, [carte]);
   const visible = category === "Tous" ? carte : carte.filter((e) => e.product.category === category);
   const gridBox = useTileGrid(visible.length);
@@ -191,8 +194,10 @@ export function CaisseScreen() {
   const confirmPayment = async (method: PaymentMethod, cashReceivedCents?: number) => {
     if (paying.current) return;
     paying.current = true;
+    const orderId = newId();
     try {
       await emitSale({
+        orderId,
         soireeId,
         registerLabel: label ?? "Caisse",
         cashierName: cashierName ?? undefined,
@@ -209,8 +214,7 @@ export function CaisseScreen() {
       // Vente NON enregistrée (stockage de la tablette refusé) : on garde le
       // panier et on le dit, plutôt qu'un « Encaissé » qui serait faux.
       setPayOpen(false);
-      setToast(`Vente non enregistrée : ${(e as Error).message}`);
-      setTimeout(() => setToast(null), 6000);
+      showToast({ tone: "error", text: `Vente non enregistrée : ${(e as Error).message}` });
       return;
     } finally {
       paying.current = false;
@@ -218,8 +222,14 @@ export function CaisseScreen() {
     clearCart();
     setPayOpen(false);
     setSheetOpen(false);
-    setToast(`Encaissé ${formatCents(totalCents)} · ${paymentLabel(method).toLowerCase()}`);
-    setTimeout(() => setToast(null), 2200);
+    const text = `Encaissé ${formatCents(totalCents)} · ${paymentLabel(method).toLowerCase()}`;
+    // L'annulation est réservée à l'admin côté serveur (anti-fraude) : le
+    // raccourci n'est proposé qu'à un poste qui a le PIN.
+    showToast(
+      isAdmin
+        ? { text, ms: 8000, action: { label: "Annuler", run: () => void voidOrder(orderId, "Annulée depuis la caisse") } }
+        : { text },
+    );
   };
 
   const cartPanel = (
@@ -229,7 +239,16 @@ export function CaisseScreen() {
       onInc={addUnitById}
       onDec={(id) => cart.add(id, -1)}
       onRemove={(id) => cart.remove(id)}
-      onClear={clearCart}
+      onClear={() => {
+        // Un tap sur « Vider » au lieu de « − » détruisait toute la commande.
+        const snapshot = cart.items;
+        clearCart();
+        showToast({
+          text: "Panier vidé",
+          ms: 5000,
+          action: { label: "Rétablir", run: () => useCart.setState({ items: snapshot }) },
+        });
+      }}
       onPay={() => setPayOpen(true)}
     />
   );
@@ -246,6 +265,7 @@ export function CaisseScreen() {
             {categories.map((c) => (
               <button
                 key={c}
+                aria-pressed={category === c}
                 onClick={() => setCategory(c)}
                 className={cn(
                   "min-h-11 rounded-full px-4 text-body font-bold whitespace-nowrap transition-colors active:scale-[0.97]",
@@ -337,7 +357,11 @@ export function CaisseScreen() {
       {askOversell && (
         <ConfirmModal
           open
-          title="Stock épuisé"
+          title={
+            (stockRemaining(projection, soireeId, askOversell.product.id) ?? 0) <= 0
+              ? "Stock épuisé"
+              : "Stock insuffisant"
+          }
           body={
             <>
               Stock restant de <b className="text-cream">{askOversell.product.name}</b> :{" "}
@@ -368,12 +392,7 @@ export function CaisseScreen() {
         />
       )}
 
-      {toast && (
-        <div className="animate-rise-in fixed left-1/2 top-4 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full bg-mint px-5 py-3 text-body font-bold text-night shadow-lg">
-          <CheckCircleIcon size={20} weight="fill" />
-          {toast}
-        </div>
-      )}
+      <Toast toast={toast} onHide={hideToast} />
     </div>
   );
 }
@@ -406,6 +425,14 @@ function ProductTile({
   return (
     <button
       onClick={onAdd}
+      aria-label={[
+        product.name,
+        formatCents(priceCents),
+        stock === null ? null : stock <= 0 ? "épuisé" : `${stock} en stock`,
+        qty > 0 ? `${qty} dans le panier` : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}
       className={cn(
         "relative flex gap-2.5 overflow-hidden rounded-control border bg-surface p-2 text-left",
         "transition-transform duration-150 active:scale-[0.97]",

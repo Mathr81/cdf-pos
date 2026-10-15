@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
 import { InfinityIcon } from "@phosphor-icons/react/dist/csr/Infinity";
 import { ProhibitIcon } from "@phosphor-icons/react/dist/csr/Prohibit";
 import { WarningIcon } from "@phosphor-icons/react/dist/csr/Warning";
@@ -144,9 +144,9 @@ export function Badge({
 }
 
 /** Petite étiquette de section. Une seule définition pour toute l'app. */
-export function FieldLabel({ children }: { children: ReactNode }) {
+export function FieldLabel({ children, id }: { children: ReactNode; id?: string }) {
   return (
-    <span className="mb-1.5 block text-micro font-bold tracking-wide text-ash uppercase">
+    <span id={id} className="mb-1.5 block text-micro font-bold tracking-wide text-ash uppercase">
       {children}
     </span>
   );
@@ -161,16 +161,34 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
+/**
+ * Groupe de boutons (segments, tuiles de choix) sous un libellé.
+ * Pas de `<label>` ici : un label qui englobe des boutons transfère le clic
+ * sur son libellé au PREMIER bouton — toucher « POSTE » choisissait Caisse.
+ */
+export function FieldGroup({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <div role="group" aria-labelledby={id}>
+      <FieldLabel id={id}>{label}</FieldLabel>
+      {children}
+    </div>
+  );
+}
+
 /** Champ de saisie : hauteur tactile, contraste vérifié, focus lantern. */
 export function TextInput({
   className,
+  invalid,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
   return (
     <input
+      aria-invalid={invalid || undefined}
       className={cn(
-        "min-h-12 w-full rounded-control border border-line bg-well px-3 text-cream",
-        "placeholder:text-ash outline-none focus:border-lantern",
+        "min-h-12 w-full rounded-control border bg-well px-3 text-cream",
+        "placeholder:text-ash outline-none",
+        invalid ? "border-signal focus:border-signal" : "border-line focus:border-lantern",
         className,
       )}
       {...props}

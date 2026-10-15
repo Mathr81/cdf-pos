@@ -79,23 +79,29 @@ const SECTIONS: Section[] = [
           </Etape>
           <Etape n={2} titre="Encaisser">
             Touche <b className="text-cream">Encaisser</b>, puis <b className="text-cream">Espèces</b>{" "}
-            ou <b className="text-cream">Carte</b>.
+            ou <b className="text-cream">Carte</b>. En carte, attends que le terminal accepte le
+            paiement, puis confirme.
           </Etape>
           <Etape n={3} titre="Rendre la monnaie">
             En espèces, saisis le montant donné par le client : l'app affiche le rendu. Tu peux aussi
-            valider sans rien saisir si le compte est juste.
+            valider sans rien saisir si le compte est juste. Sur un ordinateur, le clavier marche
+            aussi (chiffres, virgule, Entrée).
           </Etape>
         </ol>
         <Note>
           <b className="text-cream">Le client change d'avis après paiement ?</b> Va dans{" "}
-          <b className="text-cream">Journal</b>, touche la commande, puis « Modifier » pour changer
-          les quantités, ou « Annuler » pour la supprimer. Rien n'est jamais effacé en douce : une
-          commande modifiée reste marquée comme telle.
+          <b className="text-cream">Journal</b> (responsable avec le PIN), touche la commande, puis
+          « Modifier » pour changer les quantités, ou « Annuler la vente ». Rien n'est jamais effacé
+          en douce : une commande modifiée ou annulée reste visible, marquée comme telle.
         </Note>
         <Note>
           <b className="text-cream">Un repas offert</b> (bénévole, invité) : encaisse normalement,
           mais choisis <b className="text-cream">Offert</b>. Le stock et la cuisine en tiennent
           compte, le chiffre d'affaires non.
+        </Note>
+        <Note>
+          <b className="text-cream">« Vider » par erreur ?</b> Touche « Rétablir » dans le message
+          qui s'affiche : le panier revient tel quel.
         </Note>
       </>
     ),
@@ -117,7 +123,7 @@ const SECTIONS: Section[] = [
           </Etape>
           <Etape n={3} titre="Marquer ce qui est sorti">
             Les boutons <b className="text-cream">+1 / +5 / +10</b> à chaque plat préparé. Le
-            compteur redescend.
+            compteur redescend. Mauvais bouton ? Touche « Annuler » dans le message qui apparaît.
           </Etape>
         </ol>
         <Note>
@@ -147,6 +153,10 @@ const SECTIONS: Section[] = [
           <Etape n={2} titre="Déclarer une perte">
             <b className="text-cream">Perte</b> pour ce qui tombe, brûle ou finit à la poubelle. Ça
             explique les écarts en fin de soirée.
+          </Etape>
+          <Etape n={3} titre="Recompter">
+            Le bouton à droite de Perte : compte ce qui reste vraiment et saisis le nombre. L'app
+            corrige l'écart toute seule.
           </Etape>
         </ol>
         <Note>

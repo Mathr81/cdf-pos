@@ -12,18 +12,20 @@ import { InfinityIcon } from "@phosphor-icons/react/dist/csr/Infinity";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { PackageIcon } from "@phosphor-icons/react/dist/csr/Package";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { ListNumbersIcon } from "@phosphor-icons/react/dist/csr/ListNumbers";
 
 import { projection } from "../lib/store.js";
 import { useActiveSoiree, useRev } from "../lib/hooks.js";
 import { adjustStock } from "../lib/actions.js";
-import { Button, EmptyState, StepButton } from "../components/ui.js";
+import { Button, EmptyState, StepButton, TextInput } from "../components/ui.js";
 import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { NoSoiree } from "../components/NoSoiree.js";
 import { DepletionHint } from "../components/DepletionHint.js";
 import { cn } from "../lib/cn.js";
 
-type AdjustKind = "restock" | "spoilage";
+/** `count` = recomptage : on saisit ce qu'il y a VRAIMENT, l'écart est calculé. */
+type AdjustKind = "restock" | "spoilage" | "count";
 
 export function InventaireScreen() {
   useRev();
@@ -123,6 +125,15 @@ export function InventaireScreen() {
                           <MinusIcon size={16} weight="bold" />
                           Perte
                         </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-label={`Recompter ${p.name}`}
+                          onClick={() => setAdjust({ product: p, kind: "count" })}
+                        >
+                          <ListNumbersIcon size={17} weight="bold" />
+                          Recompter
+                        </Button>
                       </>
                     )}
                   </div>
@@ -156,18 +167,29 @@ function AdjustModal({
   soireeId: string;
   onClose: () => void;
 }) {
-  const [qty, setQty] = useState(0);
-  const isRestock = kind === "restock";
-  const reason: StockReason = isRestock ? "restock" : "spoilage";
   const current = stockRemaining(projection, soireeId, product.id);
+  const isCount = kind === "count";
+  // En recomptage, on part du stock théorique : souvent il suffit de corriger de 1 ou 2.
+  const [qty, setQty] = useState(isCount ? Math.max(0, current ?? 0) : 0);
+  const delta = isCount ? qty - (current ?? 0) : kind === "restock" ? qty : -qty;
+  const reason: StockReason = isCount ? "correction" : kind;
 
   const confirm = () => {
-    if (qty > 0) void adjustStock(product.id, isRestock ? qty : -qty, reason, undefined, soireeId);
+    if (delta !== 0) void adjustStock(product.id, delta, reason, undefined, soireeId);
     onClose();
   };
 
+  const title = { restock: "Réapprovisionnement", spoilage: "Déclarer une perte", count: "Recompter le stock" }[kind];
+  const confirmLabel = isCount
+    ? delta === 0
+      ? "Aucun écart"
+      : `Corriger à ${qty} (${delta > 0 ? "+" : "−"}${Math.abs(delta)})`
+    : kind === "restock"
+      ? `Ajouter ${qty}`
+      : `Retirer ${qty}`;
+
   return (
-    <Modal open onClose={onClose}>
+    <Modal open onClose={onClose} dismissable={delta === 0}>
       <div className="mb-4 flex items-center gap-3">
         <TicketBlock
           emoji={product.emoji}
@@ -178,14 +200,19 @@ function AdjustModal({
           className="h-12 w-12"
         />
         <div className="min-w-0">
-          <h2 className="font-display truncate text-lead font-bold text-cream">
-            {isRestock ? "Réapprovisionnement" : "Déclarer une perte"}
-          </h2>
+          <h2 className="font-display truncate text-lead font-bold text-cream">{title}</h2>
           <p className="tnum truncate text-body text-sand">
-            {product.name} · stock actuel {current ?? "illimité"}
+            {product.name} · stock {isCount ? "théorique" : "actuel"} {current ?? "illimité"}
           </p>
         </div>
       </div>
+
+      {isCount && (
+        <p className="mb-3 text-body text-sand">
+          Compte ce qui reste réellement (frigo, réserve) et saisis le nombre. L'écart est enregistré
+          comme une correction.
+        </p>
+      )}
 
       <div className="mb-4 flex items-center justify-center gap-5">
         <StepButton
@@ -195,34 +222,45 @@ function AdjustModal({
         >
           <MinusIcon size={26} weight="bold" />
         </StepButton>
-        <div className="font-display tnum w-28 text-center text-hero font-bold text-cream">
-          {qty}
-        </div>
+        {isCount ? (
+          <TextInput
+            inputMode="numeric"
+            aria-label="Quantité comptée"
+            value={String(qty)}
+            onChange={(e) => setQty(Math.max(0, Number(e.target.value.replace(/\D/g, "")) || 0))}
+            onFocus={(e) => e.target.select()}
+            className="font-display tnum w-32 text-center text-display font-bold"
+          />
+        ) : (
+          <div className="font-display tnum w-28 text-center text-hero font-bold text-cream">{qty}</div>
+        )}
         <StepButton aria-label="Augmenter" className="h-16 w-16" onClick={() => setQty((q) => q + 1)}>
           <PlusIcon size={26} weight="bold" />
         </StepButton>
       </div>
 
-      <div className="mb-5 grid grid-cols-4 gap-2">
-        {[5, 10, 25, 50].map((n) => (
-          <Button key={n} variant="secondary" size="lg" onClick={() => setQty((q) => q + n)}>
-            +{n}
-          </Button>
-        ))}
-      </div>
+      {!isCount && (
+        <div className="mb-5 grid grid-cols-4 gap-2">
+          {[5, 10, 25, 50].map((n) => (
+            <Button key={n} variant="secondary" size="lg" onClick={() => setQty((q) => q + n)}>
+              +{n}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-2">
         <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
         <Button
-          variant={isRestock ? "success" : "danger"}
+          variant={kind === "spoilage" ? "danger" : kind === "restock" ? "success" : "primary"}
           size="lg"
           className="flex-1"
-          disabled={qty <= 0}
+          disabled={delta === 0}
           onClick={confirm}
         >
-          {isRestock ? `Ajouter ${qty}` : `Retirer ${qty}`}
+          {confirmLabel}
         </Button>
       </div>
     </Modal>

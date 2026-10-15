@@ -9,7 +9,7 @@ import { StorefrontIcon } from "@phosphor-icons/react/dist/csr/Storefront";
 
 import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
-import { Button, Field, TextInput } from "../components/ui.js";
+import { Button, Field, FieldGroup, TextInput } from "../components/ui.js";
 import { cn } from "../lib/cn.js";
 
 type Step = "code" | "role";
@@ -89,15 +89,24 @@ export function RoleSelect() {
 
         <div className="rounded-surface border border-line bg-surface p-6">
           {step === "code" && (
-            <div className="space-y-4">
+            /* Un vrai formulaire : Entrée valide depuis N'IMPORTE quel champ,
+               PIN compris (avant, seul le champ code réagissait). */
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (code && !busy) void submitCode();
+              }}
+            >
               <Field label="Code d'accès">
                 <TextInput
                   type="password"
+                  name="code"
+                  autoComplete="current-password"
                   inputMode="text"
                   autoFocus
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && code && submitCode()}
                   className="min-h-14 text-lead"
                   placeholder="Code remis par le responsable"
                 />
@@ -105,6 +114,8 @@ export function RoleSelect() {
               <Field label="PIN administrateur (optionnel)">
                 <TextInput
                   type="password"
+                  name="pin"
+                  autoComplete="off"
                   inputMode="numeric"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
@@ -112,22 +123,20 @@ export function RoleSelect() {
                   placeholder="pour accéder à l'admin / stats"
                 />
               </Field>
-              {error && <p className="text-body font-semibold text-signal">{error}</p>}
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full"
-                disabled={!code || busy}
-                onClick={submitCode}
-              >
+              {error && (
+                <p role="alert" className="text-body font-semibold text-signal">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" variant="primary" size="lg" className="w-full" disabled={!code || busy}>
                 {busy ? "Vérification…" : "Continuer"}
               </Button>
-            </div>
+            </form>
           )}
 
           {step === "role" && (
             <div className="space-y-5">
-              <Field label="Poste">
+              <FieldGroup label="Poste">
                 <div className="grid grid-cols-2 gap-2">
                   <RoleTile
                     active={role === "caisse"}
@@ -158,11 +167,11 @@ export function RoleSelect() {
                     </>
                   )}
                 </div>
-              </Field>
+              </FieldGroup>
 
               {role === "caisse" && (
                 <>
-                  <Field label="Nom de la caisse">
+                  <FieldGroup label="Nom de la caisse">
                     <div className="grid grid-cols-3 gap-2">
                       {["Caisse 1", "Caisse 2", "Caisse 3"].map((c) => (
                         <RoleTile
@@ -173,9 +182,11 @@ export function RoleSelect() {
                         />
                       ))}
                     </div>
-                  </Field>
+                  </FieldGroup>
                   <Field label="Ton prénom (optionnel)">
                     <TextInput
+                      name="given-name"
+                      autoComplete="given-name"
                       value={cashierName}
                       onChange={(e) => setCashierName(e.target.value)}
                       placeholder="pour les statistiques"
@@ -185,7 +196,7 @@ export function RoleSelect() {
               )}
 
               {role === "cuisine" && (
-                <Field label="Poste cuisine">
+                <FieldGroup label="Poste cuisine">
                   {stations.length === 0 ? (
                     <p className="text-body text-sand">
                       Aucune station configurée. Demande à l'admin de les créer.
@@ -202,7 +213,7 @@ export function RoleSelect() {
                       ))}
                     </div>
                   )}
-                </Field>
+                </FieldGroup>
               )}
 
               <div className="flex gap-2">
@@ -240,6 +251,8 @@ function RoleTile({
 }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
         "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-control border px-3 py-3",

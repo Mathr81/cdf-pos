@@ -52,8 +52,10 @@ function navItemsFor(role: string | null, isAdmin: boolean): NavItem[] {
       return [cuisine, aide];
     case "stats":
       return [stats, aide];
+    // Même ordre que pour un poste avec PIN : deux tablettes admin ne doivent
+    // pas présenter les onglets dans deux ordres différents.
     case "admin":
-      return [soirees, caisse, cuisine, inventaire, journal, stats, admin, aide];
+      return [caisse, cuisine, inventaire, journal, stats, soirees, admin, aide];
     default:
       return [caisse, inventaire, aide];
   }
@@ -195,51 +197,59 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full flex-col">
       <header className="safe-top shrink-0 border-b border-line bg-surface">
-        <div className="flex h-16 items-center justify-between gap-3 px-3">
-          <div className="flex shrink-0 items-center gap-2.5">
+        {/* Sous `md`, deux lignes : identité + déconnexion, puis la nav sur
+            toute la largeur. Sur une seule ligne, un téléphone ne montrait
+            que 4 onglets : Soirées, Admin, Aide et la déconnexion étaient
+            hors écran, derrière un défilement que rien ne signalait. */}
+        <div className="flex flex-wrap items-center gap-x-3 px-3 md:h-16 md:flex-nowrap">
+          <div className="flex h-14 min-w-0 shrink-0 items-center gap-2.5 md:h-auto">
             <StorefrontIcon size={26} weight="fill" className="shrink-0 text-lantern" />
-            <div>
+            <div className="min-w-0">
               {/* Seul le libellé de poste se laisse tronquer, et seulement
                   sur les écrans étroits. L'état de synchro, lui, reste entier. */}
-              <div className="font-display max-w-28 truncate text-body font-bold text-cream sm:max-w-none">
+              <div className="font-display max-w-40 truncate text-body font-bold text-cream md:max-w-28 lg:max-w-none">
                 {label ?? "CDF Caisse"}
               </div>
               <SyncIndicator />
             </div>
           </div>
 
-          {/* Nav sur une seule ligne : libellés à partir de lg (iPad
-              paysage), icônes seules en dessous. À 768px les 7 items
-              tenaient auparavant hors écran. */}
-          <nav className="flex items-center gap-1 overflow-x-auto">
+          {/* Libellés partout où ils tiennent : sous l'icône de `md` à `lg`
+              (iPad portrait), à côté au-delà. Icônes seules sur téléphone,
+              où un libellé lu par lecteur d'écran reste présent. */}
+          <nav
+            aria-label="Navigation principale"
+            className="order-last -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-0.5 pb-1.5 md:order-none md:mx-0 md:ml-auto md:w-auto md:gap-1 md:pb-0"
+          >
             {items.map((it) => (
               <NavLink
                 key={it.to}
                 to={it.to}
-                title={it.label}
                 className={({ isActive }) =>
                   cn(
-                    "flex h-12 min-w-12 items-center justify-center gap-2 rounded-control px-3",
-                    "text-body font-bold whitespace-nowrap transition-colors",
+                    "flex h-12 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-control px-1",
+                    "font-bold whitespace-nowrap transition-colors",
+                    "md:h-14 md:flex-none md:px-2.5 lg:h-12 lg:flex-row lg:gap-2 lg:px-3",
                     isActive
                       ? "bg-lantern text-night"
                       : "text-sand hover:bg-well hover:text-cream",
                   )
                 }
               >
-                <it.icon size={21} weight="bold" />
-                <span className="hidden lg:inline">{it.label}</span>
+                <it.icon size={21} weight="bold" className="shrink-0" />
+                <span className="sr-only text-micro md:not-sr-only lg:text-body">{it.label}</span>
               </NavLink>
             ))}
-            <button
-              onClick={changePoste}
-              title="Changer de poste"
-              aria-label="Changer de poste"
-              className="ml-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-control text-ash transition-colors hover:bg-well hover:text-cream"
-            >
-              <SignOutIcon size={21} weight="bold" />
-            </button>
           </nav>
+
+          <button
+            onClick={changePoste}
+            title="Changer de poste"
+            aria-label="Changer de poste"
+            className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-control text-ash transition-colors hover:bg-well hover:text-cream md:ml-0"
+          >
+            <SignOutIcon size={21} weight="bold" />
+          </button>
         </div>
         <div className="guirlande" />
       </header>

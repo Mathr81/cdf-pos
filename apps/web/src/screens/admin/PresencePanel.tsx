@@ -5,6 +5,7 @@ import type { PresenceEntry } from "@cdf/shared";
 import { useStore } from "../../lib/store.js";
 import { Card } from "../../components/ui.js";
 import { cn } from "../../lib/cn.js";
+import { plural } from "../../lib/plural.js";
 
 /**
  * Postes connectés, et ce qu'ils retiennent.
@@ -88,7 +89,7 @@ export function PresencePanel() {
 
       {totalPending > 0 && (
         <p className="mt-3 rounded-control border border-signal bg-signal/10 p-3 text-body font-semibold text-signal">
-          {totalPending} vente(s) pas encore arrivée(s) au serveur. Attends qu'elles se
+          {plural(totalPending, "vente pas encore arrivée", "ventes pas encore arrivées")} au serveur. Attends qu'elles se
           synchronisent avant d'effacer quoi que ce soit.
         </p>
       )}

@@ -15,10 +15,12 @@ import { FloppyDiskIcon } from "@phosphor-icons/react/dist/csr/FloppyDisk";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 
 import { projection } from "../lib/store.js";
 import { useRev } from "../lib/hooks.js";
 import { newId } from "../lib/device.js";
+import { isAmount, isCount } from "../lib/validate.js";
 import {
   activateSoiree,
   closeSoiree,
@@ -40,6 +42,7 @@ import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { cn } from "../lib/cn.js";
+import { plural } from "../lib/plural.js";
 
 export function SoireesScreen() {
   useRev();
@@ -49,6 +52,8 @@ export function SoireesScreen() {
   const [carteFor, setCarteFor] = useState<ClientSoiree | null>(null);
   const [closing, setClosing] = useState<ClientSoiree | null>(null);
   const [deleting, setDeleting] = useState<ClientSoiree | null>(null);
+  const [activating, setActivating] = useState<ClientSoiree | null>(null);
+  const active = activeId ? projection.soirees[activeId] : undefined;
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col p-4">
@@ -111,7 +116,13 @@ export function SoireesScreen() {
                         Carte
                       </Button>
                       {!isActive && (
-                        <Button variant="success" size="sm" onClick={() => activateSoiree(s.id)}>
+                        <Button
+                          variant="success"
+                          size="sm"
+                          // Changer de soirée bascule TOUTES les caisses : jamais
+                          // en un seul tap quand une autre est en cours.
+                          onClick={() => (active ? setActivating(s) : void activateSoiree(s.id))}
+                        >
                           Activer
                         </Button>
                       )}
@@ -156,6 +167,19 @@ export function SoireesScreen() {
         onClose={() => setClosing(null)}
       />
       <ConfirmModal
+        open={activating !== null}
+        title={`Activer « ${activating?.name ?? ""} » ?`}
+        body={
+          active
+            ? `« ${active.name} » cessera d'être la soirée active. Toutes les caisses, la cuisine et le stock basculent immédiatement sur « ${activating?.name ?? ""} ».`
+            : undefined
+        }
+        confirmLabel="Activer"
+        tone="primary"
+        onConfirm={() => activating && activateSoiree(activating.id)}
+        onClose={() => setActivating(null)}
+      />
+      <ConfirmModal
         open={deleting !== null}
         title="Supprimer cette soirée ?"
         body={
@@ -186,6 +210,7 @@ function NewSoireeModal({
   const [training, setTraining] = useState(false);
   const presets = sortedPresets(projection);
   const soirees = sortedSoirees(projection);
+  const current = projection.activeSoireeId ? projection.soirees[projection.activeSoireeId] : undefined;
 
   const create = () => {
     const id = newId();
@@ -233,7 +258,7 @@ function NewSoireeModal({
   };
 
   return (
-    <Modal open onClose={onClose}>
+    <Modal open onClose={onClose} dismissable={!name.trim()}>
       <h2 className="font-display mb-4 text-lead font-bold text-cream">Nouvelle soirée</h2>
       <div className="space-y-3">
         <Field label="Nom">
@@ -294,6 +319,12 @@ function NewSoireeModal({
           </span>
         </label>
       </div>
+      {current && (
+        <p className="mt-4 text-body text-sand">
+          « <b className="text-cream">{current.name}</b> » cessera d'être la soirée active : toutes les
+          caisses basculeront sur la nouvelle.
+        </p>
+      )}
       <div className="mt-6 flex gap-2">
         <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
@@ -331,6 +362,15 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
     return d;
   });
   const [savePreset, setSavePreset] = useState(false);
+  const [q, setQ] = useState("");
+  const [initial] = useState(() => JSON.stringify(draft));
+  const dirty = JSON.stringify(draft) !== initial;
+  const rowError = (r: DraftRow) =>
+    r.onCarte &&
+    ((r.price.trim() !== "" && !isAmount(r.price)) || (!r.stockUnlimited && !isCount(r.stockInitial)));
+  const invalidCount = Object.values(draft).filter(rowError).length;
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? products.filter((p) => p.name.toLowerCase().includes(needle)) : products;
 
   const set = (id: string, patch: Partial<DraftRow>) =>
     setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
@@ -338,6 +378,7 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
   const onCarteCount = useMemo(() => Object.values(draft).filter((r) => r.onCarte).length, [draft]);
 
   const save = () => {
+    if (invalidCount > 0) return;
     for (const p of products) {
       const r = draft[p.id];
       const cfg = carteConfig(projection, soiree.id, p.id);
@@ -379,11 +420,11 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
   };
 
   return (
-    <Modal open onClose={onClose} className="max-w-2xl">
+    <Modal open onClose={onClose} wide dismissable={!dirty}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-lead font-bold text-cream">Carte de {soiree.name}</h2>
-          <p className="tnum text-micro text-ash">{onCarteCount} produit(s) sur la carte</p>
+          <p className="tnum text-micro text-ash">{plural(onCarteCount, "produit")} sur la carte</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setSavePreset(true)}>
           <FloppyDiskIcon size={17} weight="bold" />
@@ -391,9 +432,29 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
         </Button>
       </div>
 
-      <div className="max-h-[58vh] space-y-1.5 overflow-y-auto pr-1">
-        {products.map((p) => {
+      {products.length > 8 && (
+        <div className="relative mb-2">
+          <MagnifyingGlassIcon
+            size={17}
+            weight="bold"
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ash"
+          />
+          <TextInput
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher un produit"
+            aria-label="Rechercher un produit"
+            className="pl-9"
+          />
+        </div>
+      )}
+
+      <div className="max-h-[52dvh] space-y-1.5 overflow-y-auto pr-1">
+        {shown.map((p) => {
           const r = draft[p.id];
+          const priceBad = r.price.trim() !== "" && !isAmount(r.price);
+          const stockBad = !r.stockUnlimited && !isCount(r.stockInitial);
           return (
             <div
               key={p.id}
@@ -402,7 +463,7 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
                 r.onCarte ? "border-line bg-surface" : "border-transparent opacity-60",
               )}
             >
-              <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2.5">
+              <label className="flex min-h-11 min-w-0 flex-1 basis-48 cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"
                   checked={r.onCarte}
@@ -419,17 +480,23 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
                 />
                 <span className="truncate text-body font-bold text-cream">{p.name}</span>
               </label>
+              {/* Largeurs portées par un conteneur : TextInput impose `w-full`
+                  et `cn` ne fusionne pas les classes, un `w-20` passé en
+                  className perdait — d'où des champs de 180px. */}
               {r.onCarte && (
-                <div className="flex items-center gap-2">
-                  <TextInput
-                    value={r.price}
-                    onChange={(e) => set(p.id, { price: e.target.value })}
-                    inputMode="decimal"
-                    placeholder={formatAmount(p.priceCents)}
-                    aria-label={`Prix de ${p.name}`}
-                    title="Prix (vide = prix catalogue)"
-                    className="tnum w-20 min-h-11 text-right"
-                  />
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="w-24">
+                    <TextInput
+                      value={r.price}
+                      onChange={(e) => set(p.id, { price: e.target.value })}
+                      inputMode="decimal"
+                      placeholder={formatAmount(p.priceCents)}
+                      aria-label={`Prix de ${p.name} (vide = prix catalogue)`}
+                      title="Prix (vide = prix catalogue)"
+                      invalid={priceBad}
+                      className="tnum min-h-11 text-right"
+                    />
+                  </div>
                   <span className="text-micro text-ash">€</span>
                   <label
                     className="flex min-h-11 cursor-pointer items-center gap-1.5 text-micro text-sand"
@@ -443,21 +510,29 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
                     />
                     illimité
                   </label>
-                  {!r.stockUnlimited && (
-                    <TextInput
-                      value={r.stockInitial}
-                      onChange={(e) => set(p.id, { stockInitial: e.target.value })}
-                      inputMode="numeric"
-                      aria-label={`Stock initial de ${p.name}`}
-                      title="Stock initial"
-                      className="tnum w-20 min-h-11 text-right"
-                    />
-                  )}
+                  {/* Place réservée même en illimité : les colonnes restent
+                      alignées d'une ligne à l'autre. */}
+                  <div className="w-20">
+                    {!r.stockUnlimited && (
+                      <TextInput
+                        value={r.stockInitial}
+                        onChange={(e) => set(p.id, { stockInitial: e.target.value })}
+                        inputMode="numeric"
+                        aria-label={`Stock initial de ${p.name}`}
+                        title="Stock initial"
+                        invalid={stockBad}
+                        className="tnum min-h-11 text-right"
+                      />
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           );
         })}
+        {products.length > 0 && shown.length === 0 && (
+          <p className="py-6 text-center text-body text-ash">Aucun produit ne correspond.</p>
+        )}
         {products.length === 0 && (
           <p className="py-6 text-center text-body text-ash">
             Aucun produit au catalogue. Crée-en dans l'onglet Produits.
@@ -465,11 +540,17 @@ function CarteEditor({ soiree, onClose }: { soiree: ClientSoiree; onClose: () =>
         )}
       </div>
 
+      {invalidCount > 0 && (
+        <p role="alert" className="mt-3 text-body font-semibold text-signal">
+          {invalidCount} ligne{invalidCount > 1 ? "s" : ""} avec un prix ou un stock invalide (en
+          rouge).
+        </p>
+      )}
       <div className="mt-5 flex gap-2">
         <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
-        <Button variant="primary" size="lg" className="flex-1" onClick={save}>
+        <Button variant="primary" size="lg" className="flex-1" disabled={invalidCount > 0} onClick={save}>
           Enregistrer la carte
         </Button>
       </div>
@@ -495,6 +576,7 @@ function PresetNameModal({
   onSave: (name: string) => void;
 }) {
   const [name, setName] = useState("");
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   const presets = sortedPresets(projection);
   return (
     <Modal open onClose={onClose}>
@@ -518,7 +600,7 @@ function PresetNameModal({
               <div key={pr.id} className="flex items-center gap-2 py-1 text-body text-sand">
                 <span className="min-w-0 flex-1 truncate">{pr.name}</span>
                 <button
-                  onClick={() => deletePreset(pr.id)}
+                  onClick={() => setRemoving({ id: pr.id, name: pr.name })}
                   aria-label={`Supprimer le modèle ${pr.name}`}
                   className="flex h-11 w-11 items-center justify-center text-ash transition-colors hover:text-signal"
                 >
@@ -543,6 +625,14 @@ function PresetNameModal({
           Enregistrer
         </Button>
       </div>
+      <ConfirmModal
+        open={removing !== null}
+        title={`Supprimer le modèle « ${removing?.name ?? ""} » ?`}
+        body="Les soirées déjà créées à partir de ce modèle ne sont pas touchées."
+        confirmLabel="Supprimer"
+        onConfirm={() => removing && deletePreset(removing.id)}
+        onClose={() => setRemoving(null)}
+      />
     </Modal>
   );
 }

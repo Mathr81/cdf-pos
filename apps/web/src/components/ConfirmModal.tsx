@@ -12,6 +12,7 @@ export function ConfirmModal({
   title,
   body,
   confirmLabel,
+  cancelLabel = "Retour",
   tone = "danger",
   onConfirm,
   onClose,
@@ -20,6 +21,9 @@ export function ConfirmModal({
   title: string;
   body?: ReactNode;
   confirmLabel: string;
+  /** « Retour » et non « Annuler » : la confirmation d'une annulation de
+      vente proposait deux boutons « Annuler » aux sens opposés. */
+  cancelLabel?: string;
   tone?: "danger" | "primary";
   onConfirm: () => void;
   onClose: () => void;
@@ -30,7 +34,7 @@ export function ConfirmModal({
       {body && <div className="mt-2 text-body text-sand">{body}</div>}
       <div className="mt-6 flex gap-2">
         <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
-          Annuler
+          {cancelLabel}
         </Button>
         <Button
           variant={tone === "danger" ? "danger" : "primary"}

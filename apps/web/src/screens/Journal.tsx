@@ -35,6 +35,7 @@ import { TicketBlock } from "../components/ProductIcon.js";
 import { Modal } from "../components/Modal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { cn } from "../lib/cn.js";
+import { useUrlState } from "../lib/urlState.js";
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -51,12 +52,17 @@ export function JournalScreen() {
   useRev();
   const active = useActiveSoiree();
   const soirees = sortedSoirees(projection);
-  const [soireeId, setSoireeId] = useState<string>(active?.id ?? soirees[0]?.id ?? "");
-  const [q, setQ] = useState("");
-  const [pay, setPay] = useState<"all" | PaymentMethod>("all");
-  const [status, setStatus] = useState<"all" | "paid" | "void">("all");
-  const [detail, setDetail] = useState<ClientOrder | null>(null);
-  const [editing, setEditing] = useState<ClientOrder | null>(null);
+  const [soireeParam, setSoireeId] = useUrlState<string>("soiree", "");
+  const soireeId = soireeParam || active?.id || soirees[0]?.id || "";
+  const [q, setQ] = useUrlState<string>("q", "");
+  const [pay, setPay] = useUrlState<"all" | PaymentMethod>("paiement", "all");
+  const [status, setStatus] = useUrlState<"all" | "paid" | "void">("statut", "all");
+  // Des ids, pas des copies : le ticket ouvert suit une modification ou une
+  // annulation faite depuis un autre poste au lieu d'afficher l'ancien état.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const detail = detailId ? projection.orders[detailId] : undefined;
+  const editing = editingId ? projection.orders[editingId] : undefined;
 
   const orders = useMemo(() => {
     if (!soireeId) return [];
@@ -90,14 +96,22 @@ export function JournalScreen() {
       </h1>
 
       <div className="mb-3 flex shrink-0 flex-wrap gap-2">
-        <SelectInput value={soireeId} onChange={(e) => setSoireeId(e.target.value)}>
+        <SelectInput
+          aria-label="Soirée"
+          value={soireeId}
+          onChange={(e) => setSoireeId(e.target.value)}
+        >
           {soirees.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name} ({s.date})
             </option>
           ))}
         </SelectInput>
-        <SelectInput value={pay} onChange={(e) => setPay(e.target.value as typeof pay)}>
+        <SelectInput
+          aria-label="Moyen de paiement"
+          value={pay}
+          onChange={(e) => setPay(e.target.value as typeof pay)}
+        >
           <option value="all">Tous paiements</option>
           {PAYMENT_METHODS.map((m) => (
             <option key={m} value={m}>
@@ -105,7 +119,11 @@ export function JournalScreen() {
             </option>
           ))}
         </SelectInput>
-        <SelectInput value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+        <SelectInput
+          aria-label="Statut"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as typeof status)}
+        >
           <option value="all">Tous statuts</option>
           <option value="paid">Payées</option>
           <option value="void">Annulées</option>
@@ -145,7 +163,7 @@ export function JournalScreen() {
               return (
                 <button
                   key={o.id}
-                  onClick={() => setDetail(o)}
+                  onClick={() => setDetailId(o.id)}
                   className="flex w-full items-center gap-3 px-1 py-3 text-left transition-colors hover:bg-surface"
                 >
                   <div className="tnum shrink-0 text-body text-ash">{fmtTime(o.createdAt)}</div>
@@ -158,7 +176,13 @@ export function JournalScreen() {
                       {/* Un glyphe par mode : sans le cas « offert », une
                           gratuité s'affichait avec l'icône carte bancaire. */}
                       <PaymentIcon method={o.paymentMethod} size={13} />
-                      {o.items.reduce((s, i) => s + i.qty, 0)} article(s)
+                      {/* Le contenu plutôt qu'un nombre : c'est par lui qu'on
+                          retrouve « la commande du monsieur aux 3 glaces ». */}
+                      <span className="min-w-0 truncate">
+                        {o.items
+                          .map((i) => `${i.qty}× ${projection.products[i.productId]?.name ?? "?"}`)
+                          .join(", ")}
+                      </span>
                     </div>
                   </div>
                   {/* Glyphes distincts : en deutéranopie, lantern et signal
@@ -193,14 +217,14 @@ export function JournalScreen() {
       {detail && (
         <OrderDetail
           order={detail}
-          onClose={() => setDetail(null)}
+          onClose={() => setDetailId(null)}
           onEdit={() => {
-            setEditing(detail);
-            setDetail(null);
+            setEditingId(detail.id);
+            setDetailId(null);
           }}
         />
       )}
-      {editing && <AmendModal order={editing} onClose={() => setEditing(null)} />}
+      {editing && <AmendModal order={editing} onClose={() => setEditingId(null)} />}
     </div>
   );
 }
@@ -269,27 +293,33 @@ function OrderDetail({
           </div>
         )}
 
-        {order.status !== "void" && (
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button variant="danger" onClick={() => setConfirmVoid(true)}>
-              Annuler
-            </Button>
-            <div className="flex-1" />
-            <Button variant="secondary" onClick={onEdit}>
-              Modifier
-            </Button>
-            <Button variant="ghost" onClick={onClose}>
-              Fermer
-            </Button>
-          </div>
-        )}
+        {/* Fermer reste présent sur un ticket annulé : sans lui, seul un tap
+            sur le fond permettait d'en sortir. */}
+        <div className="mt-6 flex flex-wrap gap-2">
+          {order.status !== "void" && (
+            <>
+              <Button variant="danger" onClick={() => setConfirmVoid(true)}>
+                <ProhibitIcon size={17} weight="bold" />
+                Annuler la vente
+              </Button>
+              <div className="flex-1" />
+              <Button variant="secondary" onClick={onEdit}>
+                <PencilSimpleIcon size={17} weight="bold" />
+                Modifier
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" className={order.status === "void" ? "ml-auto" : ""} onClick={onClose}>
+            Fermer
+          </Button>
+        </div>
       </Modal>
 
       <ConfirmModal
         open={confirmVoid}
-        title="Annuler cette commande ?"
-        body="Elle sera retirée du chiffre d'affaires sur tous les postes."
-        confirmLabel="Annuler la commande"
+        title="Annuler cette vente ?"
+        body={`${formatCents(order.totalCents)} seront retirés du chiffre d'affaires sur tous les postes. La vente reste visible, barrée, dans le journal.`}
+        confirmLabel="Annuler la vente"
         onConfirm={() => {
           void voidOrder(order.id);
           onClose();
@@ -328,6 +358,11 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
     .map(([productId, qty]) => ({ productId, qty, unitPriceCents: priceOf(productId) }));
   const totalCents = lines.reduce((s, l) => s + l.qty * l.unitPriceCents, 0);
 
+  const dirty =
+    method !== order.paymentMethod ||
+    order.items.some((i) => (qtys[i.productId] ?? 0) !== i.qty) ||
+    lines.length !== order.items.length;
+
   const save = () => {
     if (lines.length === 0) {
       setError("Une commande doit contenir au moins un article. Sinon, annule-la.");
@@ -344,10 +379,10 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
   for (const e of carte) proposable.set(e.product.id, e.product.name);
 
   return (
-    <Modal open onClose={onClose}>
+    <Modal open onClose={onClose} dismissable={!dirty}>
       <h2 className="font-display mb-3 text-lead font-bold text-cream">Modifier la commande</h2>
 
-      <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
+      <div className="max-h-[46dvh] space-y-1.5 overflow-y-auto pr-1">
         {[...proposable.entries()].map(([id, name]) => {
           const q = qtys[id] ?? 0;
           const product = projection.products[id];
@@ -396,6 +431,7 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
         {PAYMENT_METHODS.map((m) => (
           <Button
             key={m}
+            aria-pressed={method === m}
             variant={method === m ? "primary" : "secondary"}
             size="sm"
             onClick={() => setMethod(m)}
@@ -414,7 +450,7 @@ function AmendModal({ order, onClose }: { order: ClientOrder; onClose: () => voi
         <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
-        <Button variant="primary" size="lg" className="flex-1" onClick={save}>
+        <Button variant="primary" size="lg" className="flex-1" disabled={!dirty} onClick={save}>
           Enregistrer les modifications
         </Button>
       </div>

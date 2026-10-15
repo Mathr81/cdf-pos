@@ -15,6 +15,7 @@ import { Button, Card, TextInput } from "../../components/ui.js";
 import { Modal } from "../../components/Modal.js";
 import { ConfirmModal } from "../../components/ConfirmModal.js";
 import { PresencePanel } from "./PresencePanel.js";
+import { plural } from "../../lib/plural.js";
 
 function StorageCard() {
   const [status, setStatus] = useState<PersistStatus | null>(null);
@@ -69,7 +70,7 @@ function StorageCard() {
       <p className="mt-2 text-micro text-ash">
         {usage && `${mb(usage.usage)} utilisés sur ${mb(usage.quota)} disponibles. `}
         {waiting > 0
-          ? `${waiting} vente(s) en attente de synchro sur ce poste.`
+          ? `${plural(waiting, "vente")} en attente de synchro sur ce poste.`
           : "Aucune vente en attente sur ce poste."}
       </p>
 
@@ -103,7 +104,7 @@ export function ResetPanel() {
       setDone(
         pending === "sales"
           ? `Ventes effacées. ${res.keptProducts} produits conservés.`
-          : `Tout a été effacé (ventes, carte et ${res.deletedMedia} image(s)).`,
+          : `Tout a été effacé (ventes, carte et ${plural(res.deletedMedia, "image")}).`,
       );
       setPending(null);
       setTyped("");
@@ -209,7 +210,7 @@ export function ResetPanel() {
         onClose={() => setConfirmWipe(false)}
       />
 
-      <Modal open={pending !== null} onClose={() => setPending(null)}>
+      <Modal open={pending !== null} onClose={() => setPending(null)} dismissable={!busy}>
         <h2 className="font-display flex items-center gap-2 text-lead font-bold text-signal">
           <WarningIcon size={20} weight="fill" />
           {pending === "all" ? "Tout effacer ?" : "Effacer les ventes ?"}
