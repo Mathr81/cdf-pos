@@ -16,6 +16,7 @@ import { AideScreen } from "./screens/Aide.js";
 
 export function App() {
   const role = useSession((s) => s.role);
+  const isAdmin = useSession((s) => s.isAdmin);
   const [booted, setBooted] = useState(false);
 
   // Hydratation locale (offline) puis connexion temps réel.
@@ -46,10 +47,17 @@ export function App() {
         <Route path="/caisse" element={<CaisseScreen />} />
         <Route path="/cuisine" element={<CuisineScreen />} />
         <Route path="/inventaire" element={<InventaireScreen />} />
-        <Route path="/journal" element={<JournalScreen />} />
-        <Route path="/stats" element={<StatsScreen />} />
-        <Route path="/soirees" element={<SoireesScreen />} />
-        <Route path="/admin" element={<AdminScreen />} />
+        {/* Écrans admin : absents de la nav sans PIN, et absents aussi d'ici,
+            sinon il suffit de taper /journal pour annuler une vente. Le
+            serveur refuse de toute façon les actions admin sans PIN. */}
+        {isAdmin && (
+          <>
+            <Route path="/journal" element={<JournalScreen />} />
+            <Route path="/stats" element={<StatsScreen />} />
+            <Route path="/soirees" element={<SoireesScreen />} />
+            <Route path="/admin" element={<AdminScreen />} />
+          </>
+        )}
         <Route path="/aide" element={<AideScreen />} />
         <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
       </Routes>

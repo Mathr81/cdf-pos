@@ -21,6 +21,7 @@ import { useSession } from "../lib/session.js";
 import { useActiveSoiree } from "../lib/hooks.js";
 import { useStore } from "../lib/store.js";
 import { disconnect } from "../lib/sync.js";
+import { getDeviceId } from "../lib/device.js";
 import { useWakeLock } from "../lib/wakeLock.js";
 import { cn } from "../lib/cn.js";
 import { PendingSalesGuard } from "./PendingSalesGuard.js";
@@ -155,6 +156,26 @@ function TrainingBanner() {
   );
 }
 
+/**
+ * Deux tablettes sous le même nom de caisse : la clôture regroupe par nom,
+ * elle fusionnerait donc deux boîtes en une seule ligne (un fond, un
+ * comptage) et l'écart ne voudrait plus rien dire. « Caisse 1 » étant le
+ * choix par défaut, il suffit que deux bénévoles ne touchent à rien.
+ */
+function DuplicateRegisterBanner() {
+  const { role, label } = useSession();
+  const presence = useStore((s) => s.presence);
+  if (role !== "caisse" || !label) return null;
+  const me = getDeviceId();
+  const twin = presence.some((p) => p.role === "caisse" && p.label === label && p.deviceId !== me);
+  if (!twin) return null;
+  return (
+    <div className="flex shrink-0 items-center justify-center bg-signal px-3 py-1.5 text-center text-micro font-bold text-night">
+      Une autre tablette est aussi « {label} » — changez de poste et prenez un autre numéro de caisse
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { role, label, isAdmin, reset } = useSession();
   const navigate = useNavigate();
@@ -224,6 +245,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
 
       <TrainingBanner />
+      <DuplicateRegisterBanner />
 
       <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
 

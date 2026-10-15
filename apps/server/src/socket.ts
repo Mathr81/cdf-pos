@@ -60,6 +60,13 @@ export function createSocketServer(httpServer: HttpServer) {
     if (!auth.deviceId) {
       return next(new Error("missing deviceId"));
     }
+    // Un PIN fourni mais faux (changé depuis la connexion du poste) est refusé
+    // comme un mauvais code : le client revient alors à l'écran de connexion
+    // au lieu de voir ses actions admin rejetées en silence.
+    if (auth.adminPin !== undefined && auth.adminPin !== env.adminPin) {
+      return next(new Error("unauthorized"));
+    }
+    socket.data.isAdmin = auth.adminPin === env.adminPin;
     next();
   });
 
@@ -108,7 +115,9 @@ export function createSocketServer(httpServer: HttpServer) {
     // Poussée d'un batch d'événements (outbox client).
     socket.on("events:push", async (events: AppEvent[], ack) => {
       try {
-        const result = await ingestEvents(io, events ?? []);
+        const result = await ingestEvents(io, events ?? [], {
+          isAdmin: socket.data.isAdmin === true,
+        });
         ack?.(result);
       } catch (e) {
         ack?.({ acceptedIds: [], rejected: [{ id: "batch", error: (e as Error).message }] });

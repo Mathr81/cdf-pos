@@ -24,6 +24,12 @@ set -eu
 export PGPASSWORD
 
 mkdir -p "$BACKUP_DIR"
+# Échouer bruyamment : sinon chaque dump échoue en silence, puisque le
+# message d'erreur lui-même part dans un backup.log impossible à créer.
+if ! touch "$BACKUP_DIR/.writable" 2>/dev/null; then
+  echo "[backup-cron] ERREUR : $BACKUP_DIR non inscriptible pour $(id -un) - aucune sauvegarde possible" >&2
+  exit 1
+fi
 echo "[backup-cron] démarrage - intervalle ${BACKUP_INTERVAL}s, rétention ${BACKUP_KEEP} dumps, cible ${PGHOST}/${PGDATABASE}"
 echo "[backup-cron] images : ${MEDIA_DIR}, rétention ${MEDIA_KEEP} archives"
 

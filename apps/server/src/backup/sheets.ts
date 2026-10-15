@@ -8,12 +8,13 @@ import { env } from "../env.js";
  * Worker de sauvegarde vers Google Sheet.
  * Dépile `BackupQueue` par lots et ajoute une ligne lisible par événement dans
  * un Google Sheet (secours humain immédiat si la prod tombe). File de retry :
- * un lot en échec reste `pending` (attempts++) et sera repris au tick suivant.
+ * un lot en échec reste `pending` (attempts++) et sera repris au tick suivant,
+ * sans limite : abandonner au bout de quelques essais laissait des trous
+ * définitifs dans le secours dès qu'une panne Google durait plus de 30 s.
  */
 
 const POLL_MS = 5000;
 const BATCH = 200;
-const MAX_ATTEMPTS = 6;
 const HEADER = [
   "Reçu le",
   "Type",
@@ -26,6 +27,8 @@ const HEADER = [
 ];
 
 let sheets: sheets_v4.Sheets | null = null;
+/** L'en-tête ne se vérifie qu'une fois, pas à chaque tick de 5 s. */
+let headerChecked = false;
 
 async function getSheets(): Promise<sheets_v4.Sheets> {
   if (sheets) return sheets;
@@ -38,6 +41,7 @@ async function getSheets(): Promise<sheets_v4.Sheets> {
 }
 
 async function ensureHeader(): Promise<void> {
+  if (headerChecked) return;
   const api = await getSheets();
   const res = await api.spreadsheets.values.get({
     spreadsheetId: env.backup.sheetsId,
@@ -51,6 +55,7 @@ async function ensureHeader(): Promise<void> {
       requestBody: { values: [HEADER] },
     });
   }
+  headerChecked = true;
 }
 
 /** Transforme un événement stocké en ligne lisible pour le tableur. */
@@ -60,7 +65,9 @@ async function eventToRow(ev: {
   payload: unknown;
   serverReceivedAt: Date;
 }): Promise<string[]> {
-  const when = ev.serverReceivedAt.toISOString().replace("T", " ").slice(0, 19);
+  // Heure de la salle, pas UTC : ce tableur est lu par des bénévoles quand
+  // la prod est tombée, « 18:30 » pour une vente de 20h30 les tromperait.
+  const when = ev.serverReceivedAt.toLocaleString("fr-FR", { timeZone: "Europe/Paris" });
   const p = ev.payload as Record<string, unknown>;
 
   if (ev.type === "sale") {
@@ -152,18 +159,11 @@ async function processBatch(): Promise<void> {
     });
   } catch (e) {
     const message = (e as Error).message.slice(0, 500);
-    // Retry : on incrémente attempts ; au-delà du seuil on marque en erreur.
-    for (const q of queued) {
-      const attempts = q.attempts + 1;
-      await prisma.backupQueue.update({
-        where: { id: q.id },
-        data: {
-          attempts,
-          lastError: message,
-          status: attempts >= MAX_ATTEMPTS ? "error" : "pending",
-        },
-      });
-    }
+    // Retry : le lot reste `pending`, on trace seulement l'essai et l'erreur.
+    await prisma.backupQueue.updateMany({
+      where: { id: { in: queued.map((q) => q.id) } },
+      data: { attempts: { increment: 1 }, lastError: message },
+    });
     // eslint-disable-next-line no-console
     console.error("[backup] échec Sheets, retry programmé :", message);
   }
@@ -194,6 +194,13 @@ export function startBackupWorker(_io: IoServer): void {
 
   // eslint-disable-next-line no-console
   console.log("[backup] Miroir Google Sheet activé.");
-  setInterval(tick, POLL_MS);
-  void tick();
+  // Lignes abandonnées par l'ancienne version (statut `error`) : on les remet
+  // en file plutôt que de laisser ces ventes absentes du secours.
+  void prisma.backupQueue
+    .updateMany({ where: { status: "error" }, data: { status: "pending" } })
+    .catch(() => undefined)
+    .finally(() => {
+      setInterval(tick, POLL_MS);
+      void tick();
+    });
 }

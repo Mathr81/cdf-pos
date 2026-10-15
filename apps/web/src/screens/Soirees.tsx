@@ -179,7 +179,9 @@ function NewSoireeModal({
   onEditCarte: (s: ClientSoiree) => void;
 }) {
   const [name, setName] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  // Date LOCALE (sv-SE formate en AAAA-MM-JJ) : toISOString donnerait la
+  // veille pour une soirée créée entre minuit et 2 h.
+  const [date, setDate] = useState(new Date().toLocaleDateString("sv-SE"));
   const [source, setSource] = useState<string>(""); // "" | preset:<id> | soiree:<id>
   const [training, setTraining] = useState(false);
   const presets = sortedPresets(projection);
