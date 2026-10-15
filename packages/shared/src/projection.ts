@@ -124,6 +124,14 @@ export interface ProjectionState {
   prepared: NestedCount;
   /** soireeId → productId → somme des ajustements manuels de stock. */
   adjustments: NestedCount;
+  /**
+   * Même chose, ventilé par motif (réappro, perte, correction). La somme
+   * ci-dessus suffit au stock restant, pas au récapitulatif de fin de
+   * soirée qui doit chiffrer les pertes à part.
+   */
+  adjustmentsByReason: Record<string, Record<string, Record<string, number>>>;
+  /** Ordre des catégories en caisse (vide = ordre des produits). */
+  categoryOrder: string[];
   orders: Record<string, ClientOrder>;
   /** soireeId → registerLabel → fond et comptage de la boîte. */
   cashSessions: Record<string, Record<string, CashSession>>;
@@ -145,6 +153,8 @@ export function emptyProjection(): ProjectionState {
     sold: {},
     prepared: {},
     adjustments: {},
+    adjustmentsByReason: {},
+    categoryOrder: [],
     orders: {},
     cashSessions: {},
     productUpdatedAt: {},
@@ -221,9 +231,14 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       order.amended = true;
       break;
     }
-    case "stock_adjust":
-      addNested(state.adjustments, ev.payload.soireeId, ev.payload.productId, ev.payload.delta);
+    case "stock_adjust": {
+      const p = ev.payload;
+      addNested(state.adjustments, p.soireeId, p.productId, p.delta);
+      const bySoiree = (state.adjustmentsByReason[p.soireeId] ??= {});
+      const byReason = (bySoiree[p.reason] ??= {});
+      byReason[p.productId] = (byReason[p.productId] ?? 0) + p.delta;
       break;
+    }
 
     /* Fond et comptage sont en last-write-wins, pas cumulés : redéclarer un
        fond le corrige, recompter la boîte remplace le comptage. Un cumul
@@ -326,6 +341,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       delete state.sold[id];
       delete state.prepared[id];
       delete state.adjustments[id];
+      delete state.adjustmentsByReason[id];
       delete state.cashSessions[id];
       if (state.activeSoireeId === id) state.activeSoireeId = null;
       for (const o of Object.values(state.orders)) {
@@ -358,10 +374,27 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       delete state.presets[ev.payload.id];
       break;
     }
+    case "category_order":
+      state.categoryOrder = [...ev.payload.categories];
+      break;
   }
 }
 
 // ─── Sélecteurs dérivés ──────────────────────────────────────
+
+/**
+ * Trie des catégories selon l'ordre réglé par l'admin. Une catégorie absente
+ * du réglage (créée depuis) garde sa place relative, APRÈS les catégories
+ * ordonnées : un nouveau produit ne doit jamais faire disparaître un onglet.
+ */
+export function sortCategories(state: ProjectionState, categories: Iterable<string>): string[] {
+  const rank = new Map(state.categoryOrder.map((c, i) => [c, i]));
+  const list = [...new Set(categories)];
+  return list
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => (rank.get(a.c) ?? Infinity) - (rank.get(b.c) ?? Infinity) || a.i - b.i)
+    .map((x) => x.c);
+}
 
 export function activeSoiree(state: ProjectionState): ClientSoiree | null {
   return state.activeSoireeId ? (state.soirees[state.activeSoireeId] ?? null) : null;

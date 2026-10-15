@@ -236,8 +236,9 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
       break;
     }
 
-    // soiree_product_set, preset_upsert, preset_delete : conservés uniquement dans
-    // le journal d'événements (projetés côté client), pas de table SQL dédiée.
+    // soiree_product_set, preset_upsert, preset_delete, category_order : conservés
+    // uniquement dans le journal d'événements (projetés côté client), pas de
+    // table SQL dédiée.
 
     case "product_upsert": {
       const p = ev.payload;

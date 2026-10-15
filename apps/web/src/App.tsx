@@ -13,6 +13,7 @@ import { AdminScreen } from "./screens/admin/AdminScreen.js";
 import { SoireesScreen } from "./screens/Soirees.js";
 import { JournalScreen } from "./screens/Journal.js";
 import { AideScreen } from "./screens/Aide.js";
+import { RecapScreen } from "./screens/Recap.js";
 
 export function App() {
   const role = useSession((s) => s.role);
@@ -55,6 +56,7 @@ export function App() {
             <Route path="/journal" element={<JournalScreen />} />
             <Route path="/stats" element={<StatsScreen />} />
             <Route path="/soirees" element={<SoireesScreen />} />
+            <Route path="/recap" element={<RecapScreen />} />
             <Route path="/admin" element={<AdminScreen />} />
           </>
         )}

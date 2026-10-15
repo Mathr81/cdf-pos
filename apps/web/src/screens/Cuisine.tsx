@@ -90,7 +90,10 @@ export function CuisineScreen() {
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
         {/* Segments tactiles plutôt qu'un <select> natif : la station change
             rarement mais toujours dans l'urgence, gants ou mains grasses. */}
-        <div className="flex min-w-0 gap-2 overflow-x-auto">
+        {/* Retour à la ligne plutôt que défilement : sur téléphone, les
+            stations du bout passaient sous le compteur « À préparer » sans
+            que rien n'indique qu'il y en avait d'autres. */}
+        <div className="flex min-w-0 flex-wrap gap-2">
           {stations.length === 0 && <span className="text-body text-ash">Aucune station</span>}
           {stations.map((s) => (
             <button

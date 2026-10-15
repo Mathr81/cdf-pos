@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "
 import {
   formatCents,
   soireeCarte,
+  sortCategories,
   stockRemaining,
   type CarteEntry,
   type PaymentMethod,
@@ -146,10 +147,10 @@ export function CaisseScreen() {
   const carte = useMemo(() => (soiree ? soireeCarte(projection, soiree.id) : []), [soiree, useRev()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const categories = useMemo(() => {
-    const set = new Set(carte.map((e) => e.product.category));
-    // Ordre de la carte (réglable dans Admin → Produits), pas l'ordre
-    // alphabétique qui mettait « Accompagnements » avant « Plats ».
-    return ["Tous", ...set];
+    // Ordre réglé dans Admin → Produits → Ordre des catégories ; à défaut,
+    // celui des produits (et non l'alphabet, qui mettait « Accompagnements »
+    // avant « Plats »).
+    return ["Tous", ...sortCategories(projection, carte.map((e) => e.product.category))];
   }, [carte]);
   const visible = category === "Tous" ? carte : carte.filter((e) => e.product.category === category);
   const gridBox = useTileGrid(visible.length);

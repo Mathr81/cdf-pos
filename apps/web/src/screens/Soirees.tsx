@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   carteConfig,
   formatAmount,
@@ -46,6 +47,7 @@ import { plural } from "../lib/plural.js";
 
 export function SoireesScreen() {
   useRev();
+  const navigate = useNavigate();
   const soirees = sortedSoirees(projection);
   const activeId = projection.activeSoireeId;
   const [creating, setCreating] = useState(false);
@@ -115,6 +117,15 @@ export function SoireesScreen() {
                       <Button variant="secondary" size="sm" onClick={() => setCarteFor(s)}>
                         Carte
                       </Button>
+                      {orders > 0 && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => navigate(`/recap?soiree=${encodeURIComponent(s.id)}`)}
+                        >
+                          Récap
+                        </Button>
+                      )}
                       {!isActive && (
                         <Button
                           variant="success"

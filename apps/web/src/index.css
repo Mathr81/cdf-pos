@@ -262,3 +262,26 @@ body::before {
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Impression (récapitulatif de soirée) ─────────────────────
+   La page imprimée est la feuille blanche de Recap.tsx, telle qu'à
+   l'écran. Il suffit de libérer les hauteurs figées au viewport (sinon
+   une seule page sort) et de retirer le fond et le grain nocturnes. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  /* Sans ça, Chrome peint les marges de page avec le canevas sombre. */
+  :root {
+    color-scheme: light;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    background: #fff !important;
+  }
+  body::before {
+    display: none;
+  }
+}

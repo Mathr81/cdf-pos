@@ -289,6 +289,16 @@ export const PresetDeletePayloadSchema = z.object({
 });
 export type PresetDeletePayload = z.infer<typeof PresetDeletePayloadSchema>;
 
+/**
+ * Ordre d'affichage des catégories en caisse, réglé à part de l'ordre des
+ * produits. Comme les modèles, il ne vit que dans le journal d'événements
+ * (pas de table SQL) et survit donc à une remise à zéro des ventes.
+ */
+export const CategoryOrderPayloadSchema = z.object({
+  categories: z.array(z.string().min(1).max(80)).max(200),
+});
+export type CategoryOrderPayload = z.infer<typeof CategoryOrderPayloadSchema>;
+
 // ─── Enveloppe d'événement (discriminated union sur `type`) ──
 
 const baseEnvelope = {
@@ -321,6 +331,7 @@ export const EventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEnvelope, type: z.literal("soiree_product_set"), payload: SoireeProductSetPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("preset_upsert"), payload: PresetUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("preset_delete"), payload: PresetDeletePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("category_order"), payload: CategoryOrderPayloadSchema }),
 ]);
 
 export type AppEvent = z.infer<typeof EventSchema>;
