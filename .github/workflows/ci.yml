@@ -1,0 +1,52 @@
+# Vérifie chaque PR et chaque push sur main : types, tests, builds.
+# Mêmes versions que les images Docker (Node 22, pnpm du packageManager),
+# pour qu'une PR verte se construise aussi sur le VPS.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Un nouveau push sur la même PR annule la vérification devenue inutile.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Dépendances
+        run: pnpm install --frozen-lockfile
+
+      # Le serveur et l'app importent le paquet partagé compilé, et le
+      # typecheck du serveur a besoin du client Prisma généré.
+      - name: Paquet partagé + client Prisma
+        run: |
+          pnpm --filter @cdf/shared build
+          pnpm --filter @cdf/server exec prisma generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: |
+          pnpm --filter @cdf/server build
+          pnpm --filter @cdf/web build

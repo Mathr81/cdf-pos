@@ -186,3 +186,8 @@ export function upsertPreset(payload: { id: string; name: string; items: PresetI
 export function deletePreset(id: string) {
   return dispatch({ ...meta(), type: "preset_delete", payload: { id } });
 }
+
+/** Ordre des onglets de catégories en caisse. */
+export function setCategoryOrder(categories: string[]) {
+  return dispatch({ ...meta(), type: "category_order", payload: { categories } });
+}

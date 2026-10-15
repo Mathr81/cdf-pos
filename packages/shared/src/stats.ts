@@ -1,4 +1,4 @@
-import type { ProjectionState, ClientOrder } from "./projection.js";
+import { stockRemaining, type ProjectionState, type ClientOrder } from "./projection.js";
 
 /** Réponse stats (partagée serveur ↔ client). `null` en soireeId = toutes soirées. */
 export interface StatsResponse {
@@ -342,5 +342,107 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
     totalVarianceCents,
     countedRegisters,
     totalRegisters: byReg.size,
+  };
+}
+
+// ─── Récapitulatif de fin de soirée ──────────────────────────
+
+export interface RecapProductRow {
+  productId: string;
+  name: string;
+  category: string;
+  /** Vendus et payés (hors offerts, hors annulés). */
+  soldQty: number;
+  revenueCents: number;
+  offeredQty: number;
+  /** Pertes déclarées, en positif. */
+  lostQty: number;
+  restockQty: number;
+  /** Corrections de recomptage, signées. */
+  correctionQty: number;
+  /** Stock restant ; null = illimité. */
+  remaining: number | null;
+}
+
+export interface Recap {
+  stats: StatsResponse;
+  cashup: Cashup;
+  products: RecapProductRow[];
+  voidedOrders: number;
+  voidedCents: number;
+  amendedOrders: number;
+  lostItems: number;
+}
+
+/**
+ * Tout ce que le trésorier demande le lendemain, sur une page : argent par
+ * moyen et par caisse, écarts de comptage, produits vendus, offerts, pertes
+ * et annulations. Rien n'est recalculé à part : les chiffres viennent des
+ * mêmes fonctions que l'écran Stats, ils ne peuvent pas diverger.
+ */
+export function computeRecap(state: ProjectionState, soireeId: string): Recap {
+  const stats = computeStats(state, soireeId);
+  const cashup = computeCashup(state, soireeId);
+
+  const rows = new Map<string, RecapProductRow>();
+  const row = (productId: string): RecapProductRow => {
+    let r = rows.get(productId);
+    if (!r) {
+      const p = state.products[productId];
+      r = {
+        productId,
+        name: p?.name ?? productId,
+        category: p?.category ?? "",
+        soldQty: 0,
+        revenueCents: 0,
+        offeredQty: 0,
+        lostQty: 0,
+        restockQty: 0,
+        correctionQty: 0,
+        remaining: stockRemaining(state, soireeId, productId),
+      };
+      rows.set(productId, r);
+    }
+    return r;
+  };
+
+  for (const [productId, cfg] of Object.entries(state.carte[soireeId] ?? {})) {
+    if (cfg.onCarte) row(productId);
+  }
+  for (const o of paidOrders(state, soireeId)) {
+    for (const it of o.items) {
+      const r = row(it.productId);
+      r.soldQty += it.qty;
+      r.revenueCents += it.qty * it.unitPriceCents;
+    }
+  }
+  for (const o of giftedOrders(state, soireeId)) {
+    for (const it of o.items) row(it.productId).offeredQty += it.qty;
+  }
+  const byReason = state.adjustmentsByReason[soireeId] ?? {};
+  for (const [productId, d] of Object.entries(byReason.spoilage ?? {})) row(productId).lostQty += -d;
+  for (const [productId, d] of Object.entries(byReason.restock ?? {})) row(productId).restockQty += d;
+  for (const [productId, d] of Object.entries(byReason.correction ?? {}))
+    row(productId).correctionQty += d;
+
+  const voided = Object.values(state.orders).filter(
+    (o) => o.soireeId === soireeId && o.status === "void",
+  );
+  const products = [...rows.values()].sort(
+    (a, b) =>
+      (state.products[a.productId]?.sortOrder ?? 0) - (state.products[b.productId]?.sortOrder ?? 0) ||
+      a.name.localeCompare(b.name),
+  );
+
+  return {
+    stats,
+    cashup,
+    products,
+    voidedOrders: voided.length,
+    voidedCents: voided.reduce((s, o) => s + o.totalCents, 0),
+    amendedOrders: Object.values(state.orders).filter(
+      (o) => o.soireeId === soireeId && o.amended,
+    ).length,
+    lostItems: products.reduce((s, r) => s + r.lostQty, 0),
   };
 }

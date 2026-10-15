@@ -3,6 +3,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { ChefHatIcon } from "@phosphor-icons/react/dist/csr/ChefHat";
 import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
 import { PackageIcon } from "@phosphor-icons/react/dist/csr/Package";
+import { PrinterIcon } from "@phosphor-icons/react/dist/csr/Printer";
 import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
 import { ReceiptIcon } from "@phosphor-icons/react/dist/csr/Receipt";
 import { WifiSlashIcon } from "@phosphor-icons/react/dist/csr/WifiSlash";
@@ -216,6 +217,36 @@ const SECTIONS: Section[] = [
         <Note tone="warn">
           Pense à <b className="text-cream">activer la vraie soirée</b> avant le service. Une vente
           réelle encaissée sur une soirée d'entraînement ne se retrouvera pas dans les comptes.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "cloture",
+    title: "Fin de soirée : le récapitulatif",
+    icon: PrinterIcon,
+    role: "admin",
+    body: (
+      <>
+        <ol className="space-y-3">
+          <Etape n={1} titre="Compter les caisses">
+            Dans <b className="text-cream">Stats</b>, section clôture : saisis le comptage de chaque
+            boîte. L'écart avec l'attendu s'affiche tout seul.
+          </Etape>
+          <Etape n={2} titre="Ouvrir le récapitulatif">
+            <b className="text-cream">Stats → Récapitulatif</b>, ou{" "}
+            <b className="text-cream">Soirées → Récap</b> sur la soirée voulue. Une page résume
+            l'argent par moyen et par caisse, les produits vendus, les offerts, les pertes et les
+            annulations.
+          </Etape>
+          <Etape n={3} titre="Imprimer ou garder en PDF">
+            <b className="text-cream">Imprimer / PDF</b>, puis choisis l'imprimante, ou « Enregistrer
+            au format PDF » pour l'envoyer au trésorier.
+          </Etape>
+        </ol>
+        <Note>
+          L'ordre des onglets de la caisse (Plats, Desserts…) se règle dans{" "}
+          <b className="text-cream">Admin → Produits → Ordre des catégories</b>.
         </Note>
       </>
     ),

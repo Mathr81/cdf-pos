@@ -24,6 +24,7 @@ import { TabBtn } from "./TabBtn.js";
 import { ProductEditor } from "./ProductEditor.js";
 import { StationEditor } from "./StationEditor.js";
 import { ResetPanel } from "./ResetPanel.js";
+import { CategoryOrderEditor } from "./CategoryOrderEditor.js";
 
 type Tab = "produits" | "stations" | "reset";
 
@@ -31,6 +32,7 @@ export function AdminScreen() {
   useRev();
   const [tab, setTab] = useUrlState<Tab>("onglet", "produits");
   const [q, setQ] = useState("");
+  const [orderingCategories, setOrderingCategories] = useState(false);
   const [editProduct, setEditProduct] = useState<ClientProduct | null>(null);
   const [editStation, setEditStation] = useState<ClientStation | null>(null);
 
@@ -110,6 +112,9 @@ export function AdminScreen() {
             >
               <PlusIcon size={18} weight="bold" />
               Nouveau produit
+            </Button>
+            <Button variant="secondary" onClick={() => setOrderingCategories(true)}>
+              Ordre des catégories
             </Button>
             <div className="relative min-w-40 flex-1">
               <MagnifyingGlassIcon
@@ -270,6 +275,7 @@ export function AdminScreen() {
         />
       )}
       {editStation && <StationEditor station={editStation} onClose={() => setEditStation(null)} />}
+      {orderingCategories && <CategoryOrderEditor onClose={() => setOrderingCategories(false)} />}
     </div>
   );
 }

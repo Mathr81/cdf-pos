@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -27,6 +28,7 @@ import {
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/csr/DownloadSimple";
+import { PrinterIcon } from "@phosphor-icons/react/dist/csr/Printer";
 import { TrendUpIcon } from "@phosphor-icons/react/dist/csr/TrendUp";
 import { TrendDownIcon } from "@phosphor-icons/react/dist/csr/TrendDown";
 
@@ -42,6 +44,7 @@ import { plural } from "../lib/plural.js";
 
 export function StatsScreen() {
   const rev = useRev();
+  const navigate = useNavigate();
   const active = useActiveSoiree();
   const soirees = sortedSoirees(projection);
   const [scope, setScope] = useState<string>(active?.id ?? "all");
@@ -114,10 +117,21 @@ export function StatsScreen() {
             </option>
           ))}
         </SelectInput>
+        {soireeId && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-auto"
+            onClick={() => navigate(`/recap?soiree=${encodeURIComponent(soireeId)}`)}
+          >
+            <PrinterIcon size={17} weight="bold" />
+            Récapitulatif
+          </Button>
+        )}
         <Button
           variant="secondary"
           size="sm"
-          className="ml-auto"
+          className={soireeId ? "" : "ml-auto"}
           onClick={() => exportOrdersCsv(projection, soireeId)}
         >
           <DownloadSimpleIcon size={17} weight="bold" />

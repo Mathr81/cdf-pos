@@ -151,7 +151,7 @@ function TrainingBanner() {
   const soiree = useActiveSoiree();
   if (!soiree?.training) return null;
   return (
-    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern px-3 py-1.5 text-center text-micro font-bold text-night">
+    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern px-3 print:hidden py-1.5 text-center text-micro font-bold text-night">
       <GraduationCapIcon size={16} weight="fill" className="shrink-0" />
       MODE ENTRAÎNEMENT · « {soiree.name} » — ces ventes ne comptent pas dans les chiffres
     </div>
@@ -172,7 +172,7 @@ function DuplicateRegisterBanner() {
   const twin = presence.some((p) => p.role === "caisse" && p.label === label && p.deviceId !== me);
   if (!twin) return null;
   return (
-    <div className="flex shrink-0 items-center justify-center bg-signal px-3 py-1.5 text-center text-micro font-bold text-night">
+    <div className="flex shrink-0 items-center justify-center bg-signal px-3 print:hidden py-1.5 text-center text-micro font-bold text-night">
       Une autre tablette est aussi « {label} » — changez de poste et prenez un autre numéro de caisse
     </div>
   );
@@ -195,8 +195,10 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="safe-top shrink-0 border-b border-line bg-surface">
+    // À l'impression (récapitulatif), seule la page sort : ni en-tête, ni
+    // bandeaux, et plus de hauteur figée qui couperait après la 1re page.
+    <div className="flex h-full flex-col print:block print:h-auto">
+      <header className="safe-top shrink-0 border-b border-line bg-surface print:hidden">
         {/* Sous `md`, deux lignes : identité + déconnexion, puis la nav sur
             toute la largeur. Sur une seule ligne, un téléphone ne montrait
             que 4 onglets : Soirées, Admin, Aide et la déconnexion étaient
@@ -257,7 +259,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <TrainingBanner />
       <DuplicateRegisterBanner />
 
-      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+      <main className="min-h-0 flex-1 overflow-hidden print:overflow-visible">{children}</main>
 
       <PendingSalesGuard />
     </div>
