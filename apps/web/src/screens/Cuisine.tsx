@@ -19,6 +19,7 @@ import { markPrepared } from "../lib/actions.js";
 import { Button, EmptyState, StepButton } from "../components/ui.js";
 import { TicketBlock } from "../components/ProductIcon.js";
 import { NoSoiree } from "../components/NoSoiree.js";
+import { Toast, useToast, type ToastData } from "../components/Toast.js";
 import { DepletionHint } from "../components/DepletionHint.js";
 import { cn } from "../lib/cn.js";
 
@@ -34,13 +35,16 @@ export function CuisineScreen() {
   useRev();
   const soiree = useActiveSoiree();
   const stations = sortedStations(projection);
-  const [stationId, setStationId] = useState<string>(
-    () => localStorage.getItem("cdf.stationId") ?? stations[0]?.id ?? "",
-  );
+  const [chosen, setChosen] = useState<string>(() => localStorage.getItem("cdf.stationId") ?? "");
   const [showIdle, setShowIdle] = useState(false);
+  const { toast, show: showToast, hide: hideToast } = useToast();
+  /* Dérivé à chaque rendu, pas figé à l'initialisation : au premier rendu les
+     stations ne sont pas encore chargées (aucune sélectionnée, écran « Rien
+     pour ce poste »), et une station supprimée laissait un id orphelin. */
+  const stationId = stations.some((s) => s.id === chosen) ? chosen : (stations[0]?.id ?? "");
 
   const changeStation = (id: string) => {
-    setStationId(id);
+    setChosen(id);
     localStorage.setItem("cdf.stationId", id);
   };
 
@@ -91,6 +95,7 @@ export function CuisineScreen() {
           {stations.map((s) => (
             <button
               key={s.id}
+              aria-pressed={s.id === stationId}
               onClick={() => changeStation(s.id)}
               className={cn(
                 "min-h-12 rounded-control px-4 text-body font-bold whitespace-nowrap transition-colors active:scale-[0.97]",
@@ -149,6 +154,7 @@ export function CuisineScreen() {
                     item={it}
                     soireeId={soireeId}
                     stationId={stationId}
+                    onPrepared={showToast}
                   />
                 ))}
               </div>
@@ -167,6 +173,7 @@ export function CuisineScreen() {
                       item={it}
                       soireeId={soireeId}
                       stationId={stationId}
+                      onPrepared={showToast}
                     />
                   ))}
                 </div>
@@ -197,6 +204,7 @@ export function CuisineScreen() {
                         item={it}
                         soireeId={soireeId}
                         stationId={stationId}
+                        onPrepared={showToast}
                       />
                     ))}
                   </div>
@@ -206,8 +214,29 @@ export function CuisineScreen() {
           </>
         )}
       </div>
+      <Toast toast={toast} onHide={hideToast} />
     </div>
   );
+}
+
+/**
+ * Marque `n` préparés et propose d'annuler : un +10 tapé à la place d'un +1
+ * coûtait dix appuis sur −1, mains grasses, en plein coup de feu.
+ */
+function prepare(
+  product: ClientProduct,
+  stationId: string,
+  soireeId: string,
+  n: number,
+  notify: (t: ToastData) => void,
+) {
+  void markPrepared(product.id, stationId, n, soireeId);
+  if (n <= 0) return;
+  notify({
+    text: `+${n} ${product.name}`,
+    ms: 5000,
+    action: { label: "Annuler", run: () => void markPrepared(product.id, stationId, -n, soireeId) },
+  });
 }
 
 /** Progression préparé / vendu. Animée en `transform`, jamais en `width`. */
@@ -234,10 +263,12 @@ function TodoCard({
   item,
   soireeId,
   stationId,
+  onPrepared,
 }: {
   item: KitchenItem;
   soireeId: string;
   stationId: string;
+  onPrepared: (t: ToastData) => void;
 }) {
   const { product, sold, prepared, remaining, viaMenus } = item;
   return (
@@ -289,6 +320,9 @@ function TodoCard({
           variant="secondary"
           size="lg"
           className="h-16"
+          aria-label={`Retirer un ${product.name} préparé`}
+          // Sous zéro, « À faire » dépassait « Vendu » (Préparé -2 / 2).
+          disabled={prepared <= 0}
           onClick={() => markPrepared(product.id, stationId, -1, soireeId)}
         >
           −1
@@ -299,7 +333,8 @@ function TodoCard({
             variant="success"
             size="lg"
             className="h-16"
-            onClick={() => markPrepared(product.id, stationId, n, soireeId)}
+            aria-label={`${n} ${product.name} préparé${n > 1 ? "s" : ""}`}
+            onClick={() => prepare(product, stationId, soireeId, n, onPrepared)}
           >
             +{n}
           </Button>
@@ -313,10 +348,12 @@ function DoneCard({
   item,
   soireeId,
   stationId,
+  onPrepared,
 }: {
   item: KitchenItem;
   soireeId: string;
   stationId: string;
+  onPrepared: (t: ToastData) => void;
 }) {
   const { product, sold, prepared } = item;
   return (
@@ -338,7 +375,7 @@ function DoneCard({
       </div>
       <StepButton
         aria-label={`Préparer un ${product.name} de plus`}
-        onClick={() => markPrepared(product.id, stationId, 1, soireeId)}
+        onClick={() => prepare(product, stationId, soireeId, 1, onPrepared)}
       >
         <PlusIcon size={18} weight="bold" />
       </StepButton>

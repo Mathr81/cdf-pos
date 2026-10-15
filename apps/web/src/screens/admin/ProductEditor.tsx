@@ -11,7 +11,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/dist/csr/CaretUp";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
-import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
+import { EyeSlashIcon } from "@phosphor-icons/react/dist/csr/EyeSlash";
 
 import { projection } from "../../lib/store.js";
 import { deleteProduct, upsertProduct } from "../../lib/actions.js";
@@ -20,6 +20,7 @@ import { TicketBlock } from "../../components/ProductIcon.js";
 import { Modal } from "../../components/Modal.js";
 import { ConfirmModal } from "../../components/ConfirmModal.js";
 import { cn } from "../../lib/cn.js";
+import { isAmount, isCount } from "../../lib/validate.js";
 import { TicketColorField, VisualPicker } from "./ProductVisual.js";
 
 export function ProductEditor({
@@ -44,8 +45,28 @@ export function ProductEditor({
   const [imageZoom, setImageZoom] = useState<number | null>(product.imageZoom);
   const [active, setActive] = useState(product.active);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [tried, setTried] = useState(false);
+  // Le parent passe un produit neuf (id inédit) pour « Nouveau produit ».
+  const isNew = !projection.products[product.id];
+
+  const draft = { name, price, category, stationId, stockInitial, stockUnlimited, components, emoji, color, imageKey, imageZoom, active };
+  const [initial] = useState(() => JSON.stringify(draft));
+  const dirty = JSON.stringify(draft) !== initial;
+
+  const errors = {
+    name: name.trim() ? null : "Donne un nom au produit.",
+    price: !isAmount(price)
+      ? "Prix invalide (ex. 5 ou 5,50)."
+      : parseAmountToCents(price) === 0
+        ? "Un produit à 0 € : utilise plutôt « Offert » à l'encaissement."
+        : null,
+    stock: stockUnlimited || isCount(stockInitial) ? null : "Stock invalide (nombre entier).",
+  };
+  const valid = !errors.name && !errors.price && !errors.stock;
 
   const save = () => {
+    setTried(true);
+    if (!valid) return;
     void upsertProduct({
       id: product.id,
       name: name.trim() || "Produit",
@@ -67,11 +88,19 @@ export function ProductEditor({
 
   return (
     <>
-      <Modal open onClose={onClose}>
-        <h2 className="font-display mb-4 text-lead font-bold text-cream">Produit</h2>
-        <div className="max-h-[66vh] space-y-4 overflow-y-auto pr-1">
+      <Modal open onClose={onClose} dismissable={!dirty}>
+        <h2 className="font-display mb-4 truncate text-lead font-bold text-cream">
+          {isNew ? "Nouveau produit" : `Modifier « ${product.name} »`}
+        </h2>
+        <div className="max-h-[66dvh] space-y-4 overflow-y-auto pr-1">
           <Field label="Nom">
-            <TextInput value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <TextInput
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              invalid={tried && !!errors.name}
+            />
+            {tried && errors.name && <FieldError>{errors.name}</FieldError>}
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
@@ -82,7 +111,9 @@ export function ProductEditor({
                 inputMode="decimal"
                 placeholder="5,00"
                 className="tnum"
+                invalid={tried && !!errors.price}
               />
+              {tried && errors.price && <FieldError>{errors.price}</FieldError>}
             </Field>
             <Field label="Stock initial">
               <TextInput
@@ -91,9 +122,17 @@ export function ProductEditor({
                 inputMode="numeric"
                 disabled={stockUnlimited}
                 className={cn("tnum", stockUnlimited && "opacity-50")}
+                invalid={tried && !!errors.stock}
               />
+              {tried && errors.stock && <FieldError>{errors.stock}</FieldError>}
             </Field>
           </div>
+          {/* Deux stocks coexistent et on les confondait : celui-ci n'est qu'une
+              valeur proposée, celui de la soirée se règle dans sa carte. */}
+          <p className="-mt-2 text-micro text-ash">
+            Valeur proposée quand le produit est ajouté à la carte d'une soirée. Le stock d'une soirée
+            en cours se règle dans Soirées → Carte, ou dans Stock.
+          </p>
 
           <label className="flex items-start gap-3 rounded-control border border-line bg-well p-3">
             <input
@@ -170,14 +209,22 @@ export function ProductEditor({
           </label>
         </div>
 
+        {tried && !valid && (
+          <p role="alert" className="mt-3 text-body font-semibold text-signal">
+            Corrige les champs en rouge avant d'enregistrer.
+          </p>
+        )}
         <div className="mt-5 flex flex-wrap gap-2">
-          {/* Glyphe explicite : « Supprimer » (signal) et « Enregistrer »
-              (lantern) sont deux boutons pleins voisins, et ces deux teintes
-              convergent en deutéranopie. */}
-          <Button variant="danger" onClick={() => setConfirmRemove(true)}>
-            <TrashIcon size={17} weight="bold" />
-            Supprimer
-          </Button>
+          {/* « Masquer » et non « Supprimer » : c'est ce que fait réellement
+              l'action (les ventes passées gardent le produit). Absent pour un
+              produit pas encore créé. Glyphe explicite : signal et lantern
+              voisins convergent en deutéranopie. */}
+          {!isNew && product.active && (
+            <Button variant="danger" onClick={() => setConfirmRemove(true)}>
+              <EyeSlashIcon size={17} weight="bold" />
+              Masquer
+            </Button>
+          )}
           <div className="flex-1" />
           <Button variant="ghost" onClick={onClose}>
             Annuler
@@ -201,6 +248,10 @@ export function ProductEditor({
       />
     </>
   );
+}
+
+function FieldError({ children }: { children: string }) {
+  return <span className="mt-1 block text-micro font-semibold text-signal">{children}</span>;
 }
 
 /**

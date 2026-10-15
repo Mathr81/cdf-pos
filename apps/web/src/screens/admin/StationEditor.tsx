@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ClientStation } from "@cdf/shared";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 
+import { projection } from "../../lib/store.js";
 import { deleteStation, upsertStation } from "../../lib/actions.js";
 import { Button, Field, TextInput } from "../../components/ui.js";
 import { Modal } from "../../components/Modal.js";
@@ -10,6 +11,10 @@ import { ConfirmModal } from "../../components/ConfirmModal.js";
 export function StationEditor({ station, onClose }: { station: ClientStation; onClose: () => void }) {
   const [name, setName] = useState(station.name);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const isNew = !projection.stations[station.id];
+  const attached = Object.values(projection.products).filter(
+    (p) => p.active && p.stationId === station.id,
+  );
 
   const save = () => {
     void upsertStation({
@@ -22,8 +27,10 @@ export function StationEditor({ station, onClose }: { station: ClientStation; on
 
   return (
     <>
-      <Modal open onClose={onClose}>
-        <h2 className="font-display mb-4 text-lead font-bold text-cream">Station cuisine</h2>
+      <Modal open onClose={onClose} dismissable={name === station.name}>
+        <h2 className="font-display mb-4 text-lead font-bold text-cream">
+          {isNew ? "Nouvelle station" : "Station cuisine"}
+        </h2>
         <Field label="Nom">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </Field>
@@ -31,15 +38,17 @@ export function StationEditor({ station, onClose }: { station: ClientStation; on
           {/* Glyphe explicite : « Supprimer » (signal) et « Enregistrer »
               (lantern) sont deux boutons pleins voisins, et ces deux teintes
               convergent en deutéranopie. */}
-          <Button variant="danger" onClick={() => setConfirmRemove(true)}>
-            <TrashIcon size={17} weight="bold" />
-            Supprimer
-          </Button>
+          {!isNew && (
+            <Button variant="danger" onClick={() => setConfirmRemove(true)}>
+              <TrashIcon size={17} weight="bold" />
+              Supprimer
+            </Button>
+          )}
           <div className="flex-1" />
           <Button variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button variant="primary" onClick={save}>
+          <Button variant="primary" disabled={!name.trim()} onClick={save}>
             Enregistrer
           </Button>
         </div>
@@ -48,7 +57,13 @@ export function StationEditor({ station, onClose }: { station: ClientStation; on
       <ConfirmModal
         open={confirmRemove}
         title={`Supprimer la station « ${name || "sans nom"} » ?`}
-        body="Les produits rattachés à cette station n'apparaîtront plus dans aucun poste cuisine."
+        body={
+          attached.length === 0
+            ? "Aucun produit n'y est rattaché."
+            : `${attached.length} produit${attached.length > 1 ? "s" : ""} (${attached
+                .map((p) => p.name)
+                .join(", ")}) n'apparaîtr${attached.length > 1 ? "ont" : "a"} plus dans aucun poste cuisine. Rattache-les à une autre station dans Produits.`
+        }
         confirmLabel="Supprimer"
         onConfirm={() => {
           void deleteStation(station.id);

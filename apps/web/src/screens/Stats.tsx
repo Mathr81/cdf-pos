@@ -38,6 +38,7 @@ import { PALETTE } from "../lib/palette.js";
 import { Button, Card, Field, SelectInput, TextInput } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
 import { cn } from "../lib/cn.js";
+import { plural } from "../lib/plural.js";
 
 export function StatsScreen() {
   const rev = useRev();
@@ -93,7 +94,7 @@ export function StatsScreen() {
     tiles.push({
       label: "Offert",
       value: formatCents(stats.giftedValueCents),
-      hint: `${stats.giftedItems} article(s), hors CA`,
+      hint: `${plural(stats.giftedItems, "article")}, hors CA`,
     });
   }
 
@@ -154,7 +155,7 @@ export function StatsScreen() {
           {peak && (
             <span>
               Pic d'affluence <b className="text-cream">{peak.hour}</b> ·{" "}
-              <span className="tnum">{peak.orders}</span> commandes
+              <span className="tnum">{plural(peak.orders, "commande")}</span>
             </span>
           )}
           {bestRegister && (
@@ -430,7 +431,7 @@ export function StatsScreen() {
 
           {cashup.countedRegisters < cashup.totalRegisters && cashup.totalRegisters > 0 && (
             <p className="mt-3 text-micro text-ash">
-              {cashup.totalRegisters - cashup.countedRegisters} poste(s) pas encore compté(s) :
+              {plural(cashup.totalRegisters - cashup.countedRegisters, "poste pas encore compté", "postes pas encore comptés")} :
               l'écart total ne porte que sur les {cashup.countedRegisters} déjà comptés.
             </p>
           )}
@@ -484,7 +485,7 @@ export function StatsScreen() {
 
       {stats.voidCount > 0 && (
         <p className="tnum mt-4 pb-2 text-center text-micro text-ash">
-          {stats.voidCount} commande(s) annulée(s)
+          {plural(stats.voidCount, "commande annulée", "commandes annulées")}
         </p>
       )}
     </div>
@@ -498,13 +499,15 @@ export function StatsScreen() {
  *
  * Zéro est vert, pas neutre : « ça tombe juste » est une bonne nouvelle et
  * mérite d'être lisible d'un coup d'œil sur une table de dix postes.
+ * L'excédent est en dusk (information) et non en lantern, réservé à la
+ * sélection et à l'action primaire.
  */
 function Variance({ cents }: { cents: number | null }) {
   if (cents === null) return <span className="text-ash">—</span>;
   if (cents === 0) return <span className="font-bold text-mint">juste</span>;
   const manque = cents < 0;
   return (
-    <span className={cn("font-bold", manque ? "text-signal" : "text-lantern")}>
+    <span className={cn("font-bold", manque ? "text-signal" : "text-dusk")}>
       {manque ? "−" : "+"}
       {formatCents(Math.abs(cents))}
     </span>

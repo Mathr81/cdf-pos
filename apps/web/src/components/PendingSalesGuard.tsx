@@ -7,6 +7,7 @@ import { downloadOutboxRescue } from "../lib/rescue.js";
 import { forceWipeAndReload, retryPendingSync } from "../lib/sync.js";
 import { Button } from "./ui.js";
 import { Modal } from "./Modal.js";
+import { plural } from "../lib/plural.js";
 
 /**
  * Dernier rempart avant la destruction de ventes qui n'existent nulle part
@@ -37,7 +38,7 @@ export function PendingSalesGuard() {
         return;
       }
       setBlocked({ reason, count: left });
-      setNote(`${left} vente(s) résistent encore. La tablette est-elle en ligne ?`);
+      setNote(`${plural(left, "vente résiste", "ventes résistent")} encore. La tablette est-elle en ligne ?`);
     } catch {
       setNote("La synchro a échoué. Vérifie la connexion réseau.");
     } finally {

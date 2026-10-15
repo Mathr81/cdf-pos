@@ -3,6 +3,7 @@ import { formatCents, parseAmountToCents, type PaymentMethod } from "@cdf/shared
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
 import { GiftIcon } from "@phosphor-icons/react/dist/csr/Gift";
+import { cn } from "../lib/cn.js";
 import { Modal } from "./Modal.js";
 import { Numpad } from "./Numpad.js";
 import { Button } from "./ui.js";
@@ -22,7 +23,10 @@ export function PaymentModal({
   onClose: () => void;
   onConfirm: (method: PaymentMethod, cashReceivedCents?: number) => void;
 }) {
-  const [mode, setMode] = useState<"choose" | "cash">("choose");
+  /* Carte et Offert passent par un écran de confirmation : ils encaissaient
+     en un seul tap, et une vente ne s'annule ensuite qu'avec le PIN admin.
+     Pour la carte, c'est aussi le geste réel : on attend que le TPE accepte. */
+  const [mode, setMode] = useState<"choose" | "cash" | "card" | "offert">("choose");
   const [received, setReceived] = useState("");
 
   const receivedCents = parseAmountToCents(received);
@@ -30,10 +34,15 @@ export function PaymentModal({
 
   const quick = useMemo(() => {
     // Suggestions : montant exact + billets courants supérieurs au total.
-    const bills = [500, 1000, 2000, 5000];
-    const opts = [totalCents, ...bills.filter((b) => b >= totalCents)];
+    const bills = [500, 1000, 2000, 5000, 10000];
+    const opts = [totalCents, ...bills.filter((b) => b > totalCents)];
     return [...new Set(opts)].slice(0, 4);
   }, [totalCents]);
+
+  const cashValid = received === "" || changeCents >= 0;
+  const confirmCash = () => {
+    if (cashValid) onConfirm("cash", received ? receivedCents : undefined);
+  };
 
   /** Retour à l'écran de choix sans fermer (bouton « Retour »). */
   const reset = () => {
@@ -63,7 +72,7 @@ export function PaymentModal({
           <Button
             variant="secondary"
             className="h-32 flex-col gap-3 text-lead"
-            onClick={() => onConfirm("card")}
+            onClick={() => setMode("card")}
           >
             <CreditCardIcon size={40} weight="fill" className="text-dusk" />
             Carte
@@ -76,7 +85,7 @@ export function PaymentModal({
           <Button
             variant="ghost"
             className="col-span-2 h-16 gap-3 text-body"
-            onClick={() => onConfirm("offert")}
+            onClick={() => setMode("offert")}
           >
             <GiftIcon size={24} weight="fill" className="text-mint" />
             Offert (bénévole, invité)
@@ -95,14 +104,15 @@ export function PaymentModal({
             </div>
             <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-line pt-2">
               <span className="text-body text-sand">Rendu monnaie</span>
+              {/* Neutre tant que rien n'est saisi : un « 0,00 € » rouge criait
+                  « montant insuffisant » avant même le premier chiffre. */}
               <span
-                className={
-                  changeCents >= 0
-                    ? "font-display tnum text-display font-bold text-mint"
-                    : "font-display tnum text-display font-bold text-signal"
-                }
+                className={cn(
+                  "font-display tnum text-display font-bold",
+                  received === "" ? "text-ash" : changeCents >= 0 ? "text-mint" : "text-signal",
+                )}
               >
-                {received ? formatCents(Math.max(0, changeCents)) : "0,00 €"}
+                {received ? formatCents(Math.max(0, changeCents)) : "—"}
               </span>
             </div>
             {received !== "" && changeCents < 0 && (
@@ -110,13 +120,13 @@ export function PaymentModal({
             )}
           </div>
 
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex gap-2">
             {quick.map((c) => (
               <Button
                 key={c}
                 variant="secondary"
                 size="sm"
-                className="tnum"
+                className="tnum flex-1 px-1"
                 onClick={() => setReceived(centsToInput(c))}
               >
                 {formatCents(c)}
@@ -124,7 +134,7 @@ export function PaymentModal({
             ))}
           </div>
 
-          <Numpad value={received} onChange={setReceived} />
+          <Numpad value={received} onChange={setReceived} onEnter={confirmCash} />
 
           <div className="flex gap-2">
             <Button variant="ghost" size="lg" onClick={reset}>
@@ -134,10 +144,44 @@ export function PaymentModal({
               variant="success"
               size="lg"
               className="flex-1"
-              disabled={received !== "" && changeCents < 0}
-              onClick={() => onConfirm("cash", received ? receivedCents : undefined)}
+              disabled={!cashValid}
+              onClick={confirmCash}
             >
               Encaisser
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {(mode === "card" || mode === "offert") && (
+        <div className="space-y-4">
+          <div className="flex flex-col items-center gap-3 rounded-control border border-line bg-well p-6 text-center">
+            {mode === "card" ? (
+              <CreditCardIcon size={48} weight="fill" className="text-dusk" />
+            ) : (
+              <GiftIcon size={48} weight="fill" className="text-mint" />
+            )}
+            <p className="font-display text-lead font-bold text-cream">
+              {mode === "card" ? "Le paiement par carte est accepté ?" : "Offrir cette commande ?"}
+            </p>
+            <p className="text-body text-sand">
+              {mode === "card"
+                ? "Attends la validation du terminal de paiement avant de confirmer."
+                : "Pour un bénévole ou un invité : le stock et la cuisine en tiennent compte, pas le chiffre d'affaires."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="lg" onClick={reset}>
+              Retour
+            </Button>
+            <Button
+              variant={mode === "card" ? "primary" : "success"}
+              size="lg"
+              className="flex-1"
+              autoFocus
+              onClick={() => onConfirm(mode)}
+            >
+              {mode === "card" ? `Carte acceptée · ${formatCents(totalCents)}` : "Confirmer l'offert"}
             </Button>
           </div>
         </div>
