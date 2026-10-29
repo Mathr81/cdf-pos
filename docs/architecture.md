@@ -190,6 +190,7 @@ table** : ils ne vivent que dans le journal (le serveur n'a besoin que de
 | `lib/session.ts` | Code, PIN, rôle, libellé (persistés). |
 | `lib/persist.ts` | Demande de stockage persistant. |
 | `lib/wakeLock.ts` | Empêche la mise en veille. |
+| `components/UpdateBanner.tsx` | Service worker en mode `prompt` : vérifie les mises à jour toutes les 5 min et propose « Recharger » (jamais de rechargement d'office). |
 | `lib/reservationCsv.ts` | Import CSV des réservations (détection séparateur / encodage). |
 | `lib/export.ts` | Exports CSV (ventes, bilan réservations). |
 | `screens/Aide.tsx` | Aide intégrée — **à tenir à jour avec ce guide**. |

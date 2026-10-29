@@ -186,9 +186,13 @@ image neuve et n'en hérite pas.
 - Les **migrations Prisma** sont appliquées automatiquement au démarrage du
   conteneur serveur : rien à lancer de plus.
 - **Aucune donnée n'est perdue** : le volume PostgreSQL survit à la mise à jour.
-- Sur les tablettes, l'application étant une **PWA**, recharge la page (ou ferme et
-  rouvre l'app) pour récupérer la nouvelle version — le service worker se met à jour
-  tout seul en quelques secondes.
+- Sur les tablettes, rien à faire d'avance : chaque poste vérifie toutes les
+  5 minutes s'il existe une nouvelle version, puis affiche un **bandeau bleu
+  « Nouvelle version de l'app »**. Son bouton **Recharger** l'installe (équivalent
+  d'un Ctrl+F5), à toucher entre deux clients. Le bandeau attend que les ventes en
+  attente soient envoyées ; elles ne risquent rien de toute façon (IndexedDB).
+  Rien ne se recharge d'office : un rechargement en plein encaissement viderait
+  le panier.
 
 En développement local (sans Docker), l'équivalent est :
 

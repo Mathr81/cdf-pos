@@ -11,7 +11,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      // « prompt » : la nouvelle version attend le bouton « Recharger » du
+      // bandeau (components/UpdateBanner.tsx) au lieu de recharger d'office.
+      registerType: "prompt",
       // On ne précache PAS les réponses API : l'offline s'appuie sur IndexedDB
       // (outbox + projection), pas sur le cache HTTP.
       workbox: {

@@ -333,8 +333,8 @@ const SECTIONS: Section[] = [
         <Def term="Bandeau orange « MODE ENTRAÎNEMENT »">
           les ventes ne comptent pas. Si c'est le vrai service, préviens un responsable tout de suite.
         </Def>
-        <Def term="Une nouveauté n'apparaît pas">
-          recharge la page, ou ferme et rouvre l'app.
+        <Def term="Bandeau bleu « Nouvelle version »">
+          touche « Recharger » entre deux clients. Les ventes ne sont pas perdues.
         </Def>
       </ul>
     ),

@@ -29,6 +29,7 @@ import { useWakeLock } from "../lib/wakeLock.js";
 import { cn } from "../lib/cn.js";
 import { PendingSalesGuard } from "./PendingSalesGuard.js";
 import { ConflictModal } from "./ConflictModal.js";
+import { UpdateBanner } from "./UpdateBanner.js";
 
 interface NavItem {
   to: string;
@@ -356,6 +357,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <TrainingBanner name={training.soiree.name} onHide={training.hide} />
       )}
       <DuplicateRegisterBanner />
+      <UpdateBanner />
 
       <main className="min-h-0 flex-1 overflow-hidden print:overflow-visible">{children}</main>
 
