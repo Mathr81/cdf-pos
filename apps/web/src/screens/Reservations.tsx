@@ -337,7 +337,8 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
 
 /**
  * Colonne de droite de l'accueil, sur iPad en paysage seulement : le bilan de
- * la porte et les remarques des groupes pas encore arrivés.
+ * la porte, les remarques des groupes pas encore arrivés, les arrivées par
+ * tarif et l'argent reçu par moyen de paiement.
  */
 function DoorSide({
   soireeId,
@@ -349,31 +350,55 @@ function DoorSide({
   onOpen: (id: string) => void;
 }) {
   const d = bookingDashboard(projection, soireeId);
+  const tariffs = bookingTariffs(projection, soireeId);
   const watch = rows.filter((r) => r.note && !r.order && !r.walkIn);
-  const line = (label: string, value: ReactNode) => (
+  // Ce que la porte doit encore encaisser : réservations attendues, hors payé d'avance.
+  const toCollect = rows
+    .filter((r) => !r.walkIn && !r.order && !r.prepaid)
+    .reduce((s, r) => s + itemsTotal(bookingItems(tariffs, r.counts)), 0);
+  const line = (label: ReactNode, value: ReactNode) => (
     <div className="flex items-baseline justify-between gap-2">
       <span className="text-sand">{label}</span>
       <b className="tnum text-cream">{value}</b>
     </div>
   );
 
+  // Chiffres en haut, toujours visibles ; les remarques prennent la place
+  // qui reste et défilent dans leur carte.
   return (
     <aside className="hidden w-80 shrink-0 flex-col gap-3 overflow-y-auto pb-4 lg:flex">
-      <Card className="p-4">
+      <Card className="shrink-0 p-4">
         <h2 className="font-display text-lead font-bold text-cream">Bilan</h2>
         <div className="mt-2 space-y-1.5 text-body">
           {line("Réservations arrivées", `${d.reservationsArrived} / ${d.reservations}`)}
           <ArrivalBar d={d} />
           {line("Couverts restants", `${d.remaining} / ${d.expected}`)}
-          {line("Encaissé ce soir", formatCents(d.totalCents))}
+          {tariffs.map((t) => (
+            <div key={t.productId} className="pl-3 text-micro">
+              {line(
+                `${t.name} arrivés`,
+                `${d.byTariff[t.productId]?.arrived ?? 0} / ${d.byTariff[t.productId]?.expected ?? 0}`,
+              )}
+            </div>
+          ))}
+          {line("Reste à encaisser", formatCents(toCollect))}
         </div>
       </Card>
-      <Card className="p-4">
-        <h2 className="font-display text-lead font-bold text-cream">À surveiller</h2>
-        {watch.length === 0 ? (
-          <p className="mt-2 text-body text-ash">Aucune remarque en attente.</p>
-        ) : (
-          <ul className="mt-2 space-y-1.5">
+      <Card className="shrink-0 p-4">
+        <h2 className="font-display text-lead font-bold text-cream">Encaissé ce soir</h2>
+        <div className="mt-2 space-y-1.5 text-body">
+          {d.byPaymentMethod.map((m) => (
+            <div key={m.method}>{line(paymentLabel(m.method), formatCents(m.revenueCents))}</div>
+          ))}
+          <div className="border-t border-line pt-1.5">{line("Total", formatCents(d.totalCents))}</div>
+          {d.prepaidCents > 0 && line("Payé d'avance", formatCents(d.prepaidCents))}
+          {d.giftedOrders > 0 && line("Offerts", d.giftedOrders)}
+        </div>
+      </Card>
+      {watch.length > 0 && (
+        <Card className="flex min-h-40 flex-1 flex-col p-4">
+          <h2 className="font-display shrink-0 text-lead font-bold text-cream">À surveiller</h2>
+          <ul className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto">
             {watch.map((r) => (
               <li key={r.id}>
                 <button
@@ -389,8 +414,8 @@ function DoorSide({
               </li>
             ))}
           </ul>
-        )}
-      </Card>
+        </Card>
+      )}
     </aside>
   );
 }
