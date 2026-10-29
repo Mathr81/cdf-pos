@@ -368,18 +368,55 @@ ventes sont renvoyées automatiquement au tick suivant, **sans limite d'essais**
 ### Dumps PostgreSQL (restauration propre)
 
 Le conteneur `backup-cron` écrit un dump compressé toutes les `BACKUP_INTERVAL`
-secondes dans `./backups/` (rétention : `BACKUP_KEEP` fichiers).
+secondes dans `./backups/` (rétention : `BACKUP_KEEP` fichiers), et une archive
+`media-*.tar.gz` des images produit chaque fois qu'elles changent (rétention :
+`MEDIA_KEEP`). Il faut les deux : le dump ne contient pas les images.
 
-Restaurer un dump :
+Restaurer (sur un VPS neuf : installer et démarrer normalement d'abord, puis) :
 
 ```bash
-# Copier le dump dans le conteneur postgres puis restaurer
-docker compose cp ../backups/cdfpos-YYYYMMDD-HHMMSS.dump postgres:/tmp/restore.dump
-docker compose exec postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean /tmp/restore.dump
+cd docker
+dc() { docker compose --env-file ../.env "$@"; }
+DUMP=$(ls -t ../backups/cdfpos-*.dump | head -1)      # ou un fichier précis
+MEDIA=$(ls -t ../backups/media-*.tar.gz | head -1)
+
+# 1. Arrêter ce qui écrit dans la base
+dc stop server backup-cron
+
+# 2. Repartir d'une base vide et y charger le dump
+dc cp "$DUMP" postgres:/tmp/restore.dump
+dc exec postgres sh -c 'dropdb -U "$POSTGRES_USER" "$POSTGRES_DB" &&
+  createdb -U "$POSTGRES_USER" "$POSTGRES_DB" &&
+  pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --exit-on-error /tmp/restore.dump'
+
+# 3. Images produit
+dc run --rm --no-deps -T --entrypoint tar server -xzf - -C /data/media < "$MEDIA"
+
+# 4. Redémarrer
+dc up -d
 ```
 
-> 💡 Le journal d'événements permet aussi de **reconstruire** les projections
-> (commandes, stock) si nécessaire.
+5. **Attendre que chaque tablette ait tout envoyé** (indicateur de synchro sans
+   ventes en attente) : les ventes faites hors ligne pendant la panne remontent
+   alors au serveur restauré.
+6. **Puis** forcer les tablettes à repartir du serveur :
+
+```bash
+dc exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE "AppMeta" SET value = gen_random_uuid()::text WHERE key = 'epoch';
+SQL
+dc restart server     # les tablettes se reconnectent, voient le nouvel epoch, se rechargent
+```
+
+Pourquoi l'étape 6 : le serveur restauré a « reculé » au moment du dump, mais
+une tablette synchronisée après croit déjà avoir tout reçu jusqu'à un numéro
+plus élevé, et raterait les événements que le serveur renumérote. Le nouvel
+epoch lui fait vider sa copie locale et tout retélécharger. Pas avant
+l'étape 5 : une tablette qui a encore des ventes non envoyées ne peut alors que
+les exporter dans un fichier, plus les transmettre.
+
+> ⚠️ Les ventes **déjà synchronisées** entre le dump et la panne (15 min au
+> pire) sont perdues côté serveur, mais restent lisibles dans le **Google Sheet**.
 
 ---
 
