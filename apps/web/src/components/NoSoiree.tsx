@@ -14,13 +14,13 @@ export function NoSoiree() {
         title="Aucune soirée active"
         hint={
           isAdmin
-            ? "Démarre une soirée dans l'administration pour commencer à encaisser."
-            : "Un responsable doit démarrer une soirée dans l'administration."
+            ? "Active une soirée dans l'onglet Soirées pour commencer à encaisser."
+            : "Un responsable doit activer une soirée dans l'onglet Soirées."
         }
         action={
           isAdmin ? (
-            <Button variant="primary" size="lg" onClick={() => navigate("/admin")}>
-              Aller à l'administration
+            <Button variant="primary" size="lg" onClick={() => navigate("/soirees")}>
+              Aller aux soirées
             </Button>
           ) : undefined
         }
