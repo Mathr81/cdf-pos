@@ -71,7 +71,7 @@ export function AdminScreen() {
   const stations = sortedStations(projection);
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col p-4">
+    <div className="mx-auto flex h-full max-w-7xl flex-col p-4">
       <div className="mb-4 flex shrink-0 gap-2 overflow-x-auto">
         <TabBtn active={tab === "produits"} onClick={() => setTab("produits")}>
           Produits
