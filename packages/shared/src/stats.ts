@@ -231,6 +231,8 @@ export interface CashupRow {
   orders: number;
   cashCents: number;
   cardCents: number;
+  /** Chèques : dans la boîte, mais comptés à part des espèces. */
+  chequeCents: number;
   totalCents: number;
   /** Fond de monnaie déposé avant le service (0 si non déclaré). */
   floatCents: number;
@@ -252,6 +254,7 @@ export interface Cashup {
   rows: CashupRow[];
   totalCashCents: number;
   totalCardCents: number;
+  totalChequeCents: number;
   totalCents: number;
   orders: number;
   totalFloatCents: number;
@@ -282,6 +285,7 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
         orders: 0,
         cashCents: 0,
         cardCents: 0,
+        chequeCents: 0,
         totalCents: 0,
         floatCents: session?.floatCents ?? 0,
         expectedCashCents: 0,
@@ -300,6 +304,7 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
 
   let totalCashCents = 0;
   let totalCardCents = 0;
+  let totalChequeCents = 0;
   let orders = 0;
 
   for (const o of paidOrders(state, soireeId)) {
@@ -312,6 +317,11 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
     if (o.paymentMethod === "cash") {
       r.cashCents += o.totalCents;
       totalCashCents += o.totalCents;
+    } else if (o.paymentMethod === "cheque") {
+      // Le comptage de la boîte porte sur les espèces : un chèque dans
+      // l'attendu fausserait l'écart.
+      r.chequeCents += o.totalCents;
+      totalChequeCents += o.totalCents;
     } else {
       // La carte ne passe pas par la boîte : elle n'entre jamais dans
       // l'attendu, sous peine d'un écart négatif à chaque clôture.
@@ -338,7 +348,8 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
     rows: [...byReg.values()].sort((a, b) => a.registerLabel.localeCompare(b.registerLabel)),
     totalCashCents,
     totalCardCents,
-    totalCents: totalCashCents + totalCardCents,
+    totalChequeCents,
+    totalCents: totalCashCents + totalCardCents + totalChequeCents,
     orders,
     totalFloatCents,
     totalVarianceCents,

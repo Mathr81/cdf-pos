@@ -121,7 +121,7 @@ const SECTIONS: Section[] = [
           </Etape>
           <Etape n={2} titre="Ajuster et encaisser">
             Touche le nom. Corrige le nombre de personnes par tarif s'il a changé, le montant suit, puis
-            encaisse comme en caisse. La ligne passe « Arrivé » sur toutes les tablettes. Une remarque
+            encaisse comme en caisse, chèque compris. La ligne passe « Arrivé » sur toutes les tablettes. Une remarque
             (table, allergie…) s'affiche en jaune : lis-la avant de valider.
           </Etape>
           <Etape n={3} titre="Payé d'avance">

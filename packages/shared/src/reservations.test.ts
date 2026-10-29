@@ -132,6 +132,14 @@ describe("soirée sur réservation", () => {
     expect(row?.cashCents).toBe(5700);
   });
 
+  test("chèque : compté à part, hors de l'attendu en espèces", () => {
+    const state = replay(...setup(), arrive(DUPONT, { [A]: 2, [E]: 1 }, { paymentMethod: "cheque" }));
+    const cashup = computeCashup(state, SOIREE);
+    const row = cashup.rows.find((r) => r.registerLabel === "Caisse 1")!;
+    expect([row.cashCents, row.cardCents, row.chequeCents, row.expectedCashCents]).toEqual([0, 0, 5700, 0]);
+    expect(cashup.totalCents).toBe(5700);
+  });
+
   test("last-write-wins sur les modifications, la suppression ne ressuscite pas", () => {
     const state = replay(
       ...setup(),

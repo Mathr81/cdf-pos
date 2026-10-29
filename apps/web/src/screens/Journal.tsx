@@ -13,6 +13,7 @@ import {
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
 import { CalendarCheckIcon } from "@phosphor-icons/react/dist/csr/CalendarCheck";
+import { SignatureIcon } from "@phosphor-icons/react/dist/csr/Signature";
 import { GiftIcon } from "@phosphor-icons/react/dist/csr/Gift";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
@@ -47,6 +48,7 @@ function PaymentIcon({ method, size }: { method: PaymentMethod; size: number }) 
   if (method === "cash") return <CoinsIcon size={size} weight="fill" />;
   if (method === "offert") return <GiftIcon size={size} weight="fill" />;
   if (method === "prepaid") return <CalendarCheckIcon size={size} weight="fill" />;
+  if (method === "cheque") return <SignatureIcon size={size} weight="fill" />;
   return <CreditCardIcon size={size} weight="fill" />;
 }
 

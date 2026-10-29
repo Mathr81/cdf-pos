@@ -465,7 +465,7 @@ function CheckinModal({
   };
 
   if (paying) {
-    return <PaymentModal totalCents={dueCents} onClose={() => setPaying(false)} onConfirm={confirm} />;
+    return <PaymentModal totalCents={dueCents} cheque onClose={() => setPaying(false)} onConfirm={confirm} />;
   }
 
   return (

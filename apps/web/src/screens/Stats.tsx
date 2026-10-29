@@ -28,6 +28,7 @@ import {
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
 import { CalendarCheckIcon } from "@phosphor-icons/react/dist/csr/CalendarCheck";
+import { SignatureIcon } from "@phosphor-icons/react/dist/csr/Signature";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/csr/DownloadSimple";
 import { PrinterIcon } from "@phosphor-icons/react/dist/csr/Printer";
 import { TrendUpIcon } from "@phosphor-icons/react/dist/csr/TrendUp";
@@ -304,6 +305,8 @@ export function StatsScreen() {
                   <div key={m.method} className="flex items-center gap-2 text-body">
                     {m.method === "cash" ? (
                       <CoinsIcon size={17} weight="fill" style={{ color: PALETTE.mint }} />
+                    ) : m.method === "cheque" ? (
+                      <SignatureIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
                     ) : m.method === "prepaid" ? (
                       <CalendarCheckIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
                     ) : (
@@ -380,6 +383,7 @@ export function StatsScreen() {
                   <th className="py-1.5">Caisse</th>
                   <th className="py-1.5 text-right">Espèces</th>
                   <th className="py-1.5 text-right">Carte</th>
+                  {cashup.totalChequeCents > 0 && <th className="py-1.5 text-right">Chèques</th>}
                   <th className="py-1.5 text-right">Fond</th>
                   <th className="py-1.5 text-right">Attendu</th>
                   <th className="py-1.5 text-right">Compté</th>
@@ -393,6 +397,9 @@ export function StatsScreen() {
                     <td className="py-2 font-semibold text-cream">{r.registerLabel}</td>
                     <td className="py-2 text-right text-mint">{formatCents(r.cashCents)}</td>
                     <td className="py-2 text-right text-dusk">{formatCents(r.cardCents)}</td>
+                    {cashup.totalChequeCents > 0 && (
+                      <td className="py-2 text-right text-sand">{formatCents(r.chequeCents)}</td>
+                    )}
                     <td className="py-2 text-right text-sand">{formatCents(r.floatCents)}</td>
                     <td className="py-2 text-right font-bold text-cream">
                       {formatCents(r.expectedCashCents)}
@@ -422,6 +429,9 @@ export function StatsScreen() {
                   <td className="py-2 text-right text-dusk">
                     {formatCents(cashup.totalCardCents)}
                   </td>
+                  {cashup.totalChequeCents > 0 && (
+                    <td className="py-2 text-right text-sand">{formatCents(cashup.totalChequeCents)}</td>
+                  )}
                   <td className="py-2 text-right text-sand">
                     {formatCents(cashup.totalFloatCents)}
                   </td>
