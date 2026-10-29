@@ -31,7 +31,7 @@ import { z } from "zod";
  * restent valides), en retirer une ne l'est pas : le rejeu du journal
  * échouerait sur les ventes qui l'utilisaient.
  */
-export const PAYMENT_METHODS = ["cash", "card", "offert", "prepaid"] as const;
+export const PAYMENT_METHODS = ["cash", "card", "offert", "prepaid", "cheque"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /**
@@ -50,6 +50,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   card: "Carte",
   offert: "Offert",
   prepaid: "Payé d'avance",
+  cheque: "Chèque",
 };
 
 export function paymentLabel(method: PaymentMethod | string): string {

@@ -45,6 +45,7 @@ export function RecapScreen() {
   const { stats, cashup, products } = recap;
   const paidTotal = stats.byPaymentMethod.reduce((s, m) => s + m.revenueCents, 0);
   const uncounted = cashup.totalRegisters - cashup.countedRegisters;
+  const cheques = cashup.totalChequeCents > 0;
 
   return (
     <div className="h-full overflow-y-auto p-4 print:h-auto print:overflow-visible print:p-0">
@@ -141,12 +142,24 @@ export function RecapScreen() {
             <p className="text-neutral-600">Aucune caisse n'a encaissé ni reçu de fond.</p>
           ) : (
             <>
-              <Table head={["Caisse", "Espèces", "Carte", "Fond", "Attendu", "Compté", "Écart"]}>
+              <Table
+                head={[
+                  "Caisse",
+                  "Espèces",
+                  "Carte",
+                  ...(cheques ? ["Chèques"] : []),
+                  "Fond",
+                  "Attendu",
+                  "Compté",
+                  "Écart",
+                ]}
+              >
                 {cashup.rows.map((r) => (
                   <tr key={r.registerLabel}>
                     <Td>{r.registerLabel}</Td>
                     <Td num>{formatCents(r.cashCents)}</Td>
                     <Td num>{formatCents(r.cardCents)}</Td>
+                    {cheques && <Td num>{formatCents(r.chequeCents)}</Td>}
                     <Td num>{formatCents(r.floatCents)}</Td>
                     <Td num>{formatCents(r.expectedCashCents)}</Td>
                     <Td num>{r.countedCents === null ? "—" : formatCents(r.countedCents)}</Td>
@@ -160,6 +173,7 @@ export function RecapScreen() {
                     "Total",
                     formatCents(cashup.totalCashCents),
                     formatCents(cashup.totalCardCents),
+                    ...(cheques ? [formatCents(cashup.totalChequeCents)] : []),
                     formatCents(cashup.totalFloatCents),
                     formatCents(cashup.totalFloatCents + cashup.totalCashCents),
                     "",
