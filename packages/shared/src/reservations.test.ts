@@ -9,6 +9,7 @@ import {
   isReservationsOnly,
   reservationRows,
   searchReservations,
+  sortReservationRows,
 } from "./reservations.js";
 import { computeCashup, computeStats } from "./stats.js";
 import {
@@ -217,6 +218,27 @@ describe("recherche", () => {
   test("par numéro de table, mot entier", () => {
     expect(names("12")).toEqual(["Lefèvre Marie"]);
     expect(names("120")).toEqual(["Martin"]);
+  });
+});
+
+describe("tri de l'accueil", () => {
+  const at = (createdAt: string) => ({ createdAt });
+  const rows = [
+    { name: "Roux", table: "10", order: null },
+    { name: "Abel", order: at("2026-10-14T19:05:00.000Z") },
+    { name: "Martin", table: "2", order: at("2026-10-14T19:30:00.000Z") },
+    { name: "Dupont", table: "Terrasse", order: null },
+  ];
+  const names = (sort: Parameters<typeof sortReservationRows>[1]) => sortReservationRows(rows, sort).map((r) => r.name);
+
+  test("par nom", () => {
+    expect(names("nom")).toEqual(["Abel", "Dupont", "Martin", "Roux"]);
+  });
+  test("par table : ordre naturel, sans table à la fin", () => {
+    expect(names("table")).toEqual(["Martin", "Roux", "Dupont", "Abel"]);
+  });
+  test("par arrivée : les plus récentes d'abord, puis les attendus par nom", () => {
+    expect(names("arrivee")).toEqual(["Martin", "Abel", "Dupont", "Roux"]);
   });
 });
 

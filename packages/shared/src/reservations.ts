@@ -299,6 +299,33 @@ export function searchReservations<T extends { name: string; phone?: string; tab
   return scored.sort((a, b) => a.score - b.score).map((x) => x.row);
 }
 
+export type ArrivalSort = "nom" | "table" | "arrivee";
+
+/**
+ * Tri de la liste d'accueil. Par table : ordre naturel (« 2 » avant « 10 »),
+ * sans table à la fin. Par arrivée : dernières arrivées en tête, puis ceux
+ * qu'on attend encore, par nom.
+ */
+export function sortReservationRows<T extends { name: string; table?: string; order: { createdAt: string } | null }>(
+  rows: T[],
+  sort: ArrivalSort,
+): T[] {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name, "fr");
+  const sorted = [...rows];
+  if (sort === "nom") return sorted.sort(byName);
+  if (sort === "table")
+    return sorted.sort(
+      (a, b) =>
+        (a.table ? 0 : 1) - (b.table ? 0 : 1) ||
+        (a.table ?? "").localeCompare(b.table ?? "", "fr", { numeric: true }) ||
+        byName(a, b),
+    );
+  return sorted.sort(
+    (a, b) =>
+      (a.order ? 0 : 1) - (b.order ? 0 : 1) || (b.order?.createdAt ?? "").localeCompare(a.order?.createdAt ?? "") || byName(a, b),
+  );
+}
+
 /**
  * Une caisse sans PIN peut-elle annuler cet encaissement ? Seulement pour
  * une réservation, depuis la tablette qui l'a encaissée, dans les 10 min.

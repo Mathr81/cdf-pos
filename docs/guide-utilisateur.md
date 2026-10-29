@@ -226,6 +226,10 @@ reste disponible à côté.
 4. **Payé d'avance** : rien à encaisser, **Marquer arrivé**. S'ils sont plus
    nombreux, ajouter les personnes : seul le supplément est encaissé.
 
+Sous la recherche : **Tous / À venir / Arrivés** filtre la liste, et le menu de
+tri range par nom, par table ou par dernières arrivées. Une recherche porte
+toujours sur toute la liste, quel que soit le filtre.
+
 Sur iPad en paysage, une colonne à droite affiche le **bilan** (réservations
 arrivées, couverts restants, encaissé) et **À surveiller** : les réservations
 avec une remarque qui ne sont pas encore arrivées. La toucher ouvre l'arrivée.

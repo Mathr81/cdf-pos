@@ -15,8 +15,10 @@ import {
   paymentLabel,
   reservationRows,
   searchReservations,
+  sortReservationRows,
   BOOKING_ADULT_ID,
   BOOKING_CHILD_ID,
+  type ArrivalSort,
   type BookingDashboard,
   type ClientOrder,
   type Counts,
@@ -52,7 +54,7 @@ import { exportReservationsCsv } from "../lib/export.js";
 import { decodeCsv, parseReservationCsv, type CsvResult } from "../lib/reservationCsv.js";
 import { payLook } from "../lib/payLook.js";
 import { deleteReservations, emitSale, setBookingTariffs, upsertReservations, voidOrder } from "../lib/actions.js";
-import { Badge, Button, Card, EmptyState, Field, StepButton, TextInput } from "../components/ui.js";
+import { Badge, Button, Card, EmptyState, Field, SelectInput, StepButton, TextInput } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { PaymentModal } from "../components/PaymentModal.js";
@@ -186,13 +188,17 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
   const pendingIds = useStore((s) => s.pendingOrderIds);
   const isAdmin = useSession((s) => s.isAdmin);
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useUrlState<"tous" | "attendus" | "arrives">("filtre", "tous");
+  const [sort, setSort] = useUrlState<ArrivalSort>("tri", "nom");
   const [open, setOpen] = useState<{ id: string } | "walkin" | null>(null);
 
   const tariffs = bookingTariffs(projection, soireeId);
   const rows = reservationRows(projection, soireeId);
-  const shown = searchReservations(rows, q);
-  const paidCount = rows.filter((r) => r.order && !r.walkIn).length;
-  const expectedCount = rows.filter((r) => !r.walkIn).length;
+  const arrivedCount = rows.filter((r) => r.order).length;
+  const filtered = filter === "tous" ? rows : rows.filter((r) => (filter === "arrives") === (r.order !== null));
+  // Une recherche porte sur toute la liste, par pertinence : filtrée, elle
+  // ne trouverait pas un groupe attendu et pousserait à l'encaisser en sur place.
+  const shown = q ? searchReservations(rows, q) : sortReservationRows(filtered, sort);
   // Relu à chaque rendu : la ligne peut passer « encaissée » par une autre caisse modale ouverte.
   const selected = open && open !== "walkin" ? rows.find((r) => r.id === open.id) : undefined;
 
@@ -237,9 +243,33 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
             Sur place
           </Button>
         </div>
-        <p className="tnum mb-2 shrink-0 px-1 text-micro text-ash">
-          Arrivées : {paidCount} / {plural(expectedCount, "réservation")}
-        </p>
+        <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
+          <div className="grid flex-1 grid-cols-3 gap-1.5 sm:flex sm:flex-none">
+            {(
+              [
+                ["tous", "Tous", rows.length],
+                ["attendus", "À venir", rows.length - arrivedCount],
+                ["arrives", "Arrivés", arrivedCount],
+              ] as const
+            ).map(([value, label, count]) => (
+              <TabBtn key={value} active={filter === value && !q} onClick={() => setFilter(value)}>
+                {label} <span className="tnum font-semibold opacity-70">{count}</span>
+              </TabBtn>
+            ))}
+          </div>
+          <SelectInput
+            aria-label="Trier la liste"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as ArrivalSort)}
+            disabled={q !== ""}
+            title={q ? "Pendant une recherche, toute la liste, les noms les plus proches en tête" : undefined}
+            className="w-full disabled:opacity-50 sm:ml-auto sm:w-auto"
+          >
+            <option value="nom">Tri : nom</option>
+            <option value="table">Tri : table</option>
+            <option value="arrivee">Tri : dernières arrivées</option>
+          </SelectInput>
+        </div>
 
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pb-4">
           {rows.length === 0 ? (
@@ -251,6 +281,10 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
                   ? "Importez la liste (CSV) dans l'onglet Gestion. Les personnes sans réservation passent par « Sur place »."
                   : "La liste n'a pas encore été importée. Les personnes sans réservation passent par « Sur place »."
               }
+            />
+          ) : shown.length === 0 && !q ? (
+            <EmptyState
+              title={filter === "attendus" ? "Tout le monde est arrivé" : "Personne n'est encore arrivé"}
             />
           ) : shown.length === 0 ? (
             <EmptyState
