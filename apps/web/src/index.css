@@ -92,6 +92,14 @@ body {
   overscroll-behavior: none;
 }
 
+/* Sur `html` aussi : c'est lui que lit Chrome pour la page entière. Sur
+   `body` seul, glisser vers le bas en haut d'une liste tirait tout l'écran,
+   en-tête compris (étirement Android, tirer-pour-rafraîchir). Les listes
+   gardent leur propre rebond : seul l'enchaînement vers la page est coupé. */
+html {
+  overscroll-behavior: none;
+}
+
 /* Chiffres tabulaires par défaut sur tout ce qui compte de l'argent
    ou des quantités : les colonnes cessent de sauter pendant la saisie. */
 .tnum {

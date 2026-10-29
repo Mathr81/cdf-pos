@@ -19,6 +19,8 @@ export const PALETTE = {
   mint: "#4cc08d",
   /** --color-dusk : carte bancaire. */
   dusk: "#6fa8dc",
+  /** --color-sand : chèque. */
+  sand: "#c7b9ae",
   /** --color-line : grille et axes. */
   line: "#3a302c",
   /** --color-ash : graduations et étiquettes. */

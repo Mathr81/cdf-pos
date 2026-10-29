@@ -44,6 +44,24 @@ import { Modal } from "../components/Modal.js";
 import { cn } from "../lib/cn.js";
 import { plural } from "../lib/plural.js";
 
+/** Rayures : la texture distingue là où la teinte ne suffit pas. */
+function hatch(color: string, deg: number): string {
+  return `repeating-linear-gradient(${deg}deg, ${color} 0 6px, ${PALETTE.surface}66 6px 9px)`;
+}
+
+/**
+ * Teinte, texture et glyphe propres à chaque moyen de paiement. Carte,
+ * chèque et payé d'avance partageaient le même bleu rayé : impossible de
+ * lire la barre dès qu'il y en avait deux.
+ */
+const PAY_LOOK: Record<string, { color: string; fill: string; Icon: typeof CoinsIcon }> = {
+  cash: { color: PALETTE.mint, fill: PALETTE.mint, Icon: CoinsIcon },
+  card: { color: PALETTE.dusk, fill: hatch(PALETTE.dusk, 45), Icon: CreditCardIcon },
+  cheque: { color: PALETTE.sand, fill: hatch(PALETTE.sand, -45), Icon: SignatureIcon },
+  prepaid: { color: PALETTE.ash, fill: PALETTE.ash, Icon: CalendarCheckIcon },
+};
+const payLook = (method: string) => PAY_LOOK[method] ?? PAY_LOOK.card;
+
 export function StatsScreen() {
   const rev = useRev();
   const navigate = useNavigate();
@@ -281,9 +299,9 @@ export function StatsScreen() {
           {paidTotal === 0 ? (
             <Empty />
           ) : (
-            /* Espèces et Carte se distinguent par la TEXTURE et le GLYPHE,
-               pas seulement par la teinte : en tritanopie, --mint et --dusk
-               convergent (ΔE00 ≈ 9), le plus faible écart de la palette. */
+            /* Chaque moyen a sa TEXTURE et son GLYPHE, pas seulement sa
+               teinte : en tritanopie, --mint et --dusk convergent (ΔE00 ≈ 9),
+               le plus faible écart de la palette. Voir PAY_LOOK. */
             <div className="flex h-[220px] flex-col justify-center gap-4">
               <div className="flex h-6 w-full overflow-hidden rounded-full">
                 {stats.byPaymentMethod.map((m) => (
@@ -291,36 +309,26 @@ export function StatsScreen() {
                     key={m.method}
                     style={{
                       width: `${(m.revenueCents / paidTotal) * 100}%`,
-                      background:
-                        m.method === "cash"
-                          ? PALETTE.mint
-                          : `repeating-linear-gradient(45deg, ${PALETTE.dusk} 0 6px, ${PALETTE.surface}66 6px 9px)`,
+                      background: payLook(m.method).fill,
                     }}
                     className="border-r-2 border-surface last:border-0"
                   />
                 ))}
               </div>
               <div className="space-y-2">
-                {stats.byPaymentMethod.map((m) => (
-                  <div key={m.method} className="flex items-center gap-2 text-body">
-                    {m.method === "cash" ? (
-                      <CoinsIcon size={17} weight="fill" style={{ color: PALETTE.mint }} />
-                    ) : m.method === "cheque" ? (
-                      <SignatureIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
-                    ) : m.method === "prepaid" ? (
-                      <CalendarCheckIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
-                    ) : (
-                      <CreditCardIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
-                    )}
-                    <span className="font-semibold text-cream">
-                      {paymentLabel(m.method)}
-                    </span>
-                    <span className="tnum ml-auto text-sand">{formatCents(m.revenueCents)}</span>
-                    <span className="tnum w-14 text-right text-ash">
-                      {Math.round((m.revenueCents / paidTotal) * 100)}%
-                    </span>
-                  </div>
-                ))}
+                {stats.byPaymentMethod.map((m) => {
+                  const { Icon, color } = payLook(m.method);
+                  return (
+                    <div key={m.method} className="flex items-center gap-2 text-body">
+                      <Icon size={17} weight="fill" style={{ color }} />
+                      <span className="font-semibold text-cream">{paymentLabel(m.method)}</span>
+                      <span className="tnum ml-auto text-sand">{formatCents(m.revenueCents)}</span>
+                      <span className="tnum w-14 text-right text-ash">
+                        {Math.round((m.revenueCents / paidTotal) * 100)}%
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
