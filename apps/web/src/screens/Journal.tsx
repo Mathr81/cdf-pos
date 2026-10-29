@@ -94,7 +94,7 @@ export function JournalScreen() {
     .reduce((s, o) => s + o.totalCents, 0);
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col p-4">
+    <div className="mx-auto flex h-full max-w-7xl flex-col p-4">
       <h1 className="font-display mb-3 shrink-0 text-title font-bold text-cream">
         Journal des transactions
       </h1>
