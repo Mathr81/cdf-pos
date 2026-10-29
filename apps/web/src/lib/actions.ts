@@ -209,8 +209,8 @@ export function upsertReservations(payloads: ReservationUpsertPayload[]) {
   return dispatchMany(payloads.map((payload) => ({ ...meta(), type: "reservation_upsert" as const, payload })));
 }
 
-export function deleteReservation(id: string) {
-  return dispatch({ ...meta(), type: "reservation_delete", payload: { id } });
+export function deleteReservations(ids: string[]) {
+  return dispatchMany(ids.map((id) => ({ ...meta(), type: "reservation_delete" as const, payload: { id } })));
 }
 
 /**

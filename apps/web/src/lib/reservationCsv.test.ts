@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseReservationCsv } from "./reservationCsv.js";
+import { decodeCsv, parseReservationCsv } from "./reservationCsv.js";
 
 describe("import CSV des réservations", () => {
   test("export Excel FR : « ; », BOM, en-têtes accentués, CRLF", () => {
@@ -11,6 +11,13 @@ describe("import CSV des réservations", () => {
       ],
       errors: [],
     });
+  });
+
+  test("accents : fichier Excel en Windows-1252 comme en UTF-8", () => {
+    const text = "Nom;Adultes\nLefèvre Hélène;2\n";
+    const cp1252 = Uint8Array.from(text, (c) => c.charCodeAt(0));
+    expect(parseReservationCsv(decodeCsv(cp1252)).rows[0].name).toBe("Lefèvre Hélène");
+    expect(parseReservationCsv(decodeCsv(new TextEncoder().encode(text))).rows[0].name).toBe("Lefèvre Hélène");
   });
 
   test("« , » et guillemets", () => {

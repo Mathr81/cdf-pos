@@ -242,7 +242,9 @@ export function Layout({ children }: { children: ReactNode }) {
                 to={it.to}
                 className={({ isActive }) =>
                   cn(
-                    "flex h-12 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-control px-1",
+                    // min-w-9 sous `sm` : avec le PIN et Réservations, 10 onglets
+                    // doivent tenir sur 390 px sans défilement caché.
+                    "flex h-12 min-w-9 flex-1 flex-col sm:min-w-11 items-center justify-center gap-0.5 rounded-control px-1",
                     "font-bold whitespace-nowrap transition-colors",
                     "md:h-14 md:flex-none md:px-2.5 lg:h-12 lg:flex-row lg:gap-2 lg:px-3",
                     isActive

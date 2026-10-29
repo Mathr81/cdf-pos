@@ -20,6 +20,19 @@ export interface CsvResult {
   errors: { line: number; message: string }[];
 }
 
+/**
+ * Excel FR enregistre « CSV (séparateur : point-virgule) » en Windows-1252,
+ * pas en UTF-8 : lu en UTF-8, « Lefèvre » devient « Lef�vre ». Un fichier
+ * qui n'est pas de l'UTF-8 valide est donc relu en Windows-1252.
+ */
+export function decodeCsv(bytes: ArrayBuffer | Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 /** Découpe en lignes et champs, guillemets RFC 4180 compris ("" = guillemet). */
 function splitCsv(text: string, sep: string): string[][] {
   const out: string[][] = [];

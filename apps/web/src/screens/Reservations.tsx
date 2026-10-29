@@ -23,6 +23,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGl
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { PencilSimpleIcon } from "@phosphor-icons/react/dist/csr/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { UploadSimpleIcon } from "@phosphor-icons/react/dist/csr/UploadSimple";
 import { UserPlusIcon } from "@phosphor-icons/react/dist/csr/UserPlus";
 import { WifiSlashIcon } from "@phosphor-icons/react/dist/csr/WifiSlash";
@@ -36,9 +37,9 @@ import { isAmount } from "../lib/validate.js";
 import { plural } from "../lib/plural.js";
 import { cn } from "../lib/cn.js";
 import { exportReservationsCsv } from "../lib/export.js";
-import { parseReservationCsv, type CsvResult } from "../lib/reservationCsv.js";
+import { decodeCsv, parseReservationCsv, type CsvResult } from "../lib/reservationCsv.js";
 import {
-  deleteReservation,
+  deleteReservations,
   emitSale,
   setBookingPrices,
   upsertReservations,
@@ -83,22 +84,24 @@ export function ReservationsScreen() {
 
   return (
     <div className="mx-auto flex h-full max-w-4xl flex-col p-4">
-      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
-        <h1 className="font-display mr-auto text-title font-bold text-cream">Réservations</h1>
+      {/* Sur téléphone, les onglets prennent toute une ligne à parts égales au
+          lieu de passer à la ligne n'importe où sous le titre. */}
+      <div className="mb-3 flex shrink-0 flex-col gap-2 md:flex-row md:items-center">
+        <h1 className="font-display text-title font-bold text-cream md:mr-auto">Réservations</h1>
         {booking && (
-          <>
+          <div className={cn("grid gap-2 md:flex", isAdmin ? "grid-cols-3" : "grid-cols-2")}>
             <TabBtn active={current === "accueil"} onClick={() => setTab("accueil")}>
               Accueil
             </TabBtn>
             <TabBtn active={current === "bord"} onClick={() => setTab("bord")}>
-              Tableau de bord
+              Suivi
             </TabBtn>
             {isAdmin && (
               <TabBtn active={current === "gestion"} onClick={() => setTab("gestion")}>
                 Gestion
               </TabBtn>
             )}
-          </>
+          </div>
         )}
       </div>
       {current === "accueil" && <CheckinTab soireeId={soiree.id} toast={show} />}
@@ -165,7 +168,7 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
             value={q}
             onChange={(e) => setQ(e.target.value)}
             autoFocus
-            placeholder="Nom ou téléphone"
+            placeholder="Nom ou tél."
             aria-label="Rechercher une réservation"
             className="min-h-14 pl-10 text-lead"
           />
@@ -447,7 +450,7 @@ function PaidModal({
           </p>
         )}
       </div>
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
         <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
           Retour
         </Button>
@@ -478,9 +481,9 @@ function PaidModal({
 
 function Kpi({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
-    <Card className="p-4">
-      <div className="text-micro font-bold tracking-wide text-ash uppercase">{label}</div>
-      <div className="font-display tnum mt-1 text-display font-bold text-cream">{value}</div>
+    <Card className="p-3 sm:p-4">
+      <div className="truncate text-micro font-bold tracking-wide text-ash uppercase">{label}</div>
+      <div className="font-display tnum mt-1 text-title font-bold text-cream sm:text-display">{value}</div>
       {hint && <div className="tnum mt-1 text-body text-sand">{hint}</div>}
     </Card>
   );
@@ -497,10 +500,14 @@ function DashboardTab({ soireeId }: { soireeId: string }) {
         <Kpi
           label="Arrivés"
           value={d.arrived}
-          hint={`dont ${d.arrivedWalkIn} sur place · ${d.reservationsArrived} / ${plural(d.reservations, "réservation")}`}
+          hint={`dont ${d.arrivedWalkIn} sur place`}
         />
         <Kpi label="Couverts restants" value={d.remaining} hint={`sur ${d.expected} réservés`} />
-        <Kpi label="Sur place" value={d.arrivedWalkIn} hint="sans réservation" />
+        <Kpi
+          label="Réservations"
+          value={`${d.reservationsArrived} / ${d.reservations}`}
+          hint="arrivées"
+        />
         <Kpi
           label="Encaissé"
           value={formatCents(d.totalCents)}
@@ -580,10 +587,13 @@ function ManageTab({
   const [child, setChild] = useState(booking ? formatAmount(prices.childCents) : "");
   const [imported, setImported] = useState<CsvResult | null>(null);
   const [editing, setEditing] = useState<ReservationRow | "new" | null>(null);
+  const [clearing, setClearing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const rows = reservationRows(projection, soireeId).filter((r) => !r.walkIn);
   const pricesValid = isAmount(adult) && isAmount(child);
+  // Les encaissées restent : leur supprimer la réservation ferait passer l'argent en « sur place ».
+  const unpaid = rows.filter((r) => !r.order);
 
   const savePrices = async () => {
     if (!pricesValid) return;
@@ -592,7 +602,7 @@ function ManageTab({
   };
 
   const readFile = async (file: File) => {
-    setImported(parseReservationCsv(await file.text()));
+    setImported(parseReservationCsv(decodeCsv(await file.arrayBuffer())));
     if (fileInput.current) fileInput.current.value = "";
   };
 
@@ -643,6 +653,12 @@ function ManageTab({
               <DownloadSimpleIcon size={18} weight="bold" />
               Exporter le bilan
             </Button>
+            {unpaid.length > 0 && (
+              <Button variant="ghost" onClick={() => setClearing(true)}>
+                <TrashIcon size={18} weight="bold" />
+                Vider la liste
+              </Button>
+            )}
           </div>
           <p className="mt-1 text-micro text-ash">
             CSV avec une colonne Nom (et éventuellement Prénom), Adultes, Enfants, Téléphone. Séparateur « ; » ou « , ».
@@ -679,6 +695,18 @@ function ManageTab({
           }}
         />
       )}
+      <ConfirmModal
+        open={clearing}
+        title={`Supprimer ${plural(unpaid.length, "réservation")} ?`}
+        body={
+          unpaid.length < rows.length
+            ? `Les ${rows.length - unpaid.length} déjà encaissées sont gardées. Pratique avant de réimporter une liste corrigée.`
+            : "Pratique avant de réimporter une liste corrigée."
+        }
+        confirmLabel="Supprimer"
+        onConfirm={() => void deleteReservations(unpaid.map((r) => r.id))}
+        onClose={() => setClearing(false)}
+      />
       {editing && (
         <EditModal
           soireeId={soireeId}
@@ -844,7 +872,7 @@ function EditModal({
           title={`Supprimer « ${row.name} » ?`}
           confirmLabel="Supprimer"
           onConfirm={() => {
-            void deleteReservation(row.id);
+            void deleteReservations([row.id]);
             onClose();
           }}
           onClose={() => setConfirmDelete(false)}
