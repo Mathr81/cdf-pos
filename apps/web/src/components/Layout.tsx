@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type { Icon } from "@phosphor-icons/react";
 import { ReceiptIcon } from "@phosphor-icons/react/dist/csr/Receipt";
 import { ChefHatIcon } from "@phosphor-icons/react/dist/csr/ChefHat";
@@ -55,22 +55,20 @@ function baseNavItems(role: string | null, isAdmin: boolean): NavItem[] {
   const stats = { to: "/stats", label: "Stats", icon: ChartBarIcon };
   const soirees = { to: "/soirees", label: "Soirées", icon: ConfettiIcon };
   const admin = { to: "/admin", label: "Admin", icon: GearIcon };
-  // L'aide est présente pour TOUS les postes, y compris cuisine qui n'a
-  // qu'un seul autre onglet : c'est justement le poste tenu par les
-  // bénévoles les moins habitués à l'app.
-  const aide = { to: "/aide", label: "Aide", icon: QuestionIcon };
-  if (isAdmin) return [caisse, cuisine, inventaire, journal, stats, soirees, admin, aide];
+  // L'aide n'est pas un onglet : on s'en sert rarement, elle a son bouton
+  // à côté de la déconnexion, présent pour TOUS les postes.
+  if (isAdmin) return [caisse, cuisine, inventaire, journal, stats, soirees, admin];
   switch (role) {
     case "cuisine":
-      return [cuisine, aide];
+      return [cuisine];
     case "stats":
-      return [stats, aide];
+      return [stats];
     // Même ordre que pour un poste avec PIN : deux tablettes admin ne doivent
     // pas présenter les onglets dans deux ordres différents.
     case "admin":
-      return [caisse, cuisine, inventaire, journal, stats, soirees, admin, aide];
+      return [caisse, cuisine, inventaire, journal, stats, soirees, admin];
     default:
-      return [caisse, inventaire, aide];
+      return [caisse, inventaire];
   }
 }
 
@@ -243,6 +241,20 @@ export function Layout({ children }: { children: ReactNode }) {
   usePendingExitWarning();
   const training = useTrainingBanner();
 
+  // Un seul onglet n'a rien à départager : la ligne entière (sur téléphone)
+  // ne servirait qu'à répéter le titre de l'écran. Sauf si l'on est ailleurs
+  // (tablette arrivée sur Caisse avant de savoir que la soirée n'a que des
+  // réservations) : sans nav, elle n'aurait aucun chemin vers son onglet.
+  const pathname = useLocation().pathname;
+  const onAide = pathname === "/aide";
+  const showNav = items.length > 1 || (!onAide && !items.some((i) => i.to === pathname));
+  const toggleAide = () => {
+    if (!onAide) navigate("/aide");
+    // Retour à l'écran quitté ; ouvert directement sur /aide, l'accueil du poste.
+    else if ((window.history.state as { idx?: number } | null)?.idx) navigate(-1);
+    else navigate("/");
+  };
+
   const changePoste = () => {
     disconnect();
     reset();
@@ -256,7 +268,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <header className="safe-top shrink-0 border-b border-line bg-surface print:hidden">
         {/* Sous `md`, deux lignes : identité + déconnexion, puis la nav sur
             toute la largeur. Sur une seule ligne, un téléphone ne montrait
-            que 4 onglets : Soirées, Admin, Aide et la déconnexion étaient
+            que 4 onglets : Soirées, Admin et la déconnexion étaient
             hors écran, derrière un défilement que rien ne signalait. */}
         <div className="flex flex-wrap items-center gap-x-3 px-3 md:h-16 md:flex-nowrap">
           <div className="flex h-14 min-w-0 shrink-0 items-center gap-2.5 md:h-auto">
@@ -286,41 +298,56 @@ export function Layout({ children }: { children: ReactNode }) {
           {/* Libellés partout où ils tiennent : sous l'icône de `md` à `lg`
               (iPad portrait), à côté au-delà. Icônes seules sur téléphone,
               où un libellé lu par lecteur d'écran reste présent. */}
-          <nav
-            aria-label="Navigation principale"
-            className="order-last -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-0.5 pb-1.5 md:order-none md:mx-0 md:ml-auto md:w-auto md:gap-1 md:pb-0"
-          >
-            {items.map((it) => (
-              <NavLink
-                key={it.to}
-                to={it.to}
-                className={({ isActive }) =>
-                  cn(
-                    // min-w-9 sous `sm` : avec le PIN et Réservations, 10 onglets
-                    // doivent tenir sur 390 px sans défilement caché.
-                    "flex h-12 min-w-9 flex-1 flex-col sm:min-w-11 items-center justify-center gap-0.5 rounded-control px-1",
-                    "font-bold whitespace-nowrap transition-colors",
-                    "md:h-14 md:flex-none md:px-2.5 lg:h-12 lg:flex-row lg:gap-2 lg:px-3",
-                    isActive
-                      ? "bg-lantern text-night"
-                      : "text-sand hover:bg-well hover:text-cream",
-                  )
-                }
-              >
-                <it.icon size={21} weight="bold" className="shrink-0" />
-                <span className="sr-only text-micro md:not-sr-only lg:text-body">{it.label}</span>
-              </NavLink>
-            ))}
-          </nav>
+          {showNav && (
+            <nav
+              aria-label="Navigation principale"
+              className="order-last -mx-1 flex w-[calc(100%+0.5rem)] items-center gap-0.5 pb-1.5 md:order-none md:mx-0 md:ml-auto md:w-auto md:gap-1 md:pb-0"
+            >
+              {items.map((it) => (
+                <NavLink
+                  key={it.to}
+                  to={it.to}
+                  className={({ isActive }) =>
+                    cn(
+                      // min-w-9 sous `sm` : avec le PIN et Réservations, 10 onglets
+                      // doivent tenir sur 390 px sans défilement caché.
+                      "flex h-12 min-w-9 flex-1 flex-col sm:min-w-11 items-center justify-center gap-0.5 rounded-control px-1",
+                      "font-bold whitespace-nowrap transition-colors",
+                      "md:h-14 md:flex-none md:px-2.5 lg:h-12 lg:flex-row lg:gap-2 lg:px-3",
+                      isActive
+                        ? "bg-lantern text-night"
+                        : "text-sand hover:bg-well hover:text-cream",
+                    )
+                  }
+                >
+                  <it.icon size={21} weight="bold" className="shrink-0" />
+                  <span className="sr-only text-micro md:not-sr-only lg:text-body">{it.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          )}
 
-          <button
-            onClick={changePoste}
-            title="Changer de poste"
-            aria-label="Changer de poste"
-            className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-control text-ash transition-colors hover:bg-well hover:text-cream md:ml-0"
-          >
-            <SignOutIcon size={21} weight="bold" />
-          </button>
+          <div className={cn("ml-auto flex shrink-0 items-center gap-1", showNav && "md:ml-0")}>
+            <button
+              onClick={toggleAide}
+              title={onAide ? "Fermer l'aide" : "Aide"}
+              aria-label={onAide ? "Fermer l'aide" : "Aide"}
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-control transition-colors",
+                onAide ? "bg-lantern text-night" : "text-ash hover:bg-well hover:text-cream",
+              )}
+            >
+              {onAide ? <XIcon size={21} weight="bold" /> : <QuestionIcon size={21} weight="bold" />}
+            </button>
+            <button
+              onClick={changePoste}
+              title="Changer de poste"
+              aria-label="Changer de poste"
+              className="flex h-12 w-12 items-center justify-center rounded-control text-ash transition-colors hover:bg-well hover:text-cream"
+            >
+              <SignOutIcon size={21} weight="bold" />
+            </button>
+          </div>
         </div>
         <div className="guirlande" />
       </header>

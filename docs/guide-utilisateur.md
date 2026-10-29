@@ -5,7 +5,7 @@ cuisine) et pour les **responsables** (ceux qui ont le PIN admin). L'installatio
 et le déploiement sont dans le [README](../README.md) ; le fonctionnement interne
 dans [architecture.md](architecture.md).
 
-L'onglet **Aide** de l'application reprend l'essentiel de ce guide, en version
+Le bouton **?** (Aide), en haut à droite de l'application, reprend l'essentiel de ce guide, en version
 courte, sur chaque tablette.
 
 ---
@@ -67,21 +67,24 @@ courte, sur chaque tablette.
    - **Stats** et **Admin** : seulement avec le PIN.
 4. **Démarrer.**
 
-Pour changer de poste : bouton **⇥** (Changer de poste) en haut à droite. Les
-ventes en attente de la tablette sont conservées.
+En haut à droite, deux boutons sur tous les postes :
+
+- **?** ouvre l'aide ; il devient **✕** pour revenir à l'écran quitté ;
+- **⇥** change de poste. Les ventes en attente de la tablette sont conservées.
 
 Les onglets visibles dépendent du poste :
 
 | Poste | Onglets |
 |---|---|
-| Caisse (sans PIN) | Caisse · (Réservations) · Stock · Aide |
-| Cuisine | Cuisine · Aide |
-| Stats | Stats · Aide |
-| Avec le PIN / Admin | Caisse · (Réservations) · Cuisine · Stock · Journal · Stats · Soirées · Admin · Aide |
+| Caisse (sans PIN) | Caisse · (Réservations) · Stock |
+| Cuisine | — (un seul écran) |
+| Stats | — (un seul écran) |
+| Avec le PIN / Admin | Caisse · (Réservations) · Cuisine · Stock · Journal · Stats · Soirées · Admin |
 
 L'onglet **Réservations** n'apparaît que si la soirée active est sur
 réservation. Si elle ne vend *que* des réservations (aucun produit à la carte),
-Caisse, Cuisine et Stock disparaissent.
+Caisse, Cuisine et Stock disparaissent. Quand il ne reste qu'un seul écran, la
+barre d'onglets est masquée pour laisser la place au travail.
 
 ---
 
