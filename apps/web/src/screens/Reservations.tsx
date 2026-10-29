@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import {
+  arrivedHeads,
   bookingDashboard,
   bookingItems,
   bookingTariffs,
@@ -152,6 +153,21 @@ function onSiteCents(row: ReservationRow): number {
     .reduce((s, o) => s + o.totalCents, 0);
 }
 
+/**
+ * Personnes encore attendues : toute la réservation tant que personne n'est
+ * venu, puis ce qui manque d'un groupe qui arrive en plusieurs fois. Un payé
+ * d'avance se pointe en une fois : une fois pointé, il n'attend plus personne.
+ */
+function stillExpected(row: ReservationRow): Counts {
+  if (row.walkIn || (row.order && row.prepaid)) return {};
+  return extras(row.counts, arrivedHeads(row));
+}
+
+/** À venir : pas encore arrivé, ou groupe arrivé en partie. */
+function awaited(row: ReservationRow): boolean {
+  return !row.order || countTotal(stillExpected(row)) > 0;
+}
+
 /** « Table 12 » : là où l'accueil place le groupe. */
 function TableTag({ table, large }: { table: string; large?: boolean }) {
   return (
@@ -190,12 +206,15 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
   const [q, setQ] = useState("");
   const [filter, setFilter] = useUrlState<"tous" | "attendus" | "arrives">("filtre", "tous");
   const [sort, setSort] = useUrlState<ArrivalSort>("tri", "nom");
-  const [open, setOpen] = useState<{ id: string } | "walkin" | null>(null);
+  // `more` : arrivants d'un groupe déjà en partie arrivé.
+  const [open, setOpen] = useState<{ id: string; more?: boolean } | "walkin" | null>(null);
 
   const tariffs = bookingTariffs(projection, soireeId);
   const rows = reservationRows(projection, soireeId);
   const arrivedCount = rows.filter((r) => r.order).length;
-  const filtered = filter === "tous" ? rows : rows.filter((r) => (filter === "arrives") === (r.order !== null));
+  const awaitedCount = rows.filter(awaited).length;
+  // Un groupe arrivé en partie est dans les deux listes.
+  const filtered = filter === "tous" ? rows : rows.filter((r) => (filter === "arrives" ? r.order !== null : awaited(r)));
   // Une recherche porte sur toute la liste, par pertinence : filtrée, elle
   // ne trouverait pas un groupe attendu et pousserait à l'encaisser en sur place.
   const shown = q ? searchReservations(rows, q) : sortReservationRows(filtered, sort);
@@ -249,7 +268,7 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
             {(
               [
                 ["tous", "Tous", rows.length],
-                ["attendus", "À venir", rows.length - arrivedCount],
+                ["attendus", "À venir", awaitedCount],
                 ["arrives", "Arrivés", arrivedCount],
               ] as const
             ).map(([value, label, count]) => (
@@ -307,55 +326,72 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
               }
             />
           ) : (
-            shown.map((r) => (
-              <li key={r.id}>
-                <button
-                  onClick={() => setOpen({ id: r.id })}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-control border border-line bg-surface px-4 py-3 text-left",
-                    "transition-colors hover:border-lantern/60 active:scale-[0.99]",
-                    r.order && "bg-transparent",
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className={cn("truncate text-lead font-bold", r.order ? "text-sand" : "text-cream")}>
-                        {r.name}
+            shown.map((r) => {
+              const waiting = awaited(r);
+              return (
+                <li key={r.id}>
+                  <button
+                    onClick={() => setOpen({ id: r.id })}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-control border border-line bg-surface px-4 py-3 text-left",
+                      "transition-colors hover:border-lantern/60 active:scale-[0.99]",
+                      !waiting && "bg-transparent",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("truncate text-lead font-bold", waiting ? "text-cream" : "text-sand")}>
+                          {r.name}
+                        </div>
+                        {r.table && <TableTag table={r.table} />}
                       </div>
-                      {r.table && <TableTag table={r.table} />}
+                      <div className="tnum truncate text-micro text-ash">
+                        {r.walkIn ? "Sur place" : countsLabel(tariffs, r.counts)}
+                        {r.phone && ` · ${r.phone}`}
+                      </div>
+                      {r.note && waiting && <NoteBox note={r.note} />}
                     </div>
-                    <div className="tnum truncate text-micro text-ash">
-                      {r.walkIn ? "Sur place" : countsLabel(tariffs, r.counts)}
-                      {r.phone && ` · ${r.phone}`}
-                    </div>
-                    {r.note && !r.order && <NoteBox note={r.note} />}
-                  </div>
-                  {r.order ? (
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <Badge tone="mint">Arrivé</Badge>
-                      <span className="tnum text-micro text-ash">
-                        {r.order.registerLabel} · {hhmm(r.order.createdAt)}
+                    {r.order ? (
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {waiting ? (
+                          <>
+                            <Badge tone="lantern">
+                              <span className="tnum">
+                                {countTotal(arrivedHeads(r))}/{countTotal(r.counts)}
+                              </span>{" "}
+                              arrivés
+                            </Badge>
+                            <span className="tnum text-micro text-lantern">
+                              reste {formatCents(itemsTotal(bookingItems(tariffs, stillExpected(r))))}
+                            </span>
+                          </>
+                        ) : (
+                          <Badge tone="mint">Arrivé</Badge>
+                        )}
+                        <span className="tnum text-micro text-ash">
+                          {r.order.registerLabel} · {hhmm(r.order.createdAt)}
+                        </span>
+                        {pendingIds.has(r.order.id) && (
+                          <Badge>
+                            <HourglassMediumIcon size={13} weight="bold" />
+                            Pas encore synchronisé
+                          </Badge>
+                        )}
+                      </div>
+                    ) : r.prepaid ? (
+                      <Badge tone="dusk" className="shrink-0">
+                        <CalendarCheckIcon size={14} weight="bold" />
+                        Payé d'avance
+                      </Badge>
+                    ) : (
+                      <span className="tnum font-display shrink-0 text-lead font-bold text-lantern">
+                        {formatCents(itemsTotal(bookingItems(tariffs, r.counts)))}
                       </span>
-                      {pendingIds.has(r.order.id) && (
-                        <Badge>
-                          <HourglassMediumIcon size={13} weight="bold" />
-                          Pas encore synchronisé
-                        </Badge>
-                      )}
-                    </div>
-                  ) : r.prepaid ? (
-                    <Badge tone="dusk" className="shrink-0">
-                      <CalendarCheckIcon size={14} weight="bold" />
-                      Payé d'avance
-                    </Badge>
-                  ) : (
-                    <span className="tnum font-display shrink-0 text-lead font-bold text-lantern">
-                      {formatCents(itemsTotal(bookingItems(tariffs, r.counts)))}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))
+                    )}
+                  </button>
+                </li>
+              );
+            })
           )}
         </ul>
       </div>
@@ -367,11 +403,21 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
       {selected && !selected.order && (
         <CheckinModal soireeId={soireeId} row={selected} onClose={() => setOpen(null)} onDone={done} />
       )}
-      {selected?.order && (
+      {selected?.order && open !== "walkin" && open?.more && (
+        <CheckinModal
+          soireeId={soireeId}
+          row={selected}
+          more
+          onClose={() => setOpen({ id: selected.id })}
+          onDone={done}
+        />
+      )}
+      {selected?.order && open !== "walkin" && !open?.more && (
         <PaidModal
           soireeId={soireeId}
           row={selected}
           pending={pendingIds.has(selected.order.id)}
+          onMore={() => setOpen({ id: selected.id, more: true })}
           onClose={() => setOpen(null)}
           onDone={done}
         />
@@ -396,11 +442,11 @@ function DoorSide({
 }) {
   const d = bookingDashboard(projection, soireeId);
   const tariffs = bookingTariffs(projection, soireeId);
-  const watch = rows.filter((r) => r.note && !r.order && !r.walkIn);
-  // Ce que la porte doit encore encaisser : réservations attendues, hors payé d'avance.
+  const watch = rows.filter((r) => r.note && !r.walkIn && awaited(r));
+  // Ce que la porte doit encore encaisser : personnes attendues, hors payé d'avance.
   const toCollect = rows
-    .filter((r) => !r.walkIn && !r.order && !r.prepaid)
-    .reduce((s, r) => s + itemsTotal(bookingItems(tariffs, r.counts)), 0);
+    .filter((r) => !r.prepaid)
+    .reduce((s, r) => s + itemsTotal(bookingItems(tariffs, stillExpected(r))), 0);
   const moneyScale = d.totalCents + toCollect;
 
   // Chiffres en haut, toujours visibles ; les remarques prennent la place
@@ -568,23 +614,31 @@ function extras(counts: Counts, paid: Counts): Counts {
  * Arrivée d'une réservation (`row`) ou d'un sur-place (`row === null`).
  * Payée d'avance : on pointe sans encaisser ; seules les personnes en plus
  * paient à la porte, dans une vente « supplément » à part.
+ * `more` : vague suivante d'un groupe déjà en partie arrivé ; chacun paie sa
+ * part dans une vente rattachée au groupe, comme un supplément.
  */
 function CheckinModal({
   soireeId,
   row,
+  more = false,
   initialName = "",
   onClose,
   onDone,
 }: {
   soireeId: string;
   row: ReservationRow | null;
+  more?: boolean;
   initialName?: string;
   onClose: () => void;
   onDone: (t: ToastData) => void;
 }) {
   const { label, cashierName } = useSession();
   const tariffs = bookingTariffs(projection, soireeId);
-  const [counts, setCounts] = useState<Counts>(() => row?.counts ?? { [tariffs[0]?.productId ?? ""]: 1 });
+  const [counts, setCounts] = useState<Counts>(() => {
+    const one = { [tariffs[0]?.productId ?? ""]: 1 };
+    if (more) return countTotal(stillExpected(row!)) > 0 ? stillExpected(row!) : one;
+    return row?.counts ?? one;
+  });
   const [guest, setGuest] = useState(initialName);
   const [paying, setPaying] = useState(false);
   // Double appui pendant l'écriture locale = deux encaissements.
@@ -596,7 +650,7 @@ function CheckinModal({
   // Payé d'avance : seul le supplément est à encaisser.
   const dueItems = bookingItems(tariffs, prepaid ? extras(counts, row!.counts) : counts);
   const dueCents = itemsTotal(dueItems);
-  const changed = row !== null && JSON.stringify(present) !== JSON.stringify(row.counts);
+  const changed = !more && row !== null && JSON.stringify(present) !== JSON.stringify(row.counts);
   const name = row?.name ?? (guest.trim() || "Sur place");
   const base = {
     soireeId,
@@ -609,7 +663,7 @@ function CheckinModal({
     busy.current = true;
     try {
       // Une autre caisse a pu passer pendant que la modale était ouverte.
-      const winner = row && reservationRows(projection, soireeId).find((r) => r.id === row.id)?.order;
+      const winner = !more && row && reservationRows(projection, soireeId).find((r) => r.id === row.id)?.order;
       if (winner) {
         onDone({
           tone: "error",
@@ -649,7 +703,9 @@ function CheckinModal({
           items: dueItems,
           totalCents: dueCents,
           cashReceivedCents,
-          reservationId: row?.id ?? newId(),
+          // Vague suivante : id neuf, sinon le serveur y verrait un second encaissement.
+          reservationId: row && !more ? row.id : newId(),
+          supplementOf: more ? row!.id : undefined,
           guestName: row ? undefined : guest.trim() || undefined,
         });
       }
@@ -676,11 +732,15 @@ function CheckinModal({
   return (
     <Modal open onClose={onClose}>
       <div className="flex items-center gap-3">
-        <h2 className="font-display min-w-0 text-title font-bold text-cream">{row ? row.name : "Sur place"}</h2>
+        <h2 className="font-display min-w-0 text-title font-bold text-cream">
+          {row ? row.name : "Sur place"}
+          {more && <span className="text-sand"> · arrivants en plus</span>}
+        </h2>
         {row?.table && <TableTag table={row.table} large />}
       </div>
       {row ? (
         <p className="tnum mt-1 text-body text-sand">
+          {more && `Déjà arrivés : ${countsLabel(tariffs, arrivedHeads(row))} · `}
           Réservé : {countsLabel(tariffs, row.counts)}
           {row.phone && ` · ${row.phone}`}
         </p>
@@ -746,21 +806,39 @@ function PaidModal({
   soireeId,
   row,
   pending,
+  onMore,
   onClose,
   onDone,
 }: {
   soireeId: string;
   row: ReservationRow;
   pending: boolean;
+  onMore: () => void;
   onClose: () => void;
   onDone: (t: ToastData) => void;
 }) {
   const isAdmin = useSession((s) => s.isAdmin);
   const [confirming, setConfirming] = useState(false);
+  const [voiding, setVoiding] = useState<ClientOrder | null>(null);
   const tariffs = bookingTariffs(projection, soireeId);
   const order = row.order!;
   const toRefund = onSiteCents(row);
-  const allowed = () => isAdmin || canSelfVoid(order, getDeviceId(), new Date().toISOString());
+  // Le serveur vérifie chaque annulation : une vague encaissée par une autre caisse demande le PIN.
+  const canVoid = (o: ClientOrder) => isAdmin || canSelfVoid(o, getDeviceId(), new Date().toISOString());
+  const allowed = () => [order, ...row.supplements].every(canVoid);
+
+  const cancelWave = async (o: ClientOrder) => {
+    if (!canVoid(o)) {
+      onDone({ tone: "error", text: "Plus de 10 min : l'annulation demande le PIN admin" });
+      return;
+    }
+    try {
+      await voidOrder(o.id, "Arrivants annulés");
+      onDone({ text: `${row.name} : ${formatCents(o.totalCents)} annulé` });
+    } catch (e) {
+      onDone({ tone: "error", text: `Annulation non enregistrée : ${(e as Error).message}` });
+    }
+  };
 
   const cancel = async () => {
     // Revérifié au moment du geste : la fenêtre de 10 min a pu se fermer.
@@ -794,14 +872,25 @@ function PaidModal({
           {hhmm(order.createdAt)}
         </p>
         <p className="tnum">
-          {countsLabel(tariffs, orderHeads(order))}
+          {countsLabel(tariffs, arrivedHeads(row))}
           {!row.walkIn && ` (réservé : ${countsLabel(tariffs, row.counts)})`}
         </p>
         {[order, ...row.supplements].map((o) => (
-          <p key={o.id} className="tnum">
-            <b className="text-cream">{formatCents(o.totalCents)}</b> · {paymentLabel(o.paymentMethod)}
-            {o.supplementOf && " (supplément)"}
-          </p>
+          <div key={o.id} className="tnum flex items-center gap-2">
+            <p className="min-w-0 flex-1">
+              <b className="text-cream">{formatCents(o.totalCents)}</b> · {paymentLabel(o.paymentMethod)}
+              {o.supplementOf &&
+                (row.prepaid
+                  ? " (supplément)"
+                  : ` · ${countsLabel(tariffs, orderHeads(o))} · ${o.registerLabel} ${hhmm(o.createdAt)}`)}
+            </p>
+            {/* Supplément d'un payé d'avance : ses personnes sont dans l'arrivée, on annule le tout. */}
+            {o.supplementOf && !row.prepaid && canVoid(o) && (
+              <Button variant="ghost" size="sm" onClick={() => setVoiding(o)}>
+                Annuler
+              </Button>
+            )}
+          </div>
         ))}
         {pending && (
           <p className="flex items-center gap-1.5 text-lantern">
@@ -811,6 +900,12 @@ function PaidModal({
         )}
       </div>
       {row.note && <NoteBox note={row.note} />}
+      {!row.prepaid && !row.walkIn && (
+        <Button size="lg" className="mt-4 w-full" onClick={onMore}>
+          <UserPlusIcon size={20} weight="bold" />
+          Ajouter des arrivants
+        </Button>
+      )}
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
         <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
           Retour
@@ -823,7 +918,7 @@ function PaidModal({
       </div>
       {!allowed() && (
         <p className="mt-3 text-micro text-ash">
-          Pour annuler : la caisse qui a pointé dans les 10 minutes, sinon un poste avec le PIN admin.
+          Pour annuler : la caisse qui a encaissé, dans les 10 minutes, sinon un poste avec le PIN admin.
         </p>
       )}
       <ConfirmModal
@@ -833,6 +928,18 @@ function PaidModal({
         confirmLabel="Annuler l'arrivée"
         onConfirm={() => void cancel()}
         onClose={() => setConfirming(false)}
+      />
+      <ConfirmModal
+        open={voiding !== null}
+        title="Annuler ces arrivants ?"
+        body={
+          voiding
+            ? `${formatCents(voiding.totalCents)} à rendre. ${countsLabel(tariffs, orderHeads(voiding))} : de nouveau attendus.`
+            : ""
+        }
+        confirmLabel="Annuler ces arrivants"
+        onConfirm={() => voiding && void cancelWave(voiding)}
+        onClose={() => setVoiding(null)}
       />
     </Modal>
   );

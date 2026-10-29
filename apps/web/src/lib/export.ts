@@ -1,7 +1,8 @@
 import {
+  arrivedHeads,
   bookingTariffs,
+  countTotal,
   formatAmount,
-  orderHeads,
   paymentLabel,
   reservationRows,
   type ProjectionState,
@@ -47,7 +48,7 @@ export function exportReservationsCsv(state: ProjectionState, soireeId: string):
   const lines = [header.map(cell).join(";")];
   for (const r of reservationRows(state, soireeId)) {
     const o = r.order;
-    const heads = o ? orderHeads(o) : {};
+    const heads = arrivedHeads(r);
     const onSite = [o, ...r.supplements].filter((x) => x && x.paymentMethod !== "prepaid");
     lines.push(
       [
@@ -57,7 +58,13 @@ export function exportReservationsCsv(state: ProjectionState, soireeId: string):
         r.note ?? "",
         r.prepaid ? "oui" : "",
         ...tariffs.flatMap((t) => [r.walkIn ? "" : (r.counts[t.productId] ?? 0), heads[t.productId] ?? 0]),
-        r.walkIn ? "sur place" : o ? "arrivé" : "absent",
+        r.walkIn
+          ? "sur place"
+          : !o
+            ? "absent"
+            : !r.prepaid && countTotal(heads) < countTotal(r.counts)
+              ? "partiel"
+              : "arrivé",
         o?.paymentMethod === "prepaid" ? formatAmount(o.totalCents) : "",
         onSite.length ? formatAmount(onSite.reduce((sum, x) => sum + x!.totalCents, 0)) : "",
         [...new Set(onSite.map((x) => paymentLabel(x!.paymentMethod)))].join(" + "),

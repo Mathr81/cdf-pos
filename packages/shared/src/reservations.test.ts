@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { BOOKING_ADULT_ID, BOOKING_CHILD_ID } from "./projection.js";
 import {
+  arrivedHeads,
   bookingDashboard,
   bookingItems,
   bookingTariffs,
@@ -186,6 +187,27 @@ describe("payé d'avance", () => {
     const cashup = computeCashup(state, SOIREE);
     expect(cashup.totalCents).toBe(2400);
     expect(cashup.rows.map((r) => r.registerLabel)).toEqual(["Caisse 2"]);
+  });
+});
+
+describe("arrivées en plusieurs fois", () => {
+  /* Martin (4 adultes, 2 enfants, 1 étudiant) : 2 adultes d'abord, puis un
+     adulte et un enfant qui paient leur part sur une autre caisse. */
+  test("chaque vague compte ses présents, le reste est encore attendu", () => {
+    const state = replay(
+      ...setup(),
+      arrive(MARTIN, { [A]: 2 }),
+      arrive(EXTRA, { [A]: 1, [E]: 1 }, { supplementOf: MARTIN, paymentMethod: "card", registerLabel: "Caisse 2" }),
+    );
+    const row = reservationRows(state, SOIREE).find((r) => r.id === MARTIN)!;
+    expect(arrivedHeads(row)).toEqual({ [A]: 3, [E]: 1 });
+    expect(reservationRows(state, SOIREE).some((r) => r.walkIn)).toBe(false);
+    const d = bookingDashboard(state, SOIREE);
+    expect(d.arrived).toBe(4);
+    expect(d.byTariff[A]).toEqual({ expected: 6, arrived: 3 });
+    // Dupont (3) pas arrivé + Martin : 7 prévus − 4 arrivés.
+    expect(d.remaining).toBe(6);
+    expect(d.totalCents).toBe(3 * 2400 + 900);
   });
 });
 

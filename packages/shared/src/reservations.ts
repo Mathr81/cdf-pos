@@ -84,6 +84,14 @@ export function orderHeads(order: ClientOrder): Counts {
   return c;
 }
 
+/** Personnes arrivées pour une réservation, toutes vagues comprises. */
+export function arrivedHeads(row: { order: ClientOrder | null; supplements: ClientOrder[] }): Counts {
+  const c: Counts = {};
+  for (const o of row.order ? [row.order, ...row.supplements] : [])
+    for (const [id, n] of Object.entries(orderHeads(o))) c[id] = (c[id] ?? 0) + n;
+  return c;
+}
+
 export interface ReservationRow {
   /** = reservationId (réservation importée ou sur-place). */
   id: string;
@@ -97,7 +105,10 @@ export interface ReservationRow {
   walkIn: boolean;
   /** Arrivée : encaissement (ou pointage d'une réservation payée d'avance) en cours. */
   order: ClientOrder | null;
-  /** Suppléments payés à la porte (payé d'avance, plus de monde que prévu). */
+  /**
+   * Ventes rattachées à l'arrivée : supplément d'un payé d'avance (plus de
+   * monde que prévu), ou vagues suivantes d'un groupe qui arrive en plusieurs fois.
+   */
   supplements: ClientOrder[];
 }
 
@@ -190,10 +201,11 @@ export function bookingDashboard(state: ProjectionState, soireeId: string): Book
       d.expected += countTotal(r.counts);
       for (const [id, n] of Object.entries(r.counts)) tariff(id).expected += n;
       if (r.order) d.reservationsArrived += 1;
-      else d.remaining += countTotal(r.counts);
     }
+    const heads = arrivedHeads(r);
+    // Payé d'avance : pointé en une fois, il n'attend plus personne.
+    if (!r.walkIn && !(r.order && r.prepaid)) d.remaining += Math.max(0, countTotal(r.counts) - countTotal(heads));
     if (!r.order) continue;
-    const heads = orderHeads(r.order);
     d.arrived += countTotal(heads);
     if (r.walkIn) d.arrivedWalkIn += countTotal(heads);
     for (const [id, n] of Object.entries(heads)) tariff(id).arrived += n;
