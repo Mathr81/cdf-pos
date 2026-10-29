@@ -1,6 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Navigate } from "react-router-dom";
 import {
   formatCents,
+  isReservationsOnly,
   soireeCarte,
   sortCategories,
   stockRemaining,
@@ -162,6 +164,10 @@ export function CaisseScreen() {
   const itemCount = lines.reduce((s, l) => s + l.qty, 0);
 
   if (!soiree) return <NoSoiree />;
+  // Une tablette neuve atterrit ici avant d'avoir reçu le journal : l'accueil
+  // du poste (App.homeFor) a été choisi sur une projection encore vide. Dès que
+  // la soirée s'avère « réservations seules », on rejoint le bon écran.
+  if (isReservationsOnly(projection, soiree.id)) return <Navigate to="/reservations" replace />;
 
   /**
    * Ajoute une unité, en demandant confirmation si la vente dépasse le stock
