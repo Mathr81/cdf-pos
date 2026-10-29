@@ -17,6 +17,7 @@ import { CloudWarningIcon } from "@phosphor-icons/react/dist/csr/CloudWarning";
 import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
 import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
 import { ClipboardTextIcon } from "@phosphor-icons/react/dist/csr/ClipboardText";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { isBookingSoiree, isReservationsOnly } from "@cdf/shared";
 
 import { useSession } from "../lib/session.js";
@@ -153,19 +154,54 @@ function usePendingExitWarning() {
 }
 
 /**
- * Bandeau permanent en soirée d'entraînement.
- *
- * Non refermable, et c'est délibéré : le danger n'est pas d'oublier qu'on
- * s'entraîne, c'est d'encaisser un vrai client sur une soirée d'exercice et
- * de ne jamais retrouver l'argent dans les comptes.
+ * Bandeau en soirée d'entraînement. Refermable par tablette et par soirée,
+ * mais il laisse alors une pastille à côté du nom de caisse : le danger est
+ * d'encaisser un vrai client sur une soirée d'exercice sans le voir.
  */
-function TrainingBanner() {
+const TRAINING_HIDDEN_KEY = "cdf.trainingBannerHidden";
+
+function useTrainingBanner() {
   const soiree = useActiveSoiree();
-  if (!soiree?.training) return null;
+  const [hiddenFor, setHiddenFor] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(TRAINING_HIDDEN_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const set = (id: string | null) => {
+    setHiddenFor(id);
+    try {
+      if (id) localStorage.setItem(TRAINING_HIDDEN_KEY, id);
+      else localStorage.removeItem(TRAINING_HIDDEN_KEY);
+    } catch {
+      // Stockage indisponible : masqué jusqu'au rechargement seulement.
+    }
+  };
+  const training = soiree?.training ? soiree : null;
+  return {
+    soiree: training,
+    hidden: training !== null && hiddenFor === training.id,
+    hide: () => training && set(training.id),
+    show: () => set(null),
+  };
+}
+
+function TrainingBanner({ name, onHide }: { name: string; onHide: () => void }) {
   return (
-    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern px-3 print:hidden py-1.5 text-center text-micro font-bold text-night">
+    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern py-1 pl-3 pr-1 text-center text-micro font-bold text-night print:hidden">
       <GraduationCapIcon size={16} weight="fill" className="shrink-0" />
-      MODE ENTRAÎNEMENT · « {soiree.name} » — ces ventes ne comptent pas dans les chiffres
+      <span className="min-w-0 flex-1 md:flex-none">
+        MODE ENTRAÎNEMENT · « {name} » — ces ventes ne comptent pas dans les chiffres
+      </span>
+      <button
+        onClick={onHide}
+        aria-label="Masquer le bandeau d'entraînement"
+        title="Masquer (une pastille reste en haut)"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control hover:bg-night/10"
+      >
+        <XIcon size={16} weight="bold" />
+      </button>
     </div>
   );
 }
@@ -205,6 +241,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // travail pendant le service.
   useWakeLock();
   usePendingExitWarning();
+  const training = useTrainingBanner();
 
   const changePoste = () => {
     disconnect();
@@ -230,7 +267,19 @@ export function Layout({ children }: { children: ReactNode }) {
               <div className="font-display max-w-40 truncate text-body font-bold text-cream md:max-w-28 lg:max-w-none">
                 {label ?? "CDF Caisse"}
               </div>
-              <SyncIndicator />
+              <div className="flex items-center gap-2">
+                <SyncIndicator />
+                {training.hidden && (
+                  <button
+                    onClick={training.show}
+                    title="Réafficher le bandeau d'entraînement"
+                    className="flex items-center gap-1 rounded-full bg-lantern px-1.5 text-micro font-bold text-night"
+                  >
+                    <GraduationCapIcon size={12} weight="fill" />
+                    Entraînement
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -276,7 +325,9 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="guirlande" />
       </header>
 
-      <TrainingBanner />
+      {training.soiree && !training.hidden && (
+        <TrainingBanner name={training.soiree.name} onHide={training.hide} />
+      )}
       <DuplicateRegisterBanner />
 
       <main className="min-h-0 flex-1 overflow-hidden print:overflow-visible">{children}</main>
