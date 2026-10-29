@@ -50,6 +50,7 @@ import { plural } from "../lib/plural.js";
 import { cn } from "../lib/cn.js";
 import { exportReservationsCsv } from "../lib/export.js";
 import { decodeCsv, parseReservationCsv, type CsvResult } from "../lib/reservationCsv.js";
+import { payLook } from "../lib/payLook.js";
 import { deleteReservations, emitSale, setBookingTariffs, upsertReservations, voidOrder } from "../lib/actions.js";
 import { Badge, Button, Card, EmptyState, Field, StepButton, TextInput } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
@@ -356,43 +357,91 @@ function DoorSide({
   const toCollect = rows
     .filter((r) => !r.walkIn && !r.order && !r.prepaid)
     .reduce((s, r) => s + itemsTotal(bookingItems(tariffs, r.counts)), 0);
-  const line = (label: ReactNode, value: ReactNode) => (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="text-sand">{label}</span>
-      <b className="tnum text-cream">{value}</b>
-    </div>
-  );
+  const moneyScale = d.totalCents + toCollect;
 
   // Chiffres en haut, toujours visibles ; les remarques prennent la place
   // qui reste et défilent dans leur carte.
   return (
     <aside className="hidden w-80 shrink-0 flex-col gap-3 overflow-y-auto pb-4 lg:flex">
       <Card className="shrink-0 p-4">
-        <h2 className="font-display text-lead font-bold text-cream">Bilan</h2>
-        <div className="mt-2 space-y-1.5 text-body">
-          {line("Réservations arrivées", `${d.reservationsArrived} / ${d.reservations}`)}
-          <ArrivalBar d={d} />
-          {line("Couverts restants", `${d.remaining} / ${d.expected}`)}
-          {tariffs.map((t) => (
-            <div key={t.productId} className="pl-3 text-micro">
-              {line(
-                `${t.name} arrivés`,
-                `${d.byTariff[t.productId]?.arrived ?? 0} / ${d.byTariff[t.productId]?.expected ?? 0}`,
-              )}
-            </div>
-          ))}
-          {line("Reste à encaisser", formatCents(toCollect))}
+        <h2 className="font-display text-lead font-bold text-cream">Arrivées</h2>
+        <div className="mt-3 flex items-center gap-4">
+          <Ring value={d.expected - d.remaining} total={d.expected} />
+          <div className="min-w-0 text-body">
+            <p className="text-sand">couverts arrivés</p>
+            <p className="tnum mt-1 text-cream">
+              <b>{d.reservationsArrived}</b> / {d.reservations} réservations
+            </p>
+            {d.arrivedWalkIn > 0 && <p className="tnum text-micro text-ash">+ {d.arrivedWalkIn} sur place</p>}
+          </div>
+        </div>
+        <div className="mt-4 space-y-2.5">
+          {tariffs.map((t) => {
+            const { arrived = 0, expected = 0 } = d.byTariff[t.productId] ?? {};
+            return (
+              <div key={t.productId}>
+                <div className="flex items-baseline justify-between gap-2 text-micro">
+                  <span className="truncate text-sand">{t.name}</span>
+                  <span className="tnum text-cream">
+                    <b>{arrived}</b> / {expected}
+                  </span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-well">
+                  <div
+                    className="h-full rounded-full bg-mint transition-[width]"
+                    style={{ width: `${expected > 0 ? Math.min(100, (arrived / expected) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
       <Card className="shrink-0 p-4">
-        <h2 className="font-display text-lead font-bold text-cream">Encaissé ce soir</h2>
-        <div className="mt-2 space-y-1.5 text-body">
-          {d.byPaymentMethod.map((m) => (
-            <div key={m.method}>{line(paymentLabel(m.method), formatCents(m.revenueCents))}</div>
-          ))}
-          <div className="border-t border-line pt-1.5">{line("Total", formatCents(d.totalCents))}</div>
-          {d.prepaidCents > 0 && line("Payé d'avance", formatCents(d.prepaidCents))}
-          {d.giftedOrders > 0 && line("Offerts", d.giftedOrders)}
+        <h2 className="font-display text-lead font-bold text-cream">Encaissé</h2>
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+          <b className="tnum font-display text-title text-cream">{formatCents(d.totalCents)}</b>
+          {toCollect > 0 && <span className="tnum text-micro text-ash">+ {formatCents(toCollect)} à venir</span>}
+        </p>
+        {/* Barre pleine = tout ce que la porte doit encaisser ; la partie vide
+            est ce qui reste à venir. Texture + glyphe par moyen, comme Stats. */}
+        {moneyScale > 0 && (
+          <div className="mt-3 flex h-4 w-full overflow-hidden rounded-full bg-well">
+            {d.byPaymentMethod.map((m) => (
+              <div
+                key={m.method}
+                className="border-r-2 border-surface"
+                style={{ width: `${(m.revenueCents / moneyScale) * 100}%`, background: payLook(m.method).fill }}
+              />
+            ))}
+          </div>
+        )}
+        <div className="mt-3 space-y-1.5 text-body">
+          {d.byPaymentMethod.map((m) => {
+            const { Icon, color } = payLook(m.method);
+            return (
+              <div key={m.method} className="flex items-center gap-2">
+                <Icon size={16} weight="fill" style={{ color }} className="shrink-0" />
+                <span className="text-sand">{paymentLabel(m.method)}</span>
+                <b className="tnum ml-auto text-cream">{formatCents(m.revenueCents)}</b>
+              </div>
+            );
+          })}
+          {toCollect > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="h-3.5 w-3.5 shrink-0 rounded-sm border border-line bg-well" />
+              <span className="text-sand">Reste à encaisser</span>
+              <b className="tnum ml-auto text-cream">{formatCents(toCollect)}</b>
+            </div>
+          )}
+          {d.prepaidCents > 0 && (
+            <div className="flex items-center gap-2 text-micro">
+              <CalendarCheckIcon size={14} weight="fill" className="shrink-0 text-ash" />
+              <span className="text-ash">Payé d'avance (hors barre)</span>
+              <span className="tnum ml-auto text-sand">{formatCents(d.prepaidCents)}</span>
+            </div>
+          )}
+          {d.giftedOrders > 0 && <p className="text-micro text-ash">{plural(d.giftedOrders, "repas offert")}</p>}
         </div>
       </Card>
       {watch.length > 0 && (
@@ -810,6 +859,36 @@ function DashboardTab({ soireeId }: { soireeId: string }) {
             ...r,
           }))}
         />
+      </div>
+    </div>
+  );
+}
+
+/** Anneau de progression : couverts réservés déjà arrivés. */
+function Ring({ value, total }: { value: number; total: number }) {
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  const pct = total > 0 ? Math.min(1, value / total) : 0;
+  return (
+    <div className="relative h-24 w-24 shrink-0" role="img" aria-label={`${value} couverts arrivés sur ${total}`}>
+      <svg viewBox="0 0 84 84" className="h-full w-full -rotate-90">
+        <circle cx="42" cy="42" r={r} fill="none" strokeWidth="10" className="stroke-well" />
+        {pct > 0 && (
+          <circle
+            cx="42"
+            cy="42"
+            r={r}
+            fill="none"
+            strokeWidth="10"
+            strokeLinecap="round"
+            strokeDasharray={`${pct * c} ${c}`}
+            className="stroke-mint transition-[stroke-dasharray]"
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center leading-tight">
+        <b className="tnum font-display text-lead text-cream">{value}</b>
+        <span className="tnum text-micro text-ash">/ {total}</span>
       </div>
     </div>
   );
