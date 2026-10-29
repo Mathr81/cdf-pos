@@ -463,9 +463,10 @@ précédent** (« +18 % vs 14 juin »).
 
 ### Aide intégrée
 
-L'onglet **Aide** est présent sur **tous les postes**, y compris Cuisine qui n'a
-qu'un seul autre onglet — c'est justement le poste tenu par les bénévoles les
-moins habitués à l'app.
+Le bouton **?** en haut à droite, à côté de la déconnexion, est présent sur
+**tous les postes**. Ce n'est pas un onglet : on s'en sert rarement, et sur
+téléphone il ne doit pas prendre la place d'un écran de travail. Une fois
+l'aide ouverte, il devient **✕** et ramène à l'écran quitté.
 
 Il s'ouvre sur la section correspondant au poste courant, les autres repliées.
 Le contenu est écrit en **gestes** (« le client change d'avis ») plutôt qu'en
