@@ -167,6 +167,15 @@ export function RoleSelect() {
                     </>
                   )}
                 </div>
+                {/* Sans cette phrase, le responsable choisit « Admin » et ses
+                    encaissements portent « Administration » à la clôture. */}
+                {isAdmin && (
+                  <p className="mt-2 text-micro text-ash">
+                    Avec le PIN, tous les postes ont les onglets admin. Une tablette qui encaisse : choisis{" "}
+                    <b className="text-sand">Caisse</b>, c'est son nom qui apparaît sur les ventes et la clôture.
+                    Admin et Stats : pour une tablette qui n'encaisse pas.
+                  </p>
+                )}
               </FieldGroup>
 
               {role === "caisse" && (

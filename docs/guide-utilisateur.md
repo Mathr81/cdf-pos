@@ -64,8 +64,15 @@ courte, sur chaque tablette.
      les fusionnerait. Un bandeau rouge le signale.
    - **Cuisine** : choisir sa station. Si aucune n'est proposée, un responsable
      doit les créer dans Admin → Stations cuisine.
-   - **Stats** et **Admin** : seulement avec le PIN.
+   - **Stats** et **Admin** : seulement avec le PIN, pour une tablette qui
+     **n'encaisse pas**.
 4. **Démarrer.**
+
+> 💡 **Tablette du responsable qui encaisse** (accueil d'une soirée sur
+> réservation, par exemple) : choisir **Caisse 2** *avec* le PIN. Le PIN donne
+> tous les onglets admin quel que soit le poste ; le nom de caisse est celui
+> qui apparaît sur les ventes, le Journal et la clôture. Avec le poste Admin,
+> tout serait au nom de « Administration ».
 
 En haut à droite, deux boutons sur tous les postes :
 

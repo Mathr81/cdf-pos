@@ -110,6 +110,10 @@ const SECTIONS: Section[] = [
             statistiques.
           </Etape>
         </ol>
+        <Note>
+          <b className="text-cream">Tablette du responsable qui encaisse :</b> Caisse 2 avec le PIN. Elle a
+          tous les onglets admin, et ses ventes portent « Caisse 2 » au lieu de « Administration ».
+        </Note>
         <Note tone="warn">
           <b className="text-cream">Un numéro de caisse par tablette.</b> Deux tablettes « Caisse 1 »
           seraient comptées comme une seule boîte à la clôture. Un bandeau rouge le signale : change de
