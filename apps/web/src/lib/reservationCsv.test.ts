@@ -54,6 +54,12 @@ describe("import CSV des réservations", () => {
     expect(parse(csv).rows.map((r) => r.name)).toEqual(["Martin, famille", 'Le "Grand" Roux']);
   });
 
+  test("un prénom sans nom est refusé", () => {
+    const { rows, errors } = parse("Nom;Prénom;Adultes\n;Inconnu;2\nDupont;Jean;2");
+    expect(rows.map((r) => r.name)).toEqual(["Dupont Jean"]);
+    expect(errors).toEqual([{ line: 2, message: "Inconnu : nom manquant" }]);
+  });
+
   test("les lignes illisibles sont signalées, pas ignorées", () => {
     const csv = "Nom;Adultes;Enfants\nDupont;deux;0\n;2;0\nVide;0;0\n;;\nOk;1;0";
     const { rows, errors } = parse(csv);

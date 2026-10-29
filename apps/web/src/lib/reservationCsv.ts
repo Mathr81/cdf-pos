@@ -87,11 +87,16 @@ export function parseReservationCsv(raw: string, tariffs: { productId: string; n
     if (cells.every((c) => c.trim() === "")) return;
     const r: ParsedReservation = { name: "", counts: {}, prepaid: false };
     const notes: string[] = [];
+    // Un prénom seul ne suffit pas : impossible de retrouver le groupe à la porte.
+    let lastName = false;
     let bad: string | null = null;
     cols.forEach((col, j) => {
       const v = (cells[j] ?? "").trim();
       if (!col || v === "") return;
-      if (col.kind === "name") r.name = [v, r.name].filter(Boolean).join(" ");
+      if (col.kind === "name") {
+        r.name = [v, r.name].filter(Boolean).join(" ");
+        lastName = true;
+      }
       else if (col.kind === "firstName") r.name = [r.name, v].filter(Boolean).join(" ");
       else if (col.kind === "phone") r.phone = v;
       else if (col.kind === "table") r.table = v;
@@ -101,7 +106,7 @@ export function parseReservationCsv(raw: string, tariffs: { productId: string; n
       else if (!/^\d{1,3}$/.test(v)) bad = `« ${v} » n'est pas un nombre de personnes`;
       else if (col.kind === "tariff" && Number(v) > 0) r.counts[col.productId] = (r.counts[col.productId] ?? 0) + Number(v);
     });
-    if (!r.name) bad ??= "nom manquant";
+    if (!lastName) bad ??= "nom manquant";
     else if (Object.keys(r.counts).length === 0) bad ??= "aucune personne";
     if (bad) errors.push({ line, message: `${r.name || "?"} : ${bad}` });
     else
