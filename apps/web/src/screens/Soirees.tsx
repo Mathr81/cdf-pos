@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   carteConfig,
   formatAmount,
+  formatCents,
   BOOKING_ADULT_ID,
   BOOKING_CHILD_ID,
   parseAmountToCents,
@@ -145,16 +146,14 @@ export function SoireesScreen() {
                           Clôturer
                         </Button>
                       )}
-                      {orders === 0 && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          aria-label={`Supprimer ${s.name}`}
-                          onClick={() => setDeleting(s)}
-                        >
-                          <TrashIcon size={17} weight="bold" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        aria-label={`Supprimer ${s.name}`}
+                        onClick={() => setDeleting(s)}
+                      >
+                        <TrashIcon size={17} weight="bold" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -193,19 +192,65 @@ export function SoireesScreen() {
         onConfirm={() => activating && activateSoiree(activating.id)}
         onClose={() => setActivating(null)}
       />
-      <ConfirmModal
-        open={deleting !== null}
-        title="Supprimer cette soirée ?"
-        body={
-          deleting
-            ? `« ${deleting.name} » sera retirée sur tous les postes. Cette soirée ne contient aucune commande.`
-            : undefined
-        }
-        confirmLabel="Supprimer"
-        onConfirm={() => deleting && deleteSoiree(deleting.id)}
-        onClose={() => setDeleting(null)}
-      />
+      {deleting && <DeleteSoireeModal soiree={deleting} onClose={() => setDeleting(null)} />}
     </div>
+  );
+}
+
+/**
+ * Sans commande, une confirmation suffit. Avec des commandes (soirée de
+ * test), elles partent avec la soirée sur tous les postes : on fait taper
+ * son nom, pour qu'aucune vraie soirée ne disparaisse d'un tap.
+ */
+function DeleteSoireeModal({ soiree, onClose }: { soiree: ClientSoiree; onClose: () => void }) {
+  const [typed, setTyped] = useState("");
+  const orders = Object.values(projection.orders).filter((o) => o.soireeId === soiree.id);
+  const paid = orders.filter((o) => o.status === "paid");
+  const totalCents = paid.reduce((s, o) => s + o.totalCents, 0);
+  const ok = orders.length === 0 || typed.trim() === soiree.name.trim();
+
+  return (
+    <Modal open onClose={onClose}>
+      <h2 className="font-display text-title font-bold text-cream">Supprimer « {soiree.name} » ?</h2>
+      {orders.length === 0 ? (
+        <p className="mt-2 text-body text-sand">
+          Elle sera retirée sur tous les postes. Cette soirée ne contient aucune commande.
+        </p>
+      ) : (
+        <>
+          <p className="mt-2 mb-4 text-body text-sand">
+            Ses <b className="text-cream">{plural(orders.length, "commande")}</b> (
+            {formatCents(totalCents)} encaissés), ses réservations et sa carte seront effacées sur tous les
+            postes, et disparaîtront des stats. <b className="text-cream">Irréversible.</b> Tape le nom de la
+            soirée pour confirmer.
+          </p>
+          <TextInput
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoFocus
+            placeholder={soiree.name}
+            aria-label="Nom de la soirée, pour confirmer"
+          />
+        </>
+      )}
+      <div className="mt-6 flex gap-2">
+        <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
+          Retour
+        </Button>
+        <Button
+          variant="danger"
+          size="lg"
+          className="flex-1"
+          disabled={!ok}
+          onClick={() => {
+            void deleteSoiree(soiree.id);
+            onClose();
+          }}
+        >
+          Supprimer
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
