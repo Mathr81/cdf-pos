@@ -844,6 +844,9 @@ function PaidModal({
   const canVoid = (o: ClientOrder) => isAdmin || canSelfVoid(o, getDeviceId(), new Date().toISOString());
   const allowed = () => [order, ...row.supplements].every(canVoid);
   const missing = countTotal(row.counts) - countTotal(arrivedHeads(row));
+  const expected = stillExpected(row);
+  // Groupe en partie arrivé : la suite, c'est presque toujours la vague suivante.
+  const waiting = countTotal(expected) > 0;
 
   const setComplete = async (complete: boolean) => {
     try {
@@ -895,7 +898,17 @@ function PaidModal({
       </div>
       <div className="mt-3 space-y-1 text-body text-sand">
         <p>
-          <Badge tone="mint">Arrivé</Badge> pointé par <b className="text-cream">{order.registerLabel}</b> à{" "}
+          {waiting ? (
+            <Badge tone="lantern">
+              <span className="tnum">
+                {countTotal(arrivedHeads(row))}/{countTotal(row.counts)}
+              </span>{" "}
+              arrivés
+            </Badge>
+          ) : (
+            <Badge tone="mint">Arrivé</Badge>
+          )}{" "}
+          pointé par <b className="text-cream">{order.registerLabel}</b> à{" "}
           {hhmm(order.createdAt)}
         </p>
         <p className="tnum">
@@ -927,42 +940,69 @@ function PaidModal({
         )}
       </div>
       {row.note && <NoteBox note={row.note} />}
-      {!row.prepaid && !row.walkIn && (
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <Button size="lg" className="flex-1" onClick={onMore}>
-            <UserPlusIcon size={20} weight="bold" />
-            Ajouter des arrivants
+      {waiting ? (
+        <>
+          <Button variant="primary" size="xl" className="mt-5 w-full" onClick={onMore}>
+            <UserPlusIcon size={28} weight="bold" className="shrink-0" />
+            <span className="flex min-w-0 flex-col items-start text-left">
+              <span>Ajouter des arrivants</span>
+              <span className="tnum text-body font-semibold opacity-75">
+                {countsLabel(tariffs, expected)} {countTotal(expected) > 1 ? "attendus" : "attendu"} · {formatCents(itemsTotal(bookingItems(tariffs, expected)))}
+              </span>
+            </span>
           </Button>
-          {/* Les absents ne viendront pas : le groupe quitte « À venir » et le reste à encaisser. */}
-          {missing > 0 && !row.complete && (
+          <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
+              Retour
+            </Button>
+            {/* Les absents ne viendront pas : le groupe quitte « À venir » et le reste à encaisser. */}
             <Button size="lg" className="flex-1" onClick={() => void setComplete(true)}>
-              Groupe complet ({plural(missing, "absent")})
+              Groupe complet · {plural(countTotal(expected), "absent")}
+            </Button>
+          </div>
+          {allowed() && (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="mt-2 min-h-11 w-full text-body font-bold text-signal hover:underline"
+            >
+              Annuler l'arrivée
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Groupe au complet : plus de monde que prévu, ça arrive, mais rarement. */}
+          {!row.prepaid && !row.walkIn && (
+            <Button size="lg" className="mt-4 w-full" onClick={onMore}>
+              <UserPlusIcon size={20} weight="bold" />
+              Ajouter des arrivants
             </Button>
           )}
-        </div>
+          {row.complete && missing > 0 && (
+            <p className="mt-2 flex items-center gap-2 text-micro text-ash">
+              <span>Déclaré complet : {plural(missing, "absent")}.</span>
+              <button
+                type="button"
+                className="font-bold text-sand underline hover:text-cream"
+                onClick={() => void setComplete(false)}
+              >
+                Rouvrir
+              </button>
+            </p>
+          )}
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
+              Retour
+            </Button>
+            {allowed() && (
+              <Button variant="danger" size="lg" className="flex-1" onClick={() => setConfirming(true)}>
+                Annuler l'arrivée
+              </Button>
+            )}
+          </div>
+        </>
       )}
-      {row.complete && missing > 0 && (
-        <p className="mt-2 flex items-center gap-2 text-micro text-ash">
-          <span>Déclaré complet : {plural(missing, "absent")}.</span>
-          <button
-            type="button"
-            className="font-bold text-sand underline hover:text-cream"
-            onClick={() => void setComplete(false)}
-          >
-            Rouvrir
-          </button>
-        </p>
-      )}
-      <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
-        <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
-          Retour
-        </Button>
-        {allowed() && (
-          <Button variant="danger" size="lg" className="flex-1" onClick={() => setConfirming(true)}>
-            Annuler l'arrivée
-          </Button>
-        )}
-      </div>
       {!allowed() && (
         <p className="mt-3 text-micro text-ash">
           Pour annuler : la caisse qui a encaissé, dans les 10 minutes, sinon un poste avec le PIN admin.
