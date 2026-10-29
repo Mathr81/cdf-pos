@@ -92,6 +92,8 @@ export function createSocketServer(httpServer: HttpServer) {
       deviceId: auth.deviceId!,
       role: auth.role!,
       label: auth.label,
+      // Texte libre venu du client : borné, et ignoré s'il n'est pas une chaîne.
+      device: typeof auth.device === "string" ? auth.device.slice(0, 80) : undefined,
     });
     // Le nouvel arrivant reçoit l'état courant même si rien n'a changé pour
     // les autres : sans ça, un admin qui ouvre l'app verrait une liste vide.

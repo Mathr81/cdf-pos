@@ -18,6 +18,7 @@ export interface JoinInfo {
   deviceId: string;
   role: Role;
   label?: string;
+  device?: string;
 }
 
 interface Connection extends JoinInfo {
@@ -70,6 +71,7 @@ export class PresenceRegistry {
         existing.connectedAt = conn.connectedAt;
         existing.label = conn.label;
         existing.role = conn.role;
+        existing.device = conn.device;
       }
     }
 

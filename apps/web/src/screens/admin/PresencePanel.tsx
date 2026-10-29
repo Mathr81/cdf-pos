@@ -45,6 +45,7 @@ function Ligne({ entry }: { entry: PresenceEntry }) {
         <div className="text-micro text-ash">
           {ROLE_LABELS[entry.role] ?? entry.role} · {depuis(entry.connectedAt)}
         </div>
+        {entry.device && <div className="truncate text-micro text-ash">{entry.device}</div>}
       </div>
       {/* Le nombre en attente n'apparaît que s'il est non nul : une colonne de
           « 0 » sur six postes n'apprend rien et noie le seul qui compte. */}

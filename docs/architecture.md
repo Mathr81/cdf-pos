@@ -134,8 +134,8 @@ de télécharger un fichier de secours (`lib/rescue.ts`) ou d'annuler.
 
 ### Présence
 
-Chaque socket déclare `deviceId`, rôle, libellé, et son nombre de ventes en
-attente (`presence:pending`). Le serveur tient un registre en mémoire
+Chaque socket déclare `deviceId`, rôle, libellé, appareil (« iPad · Safari »,
+`lib/deviceInfo.ts`) et son nombre de ventes en attente (`presence:pending`). Le serveur tient un registre en mémoire
 (`presence.ts`) diffusé par `presence:update` → panneau « Postes connectés » et
 bandeau « deux tablettes sous le même nom de caisse ».
 

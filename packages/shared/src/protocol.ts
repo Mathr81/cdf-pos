@@ -49,6 +49,8 @@ export interface PresenceEntry {
   deviceId: string;
   role: Role;
   label?: string;
+  /** Appareil et navigateur déclarés par le poste : « iPad · Safari ». */
+  device?: string;
   /** Connexion de CE socket (ISO). Repart à zéro à chaque reconnexion. */
   connectedAt: string;
   /** Ventes créées sur ce poste et pas encore acquittées par le serveur. */
@@ -83,6 +85,8 @@ export interface HandshakeAuth {
   role: Role;
   deviceId: string;
   label?: string;
+  /** « iPad · Safari », pour reconnaître le poste dans Admin. */
+  device?: string;
   /** PIN admin saisi sur ce poste : seul ce qui autorise les actions admin. */
   adminPin?: string;
 }

@@ -9,6 +9,7 @@ import type {
 } from "@cdf/shared";
 import { db, getMeta, setMeta } from "./db.js";
 import { getDeviceId } from "./device.js";
+import { describeDevice } from "./deviceInfo.js";
 import { pendingCount, wipeLocalData } from "./localData.js";
 import { useSession } from "./session.js";
 import { applyIncoming, retractOrders, useStore } from "./store.js";
@@ -236,14 +237,17 @@ export function connect(): void {
 
   socket = io({
     path: "/socket.io",
-    auth: {
-      accessCode,
-      role,
-      deviceId: getDeviceId(),
-      label: label ?? undefined,
-      // Le serveur n'accepte les actions admin que d'un socket qui porte le PIN.
-      adminPin: adminPin ?? undefined,
-    },
+    // Fonction, relue à chaque (re)connexion : le modèle Android arrive après coup.
+    auth: (cb) =>
+      cb({
+        accessCode,
+        role,
+        deviceId: getDeviceId(),
+        label: label ?? undefined,
+        device: describeDevice(),
+        // Le serveur n'accepte les actions admin que d'un socket qui porte le PIN.
+        adminPin: adminPin ?? undefined,
+      }),
     reconnection: true,
     reconnectionDelayMax: 5000,
   });

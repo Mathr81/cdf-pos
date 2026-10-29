@@ -25,6 +25,11 @@ describe("connexions", () => {
     expect(registry.list()).toMatchObject([{ deviceId: "tablette-1", label: "Caisse 1" }]);
   });
 
+  test("l'appareil déclaré est transmis à l'admin", () => {
+    registry.join("socket-a", { ...CAISSE1, device: "iPad · Safari" });
+    expect(registry.list()[0].device).toBe("iPad · Safari");
+  });
+
   test("un poste déconnecté disparaît", () => {
     registry.join("socket-a", CAISSE1);
 
