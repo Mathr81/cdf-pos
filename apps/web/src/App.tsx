@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { isReservationsOnly } from "@cdf/shared";
 import { useSession } from "./lib/session.js";
+import { projection } from "./lib/store.js";
 import { connect, hydrateFromLog } from "./lib/sync.js";
 import { Layout } from "./components/Layout.js";
 import { Skeleton } from "./components/ui.js";
@@ -99,7 +101,9 @@ function homeFor(role: string): string {
       return "/admin";
     case "stats":
       return "/stats";
-    default:
-      return "/caisse";
+    default: {
+      const id = projection.activeSoireeId;
+      return id && isReservationsOnly(projection, id) ? "/reservations" : "/caisse";
+    }
   }
 }

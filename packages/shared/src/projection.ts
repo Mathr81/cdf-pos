@@ -95,6 +95,8 @@ export interface ClientOrder {
   /** Encaissement d'une réservation (ou d'un sur-place). */
   reservationId?: string;
   guestName?: string;
+  supplementOf?: string;
+  heads?: Record<string, number>;
 }
 
 /** Réservation d'une soirée sur réservation (liste importée par l'admin). */
@@ -102,10 +104,21 @@ export interface ClientReservation {
   id: string;
   soireeId: string;
   name: string;
-  adults: number;
-  children: number;
+  /** Personnes prévues par tarif (productId → nombre), zéros omis. */
+  counts: Record<string, number>;
   phone?: string;
+  note?: string;
+  prepaid: boolean;
 }
+
+export interface BookingTariff {
+  productId: string;
+  priceCents: number;
+}
+
+/** Ids des deux tarifs d'origine (adulte / enfant), repris par l'ancien format. */
+export const BOOKING_ADULT_ID = "resa-adulte";
+export const BOOKING_CHILD_ID = "resa-enfant";
 
 /**
  * Caisse d'un poste pour une soirée : fond déposé avant le service, et
@@ -132,6 +145,8 @@ export interface ProjectionState {
   stations: Record<string, ClientStation>;
   presets: Record<string, ClientPreset>;
   reservations: Record<string, ClientReservation>;
+  /** soireeId → tarifs de la soirée sur réservation. */
+  bookingTariffs: Record<string, BookingTariff[]>;
   /** soireeId → productId → config carte. */
   carte: Record<string, Record<string, SoireeProductConfig>>;
   /** soireeId → productId → quantité vendue (commandes payées). */
@@ -157,6 +172,7 @@ export interface ProjectionState {
   presetUpdatedAt: Record<string, number>;
   carteUpdatedAt: Record<string, number>; // clé "soireeId:productId"
   reservationUpdatedAt: Record<string, number>;
+  bookingTariffsUpdatedAt: Record<string, number>;
 }
 
 export function emptyProjection(): ProjectionState {
@@ -167,6 +183,7 @@ export function emptyProjection(): ProjectionState {
     stations: {},
     presets: {},
     reservations: {},
+    bookingTariffs: {},
     carte: {},
     sold: {},
     prepared: {},
@@ -180,6 +197,7 @@ export function emptyProjection(): ProjectionState {
     presetUpdatedAt: {},
     carteUpdatedAt: {},
     reservationUpdatedAt: {},
+    bookingTariffsUpdatedAt: {},
   };
 }
 
@@ -228,6 +246,8 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         deviceId: ev.deviceId,
         reservationId: p.reservationId,
         guestName: p.guestName,
+        supplementOf: p.supplementOf,
+        heads: p.heads,
       };
       for (const it of p.items) addNested(state.sold, p.soireeId, it.productId, it.qty);
       break;
@@ -372,6 +392,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       for (const r of Object.values(state.reservations)) {
         if (r.soireeId === id) delete state.reservations[r.id];
       }
+      delete state.bookingTariffs[id];
       break;
     }
     case "soiree_product_set": {
@@ -406,7 +427,23 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       const p = ev.payload;
       if ((state.reservationUpdatedAt[p.id] ?? 0) > ts) break;
       state.reservationUpdatedAt[p.id] = ts;
-      state.reservations[p.id] = { ...p };
+      const counts = p.counts ?? { [BOOKING_ADULT_ID]: p.adults ?? 0, [BOOKING_CHILD_ID]: p.children ?? 0 };
+      state.reservations[p.id] = {
+        id: p.id,
+        soireeId: p.soireeId,
+        name: p.name,
+        counts: Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0)),
+        phone: p.phone,
+        note: p.note,
+        prepaid: p.prepaid ?? false,
+      };
+      break;
+    }
+    case "booking_tariffs_set": {
+      const p = ev.payload;
+      if ((state.bookingTariffsUpdatedAt[p.soireeId] ?? 0) > ts) break;
+      state.bookingTariffsUpdatedAt[p.soireeId] = ts;
+      state.bookingTariffs[p.soireeId] = p.tariffs.map((t) => ({ ...t }));
       break;
     }
     case "reservation_delete": {

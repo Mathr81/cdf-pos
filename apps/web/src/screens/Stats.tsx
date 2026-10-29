@@ -27,6 +27,7 @@ import {
 } from "@cdf/shared";
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
 import { CreditCardIcon } from "@phosphor-icons/react/dist/csr/CreditCard";
+import { CalendarCheckIcon } from "@phosphor-icons/react/dist/csr/CalendarCheck";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/dist/csr/DownloadSimple";
 import { PrinterIcon } from "@phosphor-icons/react/dist/csr/Printer";
 import { TrendUpIcon } from "@phosphor-icons/react/dist/csr/TrendUp";
@@ -303,6 +304,8 @@ export function StatsScreen() {
                   <div key={m.method} className="flex items-center gap-2 text-body">
                     {m.method === "cash" ? (
                       <CoinsIcon size={17} weight="fill" style={{ color: PALETTE.mint }} />
+                    ) : m.method === "prepaid" ? (
+                      <CalendarCheckIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
                     ) : (
                       <CreditCardIcon size={17} weight="fill" style={{ color: PALETTE.dusk }} />
                     )}

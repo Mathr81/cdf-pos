@@ -17,7 +17,7 @@ import { CloudWarningIcon } from "@phosphor-icons/react/dist/csr/CloudWarning";
 import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
 import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
 import { ClipboardTextIcon } from "@phosphor-icons/react/dist/csr/ClipboardText";
-import { isBookingSoiree } from "@cdf/shared";
+import { isBookingSoiree, isReservationsOnly } from "@cdf/shared";
 
 import { useSession } from "../lib/session.js";
 import { useActiveSoiree } from "../lib/hooks.js";
@@ -37,13 +37,13 @@ interface NavItem {
 
 /* Routes et libellés strictement inchangés : l'équipe est formée dessus.
    Seule l'icône passe d'un emoji à un glyphe cohérent. */
-function navItemsFor(role: string | null, isAdmin: boolean, booking: boolean): NavItem[] {
+function navItemsFor(role: string | null, isAdmin: boolean, booking: boolean, only: boolean): NavItem[] {
   const items = baseNavItems(role, isAdmin);
   // Réservations juste après Caisse, et seulement les soirs où elle sert.
-  if (booking && items[0]?.to === "/caisse") {
-    items.splice(1, 0, { to: "/reservations", label: "Réservations", icon: ClipboardTextIcon });
-  }
-  return items;
+  if (!booking || items[0]?.to !== "/caisse") return items;
+  items.splice(1, 0, { to: "/reservations", label: "Réservations", icon: ClipboardTextIcon });
+  // Rien d'autre à vendre ce soir : Caisse, Cuisine et Stock seraient vides.
+  return only ? items.filter((i) => !["/caisse", "/cuisine", "/inventaire"].includes(i.to)) : items;
 }
 
 function baseNavItems(role: string | null, isAdmin: boolean): NavItem[] {
@@ -194,7 +194,12 @@ export function Layout({ children }: { children: ReactNode }) {
   const { role, label, isAdmin, reset } = useSession();
   const navigate = useNavigate();
   const soiree = useActiveSoiree();
-  const items = navItemsFor(role, isAdmin, soiree !== null && isBookingSoiree(projection, soiree.id));
+  const items = navItemsFor(
+    role,
+    isAdmin,
+    soiree !== null && isBookingSoiree(projection, soiree.id),
+    soiree !== null && isReservationsOnly(projection, soiree.id),
+  );
 
   // Toutes les routes authentifiées : chaque écran de l'app est un écran de
   // travail pendant le service.

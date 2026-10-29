@@ -1,51 +1,87 @@
-import { carteConfig, effectivePrice, type ClientOrder, type ClientReservation, type ProjectionState } from "./projection.js";
+import {
+  BOOKING_ADULT_ID,
+  BOOKING_CHILD_ID,
+  carteConfig,
+  effectivePrice,
+  soireeCarte,
+  type ClientOrder,
+  type ProjectionState,
+} from "./projection.js";
+import type { SaleItem } from "./events.js";
 
 /**
  * ─────────────────────────────────────────────────────────────
  *  Soirées sur réservation
  * ─────────────────────────────────────────────────────────────
- *  Une soirée sur réservation est une soirée ordinaire dont la carte
- *  configure les deux produits ci-dessous (hors grille de caisse), avec
- *  leur prix propre à la soirée. Un encaissement est une vente ordinaire
- *  portant un `reservationId` : stats, récap et comptage de caisse le
- *  voient sans rien savoir des réservations.
+ *  Une soirée sur réservation est une soirée ordinaire qui a des tarifs
+ *  (`booking_tariffs_set`). Chaque tarif est un produit, hors grille de
+ *  caisse. Un encaissement est une vente ordinaire portant un
+ *  `reservationId` : stats, récap et comptage de caisse le voient sans rien
+ *  savoir des réservations.
  */
-
-export const BOOKING_ADULT_ID = "resa-adulte";
-export const BOOKING_CHILD_ID = "resa-enfant";
 
 /** Fenêtre pendant laquelle la tablette qui a encaissé peut annuler sans PIN. */
 export const SELF_VOID_WINDOW_MS = 10 * 60 * 1000;
 
+/** Personnes par tarif : productId → nombre. */
+export type Counts = Record<string, number>;
+
+export interface Tariff {
+  productId: string;
+  name: string;
+  priceCents: number;
+}
+
+/**
+ * Tarifs de la soirée, dans l'ordre réglé par l'admin. Avant
+ * `booking_tariffs_set`, une soirée sur réservation se reconnaissait à la
+ * config carte de « resa-adulte » : on relit ce format tel quel.
+ */
+export function bookingTariffs(state: ProjectionState, soireeId: string): Tariff[] {
+  const list =
+    state.bookingTariffs[soireeId] ??
+    (carteConfig(state, soireeId, BOOKING_ADULT_ID)
+      ? [BOOKING_ADULT_ID, BOOKING_CHILD_ID].map((productId) => ({
+          productId,
+          priceCents: effectivePrice(state, soireeId, productId),
+        }))
+      : []);
+  return list.map((t) => ({ ...t, name: state.products[t.productId]?.name ?? t.productId }));
+}
+
 export function isBookingSoiree(state: ProjectionState, soireeId: string): boolean {
-  return carteConfig(state, soireeId, BOOKING_ADULT_ID) !== undefined;
+  return bookingTariffs(state, soireeId).length > 0;
 }
 
-export function bookingPrices(state: ProjectionState, soireeId: string) {
-  return {
-    adultCents: effectivePrice(state, soireeId, BOOKING_ADULT_ID),
-    childCents: effectivePrice(state, soireeId, BOOKING_CHILD_ID),
-  };
+/**
+ * Soirée sur réservation sans rien d'autre à vendre (carte vide) : la
+ * caisse, la cuisine et le stock n'ont alors rien à montrer.
+ */
+export function isReservationsOnly(state: ProjectionState, soireeId: string): boolean {
+  return isBookingSoiree(state, soireeId) && soireeCarte(state, soireeId).length === 0;
 }
 
-/** Lignes de vente d'un encaissement ; les quantités nulles sont omises (le schéma les refuse). */
-export function bookingItems(state: ProjectionState, soireeId: string, adults: number, children: number) {
-  const { adultCents, childCents } = bookingPrices(state, soireeId);
-  return [
-    { productId: BOOKING_ADULT_ID, qty: adults, unitPriceCents: adultCents },
-    { productId: BOOKING_CHILD_ID, qty: children, unitPriceCents: childCents },
-  ].filter((it) => it.qty > 0);
+export function countTotal(counts: Counts): number {
+  return Object.values(counts).reduce((s, n) => s + n, 0);
 }
 
-/** Adultes / enfants réellement encaissés dans une commande. */
-export function orderHeads(order: ClientOrder): { adults: number; children: number } {
-  let adults = 0;
-  let children = 0;
-  for (const it of order.items) {
-    if (it.productId === BOOKING_ADULT_ID) adults += it.qty;
-    else if (it.productId === BOOKING_CHILD_ID) children += it.qty;
-  }
-  return { adults, children };
+/** Lignes de vente pour ces personnes ; les quantités nulles sont omises (le schéma les refuse). */
+export function bookingItems(tariffs: Tariff[], counts: Counts): SaleItem[] {
+  return tariffs
+    .filter((t) => (counts[t.productId] ?? 0) > 0)
+    .map((t) => ({ productId: t.productId, qty: counts[t.productId], unitPriceCents: t.priceCents }));
+}
+
+export function itemsTotal(items: SaleItem[]): number {
+  return items.reduce((s, it) => s + it.qty * it.unitPriceCents, 0);
+}
+
+/** Personnes réellement présentes pour une commande : `heads` si donné, sinon ses lignes. */
+export function orderHeads(order: ClientOrder): Counts {
+  if (order.heads) return order.heads;
+  const c: Counts = {};
+  for (const it of order.items) c[it.productId] = (c[it.productId] ?? 0) + it.qty;
+  return c;
 }
 
 export interface ReservationRow {
@@ -53,42 +89,53 @@ export interface ReservationRow {
   id: string;
   name: string;
   phone?: string;
-  /** Prévu à la réservation ; 0 pour un sur-place. */
-  adults: number;
-  children: number;
+  note?: string;
+  prepaid: boolean;
+  /** Prévu à la réservation ; vide pour un sur-place. */
+  counts: Counts;
   walkIn: boolean;
-  /** Encaissement payé en cours, s'il y en a un. */
+  /** Arrivée : encaissement (ou pointage d'une réservation payée d'avance) en cours. */
   order: ClientOrder | null;
+  /** Suppléments payés à la porte (payé d'avance, plus de monde que prévu). */
+  supplements: ClientOrder[];
 }
 
 /** Réservations de la soirée et sur-place, triées par nom. */
 export function reservationRows(state: ProjectionState, soireeId: string): ReservationRow[] {
   const paid = new Map<string, ClientOrder>();
+  const supplements = new Map<string, ClientOrder[]>();
   const walkIns: ClientOrder[] = [];
   for (const o of Object.values(state.orders)) {
     if (o.soireeId !== soireeId || !o.reservationId || o.status !== "paid") continue;
+    if (o.supplementOf) {
+      supplements.set(o.supplementOf, [...(supplements.get(o.supplementOf) ?? []), o]);
+      continue;
+    }
     paid.set(o.reservationId, o);
     if (!state.reservations[o.reservationId]) walkIns.push(o);
   }
   const rows: ReservationRow[] = Object.values(state.reservations)
     .filter((r) => r.soireeId === soireeId)
-    .map((r: ClientReservation) => ({
+    .map((r) => ({
       id: r.id,
       name: r.name,
       phone: r.phone,
-      adults: r.adults,
-      children: r.children,
+      note: r.note,
+      prepaid: r.prepaid,
+      counts: r.counts,
       walkIn: false,
       order: paid.get(r.id) ?? null,
+      supplements: supplements.get(r.id) ?? [],
     }));
   for (const o of walkIns) {
     rows.push({
       id: o.reservationId!,
       name: o.guestName || "Sur place",
-      adults: 0,
-      children: 0,
+      prepaid: false,
+      counts: {},
       walkIn: true,
       order: o,
+      supplements: [],
     });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -97,22 +144,26 @@ export function reservationRows(state: ProjectionState, soireeId: string): Reser
 export interface BookingDashboard {
   /** Personnes prévues dans les réservations (hors sur-place). */
   expected: number;
-  /** Personnes encaissées, sur-place compris. */
+  /** Personnes arrivées, sur-place compris. */
   arrived: number;
   arrivedWalkIn: number;
   /** Personnes réservées pas encore arrivées. */
   remaining: number;
+  /** Par tarif : prévues et arrivées (sur-place compris). */
+  byTariff: Record<string, { expected: number; arrived: number }>;
   reservations: number;
   reservationsArrived: number;
-  /** Argent encaissé (hors « offert »), par moyen de paiement et par caisse. */
+  /** Argent reçu ce soir (hors « offert » et « payé d'avance »), par moyen de paiement et par caisse. */
   totalCents: number;
   byPaymentMethod: { method: string; orders: number; revenueCents: number }[];
   byRegister: { registerLabel: string; orders: number; revenueCents: number }[];
+  /** Réservations arrivées qui avaient payé d'avance, et leur montant. */
+  prepaidOrders: number;
+  prepaidCents: number;
   giftedOrders: number;
 }
 
 export function bookingDashboard(state: ProjectionState, soireeId: string): BookingDashboard {
-  const rows = reservationRows(state, soireeId);
   const byMethod = new Map<string, { orders: number; revenueCents: number }>();
   const byRegister = new Map<string, { orders: number; revenueCents: number }>();
   const d: BookingDashboard = {
@@ -120,38 +171,51 @@ export function bookingDashboard(state: ProjectionState, soireeId: string): Book
     arrived: 0,
     arrivedWalkIn: 0,
     remaining: 0,
+    byTariff: {},
     reservations: 0,
     reservationsArrived: 0,
     totalCents: 0,
     byPaymentMethod: [],
     byRegister: [],
+    prepaidOrders: 0,
+    prepaidCents: 0,
     giftedOrders: 0,
   };
-  for (const r of rows) {
+  const tariff = (id: string) => (d.byTariff[id] ??= { expected: 0, arrived: 0 });
+  for (const r of reservationRows(state, soireeId)) {
     if (!r.walkIn) {
       d.reservations += 1;
-      d.expected += r.adults + r.children;
+      d.expected += countTotal(r.counts);
+      for (const [id, n] of Object.entries(r.counts)) tariff(id).expected += n;
       if (r.order) d.reservationsArrived += 1;
-      else d.remaining += r.adults + r.children;
+      else d.remaining += countTotal(r.counts);
     }
     if (!r.order) continue;
-    const { adults, children } = orderHeads(r.order);
-    d.arrived += adults + children;
-    if (r.walkIn) d.arrivedWalkIn += adults + children;
-    // Même règle que `paidOrders` (stats.ts) : un repas offert n'est pas de l'argent.
-    if (r.order.paymentMethod === "offert") {
-      d.giftedOrders += 1;
-      continue;
-    }
-    d.totalCents += r.order.totalCents;
-    for (const [map, key] of [
-      [byMethod, r.order.paymentMethod],
-      [byRegister, r.order.registerLabel],
-    ] as const) {
-      const agg = map.get(key) ?? { orders: 0, revenueCents: 0 };
-      agg.orders += 1;
-      agg.revenueCents += r.order.totalCents;
-      map.set(key, agg);
+    const heads = orderHeads(r.order);
+    d.arrived += countTotal(heads);
+    if (r.walkIn) d.arrivedWalkIn += countTotal(heads);
+    for (const [id, n] of Object.entries(heads)) tariff(id).arrived += n;
+    for (const o of [r.order, ...r.supplements]) {
+      // Même règle que `paidOrders` (stats.ts) : un repas offert n'est pas de l'argent.
+      if (o.paymentMethod === "offert") {
+        d.giftedOrders += 1;
+        continue;
+      }
+      if (o.paymentMethod === "prepaid") {
+        d.prepaidOrders += 1;
+        d.prepaidCents += o.totalCents;
+        continue;
+      }
+      d.totalCents += o.totalCents;
+      for (const [map, key] of [
+        [byMethod, o.paymentMethod],
+        [byRegister, o.registerLabel],
+      ] as const) {
+        const agg = map.get(key) ?? { orders: 0, revenueCents: 0 };
+        agg.orders += 1;
+        agg.revenueCents += o.totalCents;
+        map.set(key, agg);
+      }
     }
   }
   d.byPaymentMethod = [...byMethod].map(([method, v]) => ({ method, ...v }));

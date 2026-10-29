@@ -48,6 +48,8 @@ export function sale(opts: {
   soireeId?: string;
   reservationId?: string;
   guestName?: string;
+  supplementOf?: string;
+  heads?: Record<string, number>;
 }): EventOf<"sale"> {
   const total = opts.totalCents ?? opts.items.reduce((a, it) => a + it.qty * it.unitPriceCents, 0);
   return {
@@ -63,6 +65,8 @@ export function sale(opts: {
       totalCents: total,
       reservationId: opts.reservationId,
       guestName: opts.guestName,
+      supplementOf: opts.supplementOf,
+      heads: opts.heads,
     },
   };
 }
@@ -72,12 +76,31 @@ export function reservation(
   name: string,
   adults: number,
   children = 0,
-  over: { phone?: string; createdAt?: string; soireeId?: string } = {},
+  over: {
+    phone?: string;
+    createdAt?: string;
+    soireeId?: string;
+    counts?: Record<string, number>;
+    note?: string;
+    prepaid?: boolean;
+  } = {},
 ): EventOf<"reservation_upsert"> {
+  const { createdAt, soireeId, ...rest } = over;
   return {
-    ...meta(over.createdAt ?? at("11:00")),
+    ...meta(createdAt ?? at("11:00")),
     type: "reservation_upsert",
-    payload: { id, soireeId: over.soireeId ?? SOIREE, name, adults, children, phone: over.phone },
+    payload: { id, soireeId: soireeId ?? SOIREE, name, adults, children, ...rest },
+  };
+}
+
+export function tariffs(
+  list: { productId: string; priceCents: number }[],
+  over: { soireeId?: string; createdAt?: string } = {},
+): EventOf<"booking_tariffs_set"> {
+  return {
+    ...meta(over.createdAt ?? at("10:45")),
+    type: "booking_tariffs_set",
+    payload: { soireeId: over.soireeId ?? SOIREE, tariffs: list },
   };
 }
 

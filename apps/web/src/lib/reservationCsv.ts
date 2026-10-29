@@ -4,20 +4,111 @@ import { normalizeName } from "@cdf/shared";
  * Lecture du CSV des réservations (export Excel, Google Sheets…).
  * Séparateur « ; » (Excel FR), « , » ou tabulation, détecté sur l'en-tête.
  * Colonnes reconnues par leur nom, sans accent ni casse : nom (et prénom),
- * adultes, enfants, téléphone. Les lignes illisibles sont rendues à part, jamais
- * ignorées en silence : une famille oubliée à l'import arrive quand même.
+ * une colonne par tarif de la soirée (« Adultes », « Nb enfants »,
+ * « Étudiants »…), téléphone, remarque (ou table, allergie…) et payé. Les
+ * lignes illisibles sont rendues à part, jamais ignorées en silence : une
+ * famille oubliée à l'import arrive quand même.
  */
 
 export interface ParsedReservation {
   name: string;
-  adults: number;
-  children: number;
+  counts: Record<string, number>;
   phone?: string;
+  note?: string;
+  prepaid: boolean;
 }
 
 export interface CsvResult {
   rows: ParsedReservation[];
   errors: { line: number; message: string }[];
+  /** En-têtes qui ne correspondent à rien : souvent un tarif mal nommé. */
+  ignored: string[];
+}
+
+type Column =
+  | { kind: "name" | "firstName" | "phone" | "note" | "prepaid" }
+  | { kind: "tariff"; productId: string }
+  | null;
+
+/** Mots significatifs, au singulier : « Nb adultes » → ["adulte"]. */
+function words(s: string): string[] {
+  const filler = new Set(["nb", "nbre", "nombre", "de", "des", "repas", "tarif", "personnes", "pers"]);
+  return normalizeName(s)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !filler.has(w))
+    .map((w) => w.replace(/s$/, ""));
+}
+
+function column(header: string, tariffs: { productId: string; name: string }[]): Column {
+  const h = normalizeName(header);
+  if (/\bprenom\b/.test(h)) return { kind: "firstName" };
+  if (/\b(tel|telephone|phone|portable|mobile)\b/.test(h)) return { kind: "phone" };
+  if (/\b(remarques?|commentaires?|notes?|tables?|allergies?|regimes?|infos?)\b/.test(h)) return { kind: "note" };
+  if (/\b(paye|payee|regle|reglee|paiement|acompte)\b/.test(h)) return { kind: "prepaid" };
+  const hw = words(header);
+  // Le tarif qui partage le plus de mots : « Enfants (-12 ans) » va à
+  // « Enfant », pas à « Moins de 3 ans » qui ne partage que « ans ».
+  const score = (t: { name: string }) => words(t.name).filter((w) => hw.includes(w)).length;
+  const tariff = tariffs.reduce<(typeof tariffs)[number] | null>(
+    (best, t) => (score(t) > (best ? score(best) : 0) ? t : best),
+    null,
+  );
+  if (tariff) return { kind: "tariff", productId: tariff.productId };
+  if (/\b(nom|name|famille|client)\b/.test(h)) return { kind: "name" };
+  return null;
+}
+
+const YES = /^(oui|o|x|1|yes|y|vrai|true|ok|paye|payee|regle|reglee)$/;
+
+export function parseReservationCsv(raw: string, tariffs: { productId: string; name: string }[]): CsvResult {
+  const text = raw.replace(/^\uFEFF/, "");
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+  const sep = [";", ",", "\t"].reduce((best, s) =>
+    firstLine.split(s).length > firstLine.split(best).length ? s : best,
+  );
+  const [header = [], ...lines] = splitCsv(text, sep);
+  const cols = header.map((h) => column(h, tariffs));
+  const ignored = header.filter((h, i) => cols[i] === null && h.trim() !== "");
+  const errors: CsvResult["errors"] = [];
+  if (!cols.some((c) => c?.kind === "name")) {
+    return { rows: [], ignored, errors: [{ line: 1, message: "Colonne « Nom » introuvable dans la première ligne" }] };
+  }
+  if (!cols.some((c) => c?.kind === "tariff")) {
+    const names = tariffs.map((t) => `« ${t.name} »`).join(", ");
+    return { rows: [], ignored, errors: [{ line: 1, message: `Aucune colonne de tarif (${names}) dans la première ligne` }] };
+  }
+
+  const rows: ParsedReservation[] = [];
+  lines.forEach((cells, i) => {
+    const line = i + 2;
+    if (cells.every((c) => c.trim() === "")) return;
+    const r: ParsedReservation = { name: "", counts: {}, prepaid: false };
+    const notes: string[] = [];
+    let bad: string | null = null;
+    cols.forEach((col, j) => {
+      const v = (cells[j] ?? "").trim();
+      if (!col || v === "") return;
+      if (col.kind === "name") r.name = [v, r.name].filter(Boolean).join(" ");
+      else if (col.kind === "firstName") r.name = [r.name, v].filter(Boolean).join(" ");
+      else if (col.kind === "phone") r.phone = v;
+      // Plusieurs colonnes (Table, Allergies) : accolées, préfixées par leur en-tête.
+      else if (col.kind === "note") notes.push(cols.filter((c) => c?.kind === "note").length > 1 ? `${header[j].trim()} : ${v}` : v);
+      else if (col.kind === "prepaid") r.prepaid = YES.test(normalizeName(v));
+      else if (!/^\d{1,3}$/.test(v)) bad = `« ${v} » n'est pas un nombre de personnes`;
+      else if (col.kind === "tariff" && Number(v) > 0) r.counts[col.productId] = (r.counts[col.productId] ?? 0) + Number(v);
+    });
+    if (!r.name) bad ??= "nom manquant";
+    else if (Object.keys(r.counts).length === 0) bad ??= "aucune personne";
+    if (bad) errors.push({ line, message: `${r.name || "?"} : ${bad}` });
+    else
+      rows.push({
+        ...r,
+        name: r.name.slice(0, 120),
+        phone: r.phone?.slice(0, 40),
+        note: notes.length ? notes.join(" · ").slice(0, 200) : undefined,
+      });
+  });
+  return { rows, errors, ignored };
 }
 
 /**
@@ -64,53 +155,4 @@ function splitCsv(text: string, sep: string): string[][] {
     out.push(row);
   }
   return out;
-}
-
-/** `firstName` : une colonne Prénom séparée est accolée au nom. */
-function column(header: string): keyof ParsedReservation | "firstName" | null {
-  const h = normalizeName(header);
-  if (/\bprenom\b/.test(h)) return "firstName";
-  if (h.includes("adulte")) return "adults";
-  if (h.includes("enfant")) return "children";
-  if (/\b(tel|telephone|phone|portable|mobile)\b/.test(h)) return "phone";
-  if (/\b(nom|name|famille|client)\b/.test(h)) return "name";
-  return null;
-}
-
-export function parseReservationCsv(raw: string): CsvResult {
-  const text = raw.replace(/^﻿/, "");
-  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  const sep = [";", ",", "\t"].reduce((best, s) =>
-    firstLine.split(s).length > firstLine.split(best).length ? s : best,
-  );
-  const [header = [], ...lines] = splitCsv(text, sep);
-  const cols = header.map(column);
-  const errors: CsvResult["errors"] = [];
-  if (!cols.includes("name")) {
-    return { rows: [], errors: [{ line: 1, message: "Colonne « Nom » introuvable dans la première ligne" }] };
-  }
-
-  const rows: ParsedReservation[] = [];
-  lines.forEach((cells, i) => {
-    const line = i + 2;
-    if (cells.every((c) => c.trim() === "")) return;
-    const r: ParsedReservation = { name: "", adults: 0, children: 0 };
-    let bad: string | null = null;
-    cols.forEach((col, j) => {
-      const v = (cells[j] ?? "").trim();
-      if (col === "name") r.name = [v, r.name].filter(Boolean).join(" ");
-      else if (col === "firstName") r.name = [r.name, v].filter(Boolean).join(" ");
-      else if (col === "phone") r.phone = v || undefined;
-      else if (col === "adults" || col === "children") {
-        if (v === "") return;
-        if (!/^\d{1,3}$/.test(v)) bad = `« ${v} » n'est pas un nombre de personnes`;
-        else r[col] = Number(v);
-      }
-    });
-    if (!r.name) bad ??= "nom manquant";
-    else if (r.adults + r.children === 0) bad ??= "aucune personne (adultes et enfants à 0)";
-    if (bad) errors.push({ line, message: `${r.name || "?"} : ${bad}` });
-    else rows.push({ ...r, name: r.name.slice(0, 120), phone: r.phone?.slice(0, 40) });
-  });
-  return { rows, errors };
 }

@@ -181,7 +181,9 @@ export async function settleConflicts(ack: SyncAck): Promise<void> {
       const drop = [id, ...voids.map((r) => r.id)];
       await db.outbox.bulkDelete(drop);
       await db.log.bulkDelete(drop);
-      if (voids.length === 0) {
+      // Arrivée d'une réservation payée d'avance : aucun argent en jeu,
+      // l'autre caisse l'a déjà pointée, il n'y a rien à trancher.
+      if (voids.length === 0 && sale.payload.paymentMethod !== "prepaid") {
         const error = ack.rejected.find((r) => r.id === id)?.error ?? "Déjà encaissée";
         await db.conflicts.put({ id, event: sale, error, at: Date.now() });
       }

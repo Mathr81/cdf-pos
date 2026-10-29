@@ -18,6 +18,10 @@ import { z } from "zod";
 /**
  * Moyens de paiement.
  *
+ * `prepaid` : réservation réglée avant la soirée (virement, HelloAsso…).
+ * C'est du chiffre d'affaires, mais l'argent n'est dans aucune caisse :
+ * `computeCashup` doit l'ignorer.
+ *
  * `offert` couvre les repas donnés (bénévoles, invités). La commande garde
  * les VRAIS prix : c'est ce qui permet de rapporter « 47 € offerts ». En
  * contrepartie, ce mode doit être exclu de toute agrégation d'argent — voir
@@ -27,7 +31,7 @@ import { z } from "zod";
  * restent valides), en retirer une ne l'est pas : le rejeu du journal
  * échouerait sur les ventes qui l'utilisaient.
  */
-export const PAYMENT_METHODS = ["cash", "card", "offert"] as const;
+export const PAYMENT_METHODS = ["cash", "card", "offert", "prepaid"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /**
@@ -45,6 +49,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cash: "Espèces",
   card: "Carte",
   offert: "Offert",
+  prepaid: "Payé d'avance",
 };
 
 export function paymentLabel(method: PaymentMethod | string): string {
@@ -83,6 +88,18 @@ export const SalePayloadSchema = z.object({
   reservationId: z.string().uuid().optional(),
   /** Nom donné au sur-place (aucune réservation ne le porte). */
   guestName: z.string().max(120).optional(),
+  /**
+   * Supplément payé à la porte pour une réservation réglée d'avance (plus de
+   * personnes que prévu). Porte son propre `reservationId` neuf, pour ne pas
+   * entrer en conflit avec l'arrivée déjà pointée.
+   */
+  supplementOf: z.string().uuid().optional(),
+  /**
+   * Personnes réellement présentes, par tarif (productId → nombre), quand
+   * elles diffèrent des lignes payées : une réservation réglée d'avance pour
+   * 4 où 3 viennent. Absent = les lignes de la vente.
+   */
+  heads: z.record(z.number().int().nonnegative().max(999)).optional(),
 });
 export type SalePayload = z.infer<typeof SalePayloadSchema>;
 
@@ -318,11 +335,32 @@ export const ReservationUpsertPayloadSchema = z.object({
   id: z.string().uuid(),
   soireeId: z.string().min(1),
   name: z.string().min(1).max(120),
-  adults: z.number().int().nonnegative().max(999),
-  children: z.number().int().nonnegative().max(999),
+  /** Ancien format (tarifs adulte / enfant fixes), relu tel quel au rejeu. */
+  adults: z.number().int().nonnegative().max(999).default(0),
+  children: z.number().int().nonnegative().max(999).default(0),
+  /** Personnes par tarif (productId → nombre). Prime sur adults / children. */
+  counts: z.record(z.number().int().nonnegative().max(999)).optional(),
   phone: z.string().max(40).optional(),
+  /** Remarque affichée à l'arrivée : table, allergie, chaise haute… */
+  note: z.string().max(200).optional(),
+  /** Réglée avant la soirée : à la porte, on pointe sans encaisser. */
+  prepaid: z.boolean().optional(),
 });
 export type ReservationUpsertPayload = z.infer<typeof ReservationUpsertPayloadSchema>;
+
+/**
+ * Tarifs d'une soirée sur réservation (last-write-wins, liste complète).
+ * Chaque tarif est un produit (pour que la vente ait des lignes comme une
+ * autre) ; son prix ici est celui de la soirée.
+ */
+export const BookingTariffsSetPayloadSchema = z.object({
+  soireeId: z.string().min(1),
+  tariffs: z
+    .array(z.object({ productId: z.string().min(1), priceCents: z.number().int().nonnegative() }))
+    .min(1)
+    .max(10),
+});
+export type BookingTariffsSetPayload = z.infer<typeof BookingTariffsSetPayloadSchema>;
 
 export const ReservationDeletePayloadSchema = z.object({
   id: z.string().uuid(),
@@ -364,6 +402,7 @@ export const EventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEnvelope, type: z.literal("category_order"), payload: CategoryOrderPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("reservation_upsert"), payload: ReservationUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("reservation_delete"), payload: ReservationDeletePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("booking_tariffs_set"), payload: BookingTariffsSetPayloadSchema }),
 ]);
 
 export type AppEvent = z.infer<typeof EventSchema>;

@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, test } from "vitest";
+import { BOOKING_ADULT_ID, BOOKING_CHILD_ID } from "./projection.js";
 import {
-  BOOKING_ADULT_ID,
-  BOOKING_CHILD_ID,
   bookingDashboard,
   bookingItems,
+  bookingTariffs,
   canSelfVoid,
   isBookingSoiree,
+  isReservationsOnly,
   reservationRows,
   searchReservations,
 } from "./reservations.js";
-import { computeCashup } from "./stats.js";
+import { computeCashup, computeStats } from "./stats.js";
 import {
   activate,
+  at,
   onCarte,
   product,
   replay,
@@ -20,61 +22,90 @@ import {
   resetIds,
   sale,
   soiree,
-  at,
   SOIREE,
+  tariffs,
   voidOrder,
 } from "./test-utils/fixtures.js";
 
 beforeEach(resetIds);
 
+const A = BOOKING_ADULT_ID;
+const E = BOOKING_CHILD_ID;
+const ETU = "resa-etudiant";
 const DUPONT = "00000000-0000-4000-9000-000000000001";
 const MARTIN = "00000000-0000-4000-9000-000000000002";
 const WALKIN = "00000000-0000-4000-9000-000000000003";
+const ROUX = "00000000-0000-4000-9000-000000000004";
+const EXTRA = "00000000-0000-4000-9000-000000000005";
 const ORDER = "00000000-0000-4000-9000-0000000000a1";
+const PRICES: Record<string, number> = { [A]: 2400, [E]: 900, [ETU]: 1500 };
 
 function setup() {
   return [
     soiree(),
     activate(),
-    product(BOOKING_ADULT_ID, { priceCents: 0, stockUnlimited: true }),
-    product(BOOKING_CHILD_ID, { priceCents: 0, stockUnlimited: true }),
-    onCarte(BOOKING_ADULT_ID, { onCarte: false, stockUnlimited: true, priceOverrideCents: 2400 }),
-    onCarte(BOOKING_CHILD_ID, { onCarte: false, stockUnlimited: true, priceOverrideCents: 900 }),
+    product(A, { name: "Adulte", priceCents: 0, stockUnlimited: true }),
+    product(E, { name: "Enfant", priceCents: 0, stockUnlimited: true }),
+    product(ETU, { name: "Étudiant", priceCents: 0, stockUnlimited: true }),
+    tariffs([A, E, ETU].map((productId) => ({ productId, priceCents: PRICES[productId] }))),
     reservation(DUPONT, "Dupont", 2, 1, { phone: "06 12 34 56 78" }),
-    reservation(MARTIN, "Martin", 4, 2),
+    reservation(MARTIN, "Martin", 0, 0, { counts: { [A]: 4, [E]: 2, [ETU]: 1 }, note: "Table 4, sans gluten" }),
   ];
 }
 
-function checkin(reservationId: string, adults: number, children: number, over: Parameters<typeof sale>[0] extends infer O ? Partial<O> : never = {}) {
-  const items = [
-    { productId: BOOKING_ADULT_ID, qty: adults, unitPriceCents: 2400 },
-    { productId: BOOKING_CHILD_ID, qty: children, unitPriceCents: 900 },
-  ].filter((it) => it.qty > 0);
+function arrive(reservationId: string, counts: Record<string, number>, over: Partial<Parameters<typeof sale>[0]> = {}) {
+  const items = Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .map(([productId, qty]) => ({ productId, qty, unitPriceCents: PRICES[productId] }));
   return sale({ items, reservationId, ...over });
 }
 
 describe("soirée sur réservation", () => {
-  test("détectée par la config carte, tarifs propres à la soirée", () => {
+  test("tarifs de la soirée, dans l'ordre, et lignes de vente", () => {
     const state = replay(...setup());
     expect(isBookingSoiree(state, SOIREE)).toBe(true);
-    expect(bookingItems(state, SOIREE, 2, 0)).toEqual([
-      { productId: BOOKING_ADULT_ID, qty: 2, unitPriceCents: 2400 },
-    ]);
+    const t = bookingTariffs(state, SOIREE);
+    expect(t.map((x) => x.name)).toEqual(["Adulte", "Enfant", "Étudiant"]);
+    expect(bookingItems(t, { [A]: 2, [ETU]: 0 })).toEqual([{ productId: A, qty: 2, unitPriceCents: 2400 }]);
   });
 
-  test("tableau de bord : attendus, arrivés, restants, par mode et par caisse", () => {
+  test("réservations seules tant que la carte est vide", () => {
+    expect(isReservationsOnly(replay(...setup()), SOIREE)).toBe(true);
+    expect(isReservationsOnly(replay(...setup(), product("biere"), onCarte("biere")), SOIREE)).toBe(false);
+  });
+
+  /* Les soirées créées avant les tarifs multiples (prod du 29/10) doivent
+     continuer de fonctionner sans être reconfigurées. */
+  test("ancien format : tarifs adulte / enfant via la carte, réservations adults / children", () => {
+    const state = replay(
+      soiree(),
+      product(A, { name: "Repas adulte" }),
+      product(E, { name: "Repas enfant" }),
+      onCarte(A, { onCarte: false, priceOverrideCents: 2400 }),
+      onCarte(E, { onCarte: false, priceOverrideCents: 900 }),
+      reservation(DUPONT, "Dupont", 2, 0),
+    );
+    expect(bookingTariffs(state, SOIREE).map((t) => [t.productId, t.priceCents])).toEqual([
+      [A, 2400],
+      [E, 900],
+    ]);
+    expect(state.reservations[DUPONT].counts).toEqual({ [A]: 2 });
+  });
+
+  test("tableau de bord : attendus, arrivés, restants, par tarif, par mode et par caisse", () => {
     const state = replay(
       ...setup(),
-      // Dupont vient à 3 au lieu de 2+1 : ajusté à l'encaissement.
-      checkin(DUPONT, 3, 0, { paymentMethod: "card", registerLabel: "Caisse 2" }),
-      checkin(WALKIN, 1, 1, { guestName: "Famille Roux" }),
+      // Dupont vient à 3 adultes au lieu de 2 + 1 : ajusté à l'encaissement.
+      arrive(DUPONT, { [A]: 3 }, { paymentMethod: "card", registerLabel: "Caisse 2" }),
+      arrive(WALKIN, { [A]: 1, [E]: 1 }, { guestName: "Famille Roux" }),
     );
     const d = bookingDashboard(state, SOIREE);
-    expect(d.expected).toBe(9);
+    expect(d.expected).toBe(10);
     expect(d.arrived).toBe(5);
     expect(d.arrivedWalkIn).toBe(2);
-    expect(d.remaining).toBe(6);
-    expect(d.reservationsArrived).toBe(1);
+    expect(d.remaining).toBe(7);
+    expect(d.byTariff[A]).toEqual({ expected: 6, arrived: 4 });
+    expect(d.byTariff[ETU]).toEqual({ expected: 1, arrived: 0 });
     expect(d.totalCents).toBe(3 * 2400 + 2400 + 900);
     expect(d.byPaymentMethod).toEqual(
       expect.arrayContaining([
@@ -84,18 +115,19 @@ describe("soirée sur réservation", () => {
     );
     expect(d.byRegister.map((r) => r.registerLabel)).toEqual(["Caisse 1", "Caisse 2"]);
     expect(reservationRows(state, SOIREE).find((r) => r.walkIn)?.name).toBe("Famille Roux");
+    expect(reservationRows(state, SOIREE).find((r) => r.id === MARTIN)?.note).toBe("Table 4, sans gluten");
   });
 
   test("un encaissement annulé remet la réservation en attente", () => {
-    const state = replay(...setup(), checkin(DUPONT, 2, 1, { orderId: ORDER }), voidOrder(ORDER));
+    const state = replay(...setup(), arrive(DUPONT, { [A]: 2, [E]: 1 }, { orderId: ORDER }), voidOrder(ORDER));
     const d = bookingDashboard(state, SOIREE);
     expect(d.arrived).toBe(0);
-    expect(d.remaining).toBe(9);
+    expect(d.remaining).toBe(10);
     expect(reservationRows(state, SOIREE).find((r) => r.id === DUPONT)?.order).toBeNull();
   });
 
   test("l'argent des réservations entre dans le comptage de caisse", () => {
-    const state = replay(...setup(), checkin(DUPONT, 2, 1));
+    const state = replay(...setup(), arrive(DUPONT, { [A]: 2, [E]: 1 }));
     const row = computeCashup(state, SOIREE).rows.find((r) => r.registerLabel === "Caisse 1");
     expect(row?.cashCents).toBe(5700);
   });
@@ -109,8 +141,42 @@ describe("soirée sur réservation", () => {
       reservationDelete(DUPONT, at("12:30")),
       reservation(DUPONT, "Dupont", 5, 5, { createdAt: at("12:10") }),
     );
-    expect(state.reservations[MARTIN].adults).toBe(1);
+    expect(state.reservations[MARTIN].counts).toEqual({ [A]: 1 });
     expect(state.reservations[DUPONT]).toBeUndefined();
+  });
+});
+
+describe("payé d'avance", () => {
+  /* Roux a réglé 2 adultes par virement ; 3 viennent. On pointe l'arrivée
+     sans encaisser, et le 3ᵉ paie à la porte. */
+  function rouxArrives() {
+    return replay(
+      ...setup(),
+      reservation(ROUX, "Roux", 2, 0, { prepaid: true }),
+      arrive(ROUX, { [A]: 2 }, { paymentMethod: "prepaid", heads: { [A]: 3 } }),
+      arrive(EXTRA, { [A]: 1 }, { supplementOf: ROUX, heads: {}, registerLabel: "Caisse 2" }),
+    );
+  }
+
+  test("arrivée comptée une fois, supplément rattaché à la réservation", () => {
+    const state = rouxArrives();
+    const row = reservationRows(state, SOIREE).find((r) => r.id === ROUX)!;
+    expect(row.order?.paymentMethod).toBe("prepaid");
+    expect(row.supplements).toHaveLength(1);
+    expect(reservationRows(state, SOIREE).some((r) => r.walkIn)).toBe(false);
+    const d = bookingDashboard(state, SOIREE);
+    expect(d.arrived).toBe(3);
+    expect(d.prepaidCents).toBe(4800);
+    expect(d.totalCents).toBe(2400);
+    expect(d.byRegister).toEqual([{ registerLabel: "Caisse 2", orders: 1, revenueCents: 2400 }]);
+  });
+
+  test("chiffre d'affaires oui, caisse non : le payé d'avance n'est dans aucune boîte", () => {
+    const state = rouxArrives();
+    expect(computeStats(state, SOIREE).totalRevenueCents).toBe(7200);
+    const cashup = computeCashup(state, SOIREE);
+    expect(cashup.totalCents).toBe(2400);
+    expect(cashup.rows.map((r) => r.registerLabel)).toEqual(["Caisse 2"]);
   });
 });
 

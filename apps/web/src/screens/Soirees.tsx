@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   carteConfig,
   formatAmount,
+  BOOKING_ADULT_ID,
+  BOOKING_CHILD_ID,
   parseAmountToCents,
   soireeCarte,
   sortedPresets,
@@ -27,7 +29,7 @@ import {
   closeSoiree,
   deleteSoiree,
   deletePreset,
-  setBookingPrices,
+  setBookingTariffs,
   setSoireeProduct,
   upsertPreset,
   upsertSoiree,
@@ -233,7 +235,12 @@ function NewSoireeModal({
     if (!pricesValid) return;
     const id = newId();
     void upsertSoiree({ id, name: name.trim() || "Soirée", date, training });
-    if (booking) void setBookingPrices(id, parseAmountToCents(adultPrice), parseAmountToCents(childPrice));
+    // Deux tarifs pour démarrer ; d'autres (étudiant…) s'ajoutent dans Réservations → Gestion.
+    if (booking)
+      void setBookingTariffs(id, [
+        { productId: BOOKING_ADULT_ID, name: projection.products[BOOKING_ADULT_ID]?.name ?? "Adulte", priceCents: parseAmountToCents(adultPrice) },
+        { productId: BOOKING_CHILD_ID, name: projection.products[BOOKING_CHILD_ID]?.name ?? "Enfant", priceCents: parseAmountToCents(childPrice) },
+      ]);
 
     // Applique la source (preset ou carte d'une autre soirée).
     if (source.startsWith("preset:")) {

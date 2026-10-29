@@ -1,8 +1,4 @@
-import {
-  BOOKING_ADULT_ID,
-  BOOKING_CHILD_ID,
-  type ReservationUpsertPayload,
-} from "@cdf/shared";
+import type { ReservationUpsertPayload } from "@cdf/shared";
 import type {
   PaymentMethod,
   PresetItem,
@@ -46,6 +42,8 @@ export function emitSale(input: {
   cashReceivedCents?: number;
   reservationId?: string;
   guestName?: string;
+  supplementOf?: string;
+  heads?: Record<string, number>;
 }) {
   return dispatch({
     ...meta(),
@@ -61,6 +59,8 @@ export function emitSale(input: {
       cashReceivedCents: input.cashReceivedCents,
       reservationId: input.reservationId,
       guestName: input.guestName,
+      supplementOf: input.supplementOf,
+      heads: input.heads,
     },
   });
 }
@@ -205,8 +205,15 @@ export function setCategoryOrder(categories: string[]) {
 // ─── Réservations ────────────────────────────────────────────
 
 /** Crée ou modifie des réservations, en un seul envoi (import CSV). */
-export function upsertReservations(payloads: ReservationUpsertPayload[]) {
-  return dispatchMany(payloads.map((payload) => ({ ...meta(), type: "reservation_upsert" as const, payload })));
+export function upsertReservations(payloads: Omit<ReservationUpsertPayload, "adults" | "children">[]) {
+  return dispatchMany(
+    payloads.map((p) => ({
+      ...meta(),
+      type: "reservation_upsert" as const,
+      // adults / children : champs de l'ancien format, remplacés par `counts`.
+      payload: { ...p, adults: 0, children: 0 },
+    })),
+  );
 }
 
 export function deleteReservations(ids: string[]) {
@@ -214,41 +221,37 @@ export function deleteReservations(ids: string[]) {
 }
 
 /**
- * Rend une soirée « sur réservation » et fixe ses tarifs : les deux produits
- * de réservation sont créés au besoin, puis configurés hors grille de caisse
- * avec le prix propre à la soirée.
+ * Fixe les tarifs d'une soirée sur réservation. Chaque tarif est un produit
+ * (catégorie « Réservation », hors grille de caisse) : il est créé, ou
+ * renommé, au besoin. `productId` absent = nouveau tarif.
  */
-export async function setBookingPrices(soireeId: string, adultCents: number, childCents: number) {
-  const defs = [
-    { id: BOOKING_ADULT_ID, name: "Repas adulte", cents: adultCents },
-    { id: BOOKING_CHILD_ID, name: "Repas enfant", cents: childCents },
-  ];
-  for (const d of defs) {
-    if (!projection.products[d.id]?.active) {
+export async function setBookingTariffs(
+  soireeId: string,
+  tariffs: { productId?: string; name: string; priceCents: number }[],
+) {
+  const saved: { productId: string; priceCents: number }[] = [];
+  for (const [i, t] of tariffs.entries()) {
+    const productId = t.productId ?? `resa-${newId()}`;
+    const existing = projection.products[productId];
+    if (!existing?.active || existing.name !== t.name) {
       await upsertProduct({
-        id: d.id,
-        name: d.name,
-        priceCents: d.cents,
+        id: productId,
+        name: t.name,
+        priceCents: t.priceCents,
         category: "Réservation",
         stationId: null,
         stockInitial: 0,
         stockUnlimited: true,
         components: [],
         active: true,
-        sortOrder: 999,
-        emoji: "fork-knife",
-        color: "#f59e0b",
+        sortOrder: 900 + i,
+        emoji: existing?.emoji ?? "fork-knife",
+        color: existing?.color ?? "#f59e0b",
       });
     }
-    await setSoireeProduct({
-      soireeId,
-      productId: d.id,
-      onCarte: false,
-      stockInitial: 0,
-      stockUnlimited: true,
-      priceOverrideCents: d.cents,
-    });
+    saved.push({ productId, priceCents: t.priceCents });
   }
+  await dispatch({ ...meta(), type: "booking_tariffs_set", payload: { soireeId, tariffs: saved } });
 }
 
 /**

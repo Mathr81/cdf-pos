@@ -1,4 +1,5 @@
 import {
+  bookingTariffs,
   formatAmount,
   orderHeads,
   paymentLabel,
@@ -28,15 +29,16 @@ function fileTag(state: ProjectionState, soireeId: string | null): string {
  * ou non) et par sur-place, avec ce qui a réellement été encaissé.
  */
 export function exportReservationsCsv(state: ProjectionState, soireeId: string): void {
+  const tariffs = bookingTariffs(state, soireeId);
   const header = [
     "Nom",
     "Téléphone",
-    "Adultes prévus",
-    "Enfants prévus",
-    "Adultes venus",
-    "Enfants venus",
+    "Remarque",
+    "Payé d'avance",
+    ...tariffs.flatMap((t) => [`${t.name} prévus`, `${t.name} venus`]),
     "Statut",
-    "Montant",
+    "Montant payé d'avance",
+    "Montant encaissé",
     "Paiement",
     "Caisse",
     "Heure",
@@ -44,18 +46,19 @@ export function exportReservationsCsv(state: ProjectionState, soireeId: string):
   const lines = [header.map(cell).join(";")];
   for (const r of reservationRows(state, soireeId)) {
     const o = r.order;
-    const heads = o ? orderHeads(o) : { adults: 0, children: 0 };
+    const heads = o ? orderHeads(o) : {};
+    const onSite = [o, ...r.supplements].filter((x) => x && x.paymentMethod !== "prepaid");
     lines.push(
       [
         r.name,
         r.phone ?? "",
-        r.walkIn ? "" : r.adults,
-        r.walkIn ? "" : r.children,
-        heads.adults,
-        heads.children,
-        r.walkIn ? "sur place" : o ? "encaissé" : "absent",
-        o ? formatAmount(o.totalCents) : "",
-        o ? paymentLabel(o.paymentMethod) : "",
+        r.note ?? "",
+        r.prepaid ? "oui" : "",
+        ...tariffs.flatMap((t) => [r.walkIn ? "" : (r.counts[t.productId] ?? 0), heads[t.productId] ?? 0]),
+        r.walkIn ? "sur place" : o ? "arrivé" : "absent",
+        o?.paymentMethod === "prepaid" ? formatAmount(o.totalCents) : "",
+        onSite.length ? formatAmount(onSite.reduce((sum, x) => sum + x!.totalCents, 0)) : "",
+        [...new Set(onSite.map((x) => paymentLabel(x!.paymentMethod)))].join(" + "),
         o?.registerLabel ?? "",
         o ? new Date(o.createdAt).toLocaleTimeString("fr-FR") : "",
       ]

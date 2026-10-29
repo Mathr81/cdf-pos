@@ -303,6 +303,8 @@ export function computeCashup(state: ProjectionState, soireeId: string): Cashup 
   let orders = 0;
 
   for (const o of paidOrders(state, soireeId)) {
+    // Réglé avant la soirée : cet argent n'est dans aucune boîte, ni sur le TPE.
+    if (o.paymentMethod === "prepaid") continue;
     orders++;
     const r = row(o.registerLabel);
     r.orders++;
