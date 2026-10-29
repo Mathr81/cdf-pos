@@ -41,7 +41,8 @@ function words(s: string): string[] {
 
 function column(header: string, tariffs: { productId: string; name: string }[]): Column {
   const h = normalizeName(header);
-  if (/\bprenom\b/.test(h)) return { kind: "firstName" };
+  // « Nom Prénom » en une seule colonne est un nom complet, pas un prénom.
+  if (/\bprenoms?\b/.test(h) && !/\bnoms?\b/.test(h)) return { kind: "firstName" };
   if (/\b(tel|telephone|phone|portable|mobile)\b/.test(h)) return { kind: "phone" };
   if (/\b(remarques?|commentaires?|notes?|tables?|allergies?|regimes?|infos?)\b/.test(h)) return { kind: "note" };
   if (/\b(paye|payee|regle|reglee|paiement|acompte)\b/.test(h)) return { kind: "prepaid" };
@@ -54,7 +55,7 @@ function column(header: string, tariffs: { productId: string; name: string }[]):
     null,
   );
   if (tariff) return { kind: "tariff", productId: tariff.productId };
-  if (/\b(nom|name|famille|client)\b/.test(h)) return { kind: "name" };
+  if (/\b(noms?|names?|familles?|clients?)\b/.test(h)) return { kind: "name" };
   return null;
 }
 

@@ -21,6 +21,11 @@ describe("import CSV des réservations", () => {
     });
   });
 
+  test("« Nom Prénom » en une colonne, en-têtes au pluriel", () => {
+    expect(parse("Nom Prénom;Adultes\nDupont Jean;2\n").rows[0].name).toBe("Dupont Jean");
+    expect(parse("Noms;Adultes\nDupont;2\n").rows[0].name).toBe("Dupont");
+  });
+
   test("accents : fichier Excel en Windows-1252 comme en UTF-8", () => {
     const text = "Nom;Adultes\nLefèvre Hélène;2\n";
     const cp1252 = Uint8Array.from(text, (c) => c.charCodeAt(0));
