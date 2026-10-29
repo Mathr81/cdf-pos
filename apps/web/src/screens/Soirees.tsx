@@ -27,6 +27,7 @@ import {
   closeSoiree,
   deleteSoiree,
   deletePreset,
+  setBookingPrices,
   setSoireeProduct,
   upsertPreset,
   upsertSoiree,
@@ -219,13 +220,20 @@ function NewSoireeModal({
   const [date, setDate] = useState(new Date().toLocaleDateString("sv-SE"));
   const [source, setSource] = useState<string>(""); // "" | preset:<id> | soiree:<id>
   const [training, setTraining] = useState(false);
+  const [booking, setBooking] = useState(false);
+  const [adultPrice, setAdultPrice] = useState("");
+  const [childPrice, setChildPrice] = useState("");
+  const pricesValid = !booking || (isAmount(adultPrice) && isAmount(childPrice));
+  const navigate = useNavigate();
   const presets = sortedPresets(projection);
   const soirees = sortedSoirees(projection);
   const current = projection.activeSoireeId ? projection.soirees[projection.activeSoireeId] : undefined;
 
   const create = () => {
+    if (!pricesValid) return;
     const id = newId();
     void upsertSoiree({ id, name: name.trim() || "Soirée", date, training });
+    if (booking) void setBookingPrices(id, parseAmountToCents(adultPrice), parseAmountToCents(childPrice));
 
     // Applique la source (preset ou carte d'une autre soirée).
     if (source.startsWith("preset:")) {
@@ -257,6 +265,11 @@ function NewSoireeModal({
 
     void activateSoiree(id);
     onClose();
+    // Soirée sur réservation : la suite, c'est l'import de la liste.
+    if (booking) {
+      navigate("/reservations?vue=gestion");
+      return;
+    }
     // Ouvre directement l'éditeur de carte pour ajuster.
     onEditCarte({
       id,
@@ -329,6 +342,44 @@ function NewSoireeModal({
             </span>
           </span>
         </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-control border border-line bg-well p-3">
+          <input
+            type="checkbox"
+            checked={booking}
+            onChange={(e) => setBooking(e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-lantern"
+          />
+          <span>
+            <span className="block text-body font-bold text-cream">Sur réservation</span>
+            <span className="block text-micro text-sand">
+              Repas à tarif adulte / enfant (raclette, paella…). Les caisses pointent les réservations
+              importées et encaissent les sur-place depuis l'onglet Réservations.
+            </span>
+          </span>
+        </label>
+        {booking && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Tarif adulte (€)">
+              <TextInput
+                inputMode="decimal"
+                value={adultPrice}
+                onChange={(e) => setAdultPrice(e.target.value)}
+                invalid={adultPrice !== "" && !isAmount(adultPrice)}
+                placeholder="24"
+              />
+            </Field>
+            <Field label="Tarif enfant (€)">
+              <TextInput
+                inputMode="decimal"
+                value={childPrice}
+                onChange={(e) => setChildPrice(e.target.value)}
+                invalid={childPrice !== "" && !isAmount(childPrice)}
+                placeholder="9"
+              />
+            </Field>
+          </div>
+        )}
       </div>
       {current && (
         <p className="mt-4 text-body text-sand">
@@ -340,7 +391,7 @@ function NewSoireeModal({
         <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
-        <Button variant="primary" size="lg" className="flex-1" onClick={create}>
+        <Button variant="primary" size="lg" className="flex-1" disabled={!pricesValid} onClick={create}>
           Créer et activer
         </Button>
       </div>

@@ -46,6 +46,8 @@ export function sale(opts: {
   cashierName?: string;
   createdAt?: string;
   soireeId?: string;
+  reservationId?: string;
+  guestName?: string;
 }): EventOf<"sale"> {
   const total = opts.totalCents ?? opts.items.reduce((a, it) => a + it.qty * it.unitPriceCents, 0);
   return {
@@ -59,8 +61,28 @@ export function sale(opts: {
       paymentMethod: opts.paymentMethod ?? "cash",
       items: opts.items,
       totalCents: total,
+      reservationId: opts.reservationId,
+      guestName: opts.guestName,
     },
   };
+}
+
+export function reservation(
+  id: string,
+  name: string,
+  adults: number,
+  children = 0,
+  over: { phone?: string; createdAt?: string; soireeId?: string } = {},
+): EventOf<"reservation_upsert"> {
+  return {
+    ...meta(over.createdAt ?? at("11:00")),
+    type: "reservation_upsert",
+    payload: { id, soireeId: over.soireeId ?? SOIREE, name, adults, children, phone: over.phone },
+  };
+}
+
+export function reservationDelete(id: string, createdAt = at("12:00")): EventOf<"reservation_delete"> {
+  return { ...meta(createdAt), type: "reservation_delete", payload: { id } };
 }
 
 export function voidOrder(orderId: string, createdAt = at("21:00")): EventOf<"order_void"> {

@@ -97,9 +97,12 @@ model Order {
   amended           Boolean     @default(false)
   totalCents        Int
   cashReceivedCents Int?
+  /// Encaissement d'une réservation (ou d'un sur-place) : un seul payé par id.
+  reservationId     String?
   items             OrderItem[]
 
   @@index([soireeId])
+  @@index([reservationId])
   @@index([createdAt])
   @@index([status])
   @@index([registerLabel])

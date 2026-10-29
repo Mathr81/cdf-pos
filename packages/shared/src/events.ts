@@ -75,6 +75,14 @@ export const SalePayloadSchema = z.object({
   totalCents: z.number().int().nonnegative(),
   /** Montant remis par le client (cash) pour tracer le rendu monnaie. */
   cashReceivedCents: z.number().int().nonnegative().optional(),
+  /**
+   * Encaissement d'une réservation. Le serveur refuse un second encaissement
+   * payé pour le même id : c'est ce qui départage deux caisses. Un sur-place
+   * porte un id neuf, qui ne correspond à aucune réservation.
+   */
+  reservationId: z.string().uuid().optional(),
+  /** Nom donné au sur-place (aucune réservation ne le porte). */
+  guestName: z.string().max(120).optional(),
 });
 export type SalePayload = z.infer<typeof SalePayloadSchema>;
 
@@ -299,6 +307,28 @@ export const CategoryOrderPayloadSchema = z.object({
 });
 export type CategoryOrderPayload = z.infer<typeof CategoryOrderPayloadSchema>;
 
+// ─── Réservations (soirées sur réservation) ──────────────────
+
+/**
+ * Création / modification d'une réservation (admin, last-write-wins).
+ * Comme les modèles, elle ne vit que dans le journal (pas de table SQL) :
+ * le serveur n'en a besoin que pour départager, via `Order.reservationId`.
+ */
+export const ReservationUpsertPayloadSchema = z.object({
+  id: z.string().uuid(),
+  soireeId: z.string().min(1),
+  name: z.string().min(1).max(120),
+  adults: z.number().int().nonnegative().max(999),
+  children: z.number().int().nonnegative().max(999),
+  phone: z.string().max(40).optional(),
+});
+export type ReservationUpsertPayload = z.infer<typeof ReservationUpsertPayloadSchema>;
+
+export const ReservationDeletePayloadSchema = z.object({
+  id: z.string().uuid(),
+});
+export type ReservationDeletePayload = z.infer<typeof ReservationDeletePayloadSchema>;
+
 // ─── Enveloppe d'événement (discriminated union sur `type`) ──
 
 const baseEnvelope = {
@@ -332,6 +362,8 @@ export const EventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEnvelope, type: z.literal("preset_upsert"), payload: PresetUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("preset_delete"), payload: PresetDeletePayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("category_order"), payload: CategoryOrderPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("reservation_upsert"), payload: ReservationUpsertPayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("reservation_delete"), payload: ReservationDeletePayloadSchema }),
 ]);
 
 export type AppEvent = z.infer<typeof EventSchema>;

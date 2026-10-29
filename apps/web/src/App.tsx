@@ -14,6 +14,7 @@ import { SoireesScreen } from "./screens/Soirees.js";
 import { JournalScreen } from "./screens/Journal.js";
 import { AideScreen } from "./screens/Aide.js";
 import { RecapScreen } from "./screens/Recap.js";
+import { ReservationsScreen } from "./screens/Reservations.js";
 
 export function App() {
   const role = useSession((s) => s.role);
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/caisse" element={<CaisseScreen />} />
         <Route path="/cuisine" element={<CuisineScreen />} />
         <Route path="/inventaire" element={<InventaireScreen />} />
+        <Route path="/reservations" element={<ReservationsScreen />} />
         {/* Écrans admin : absents de la nav sans PIN, et absents aussi d'ici,
             sinon il suffit de taper /journal pour annuler une vente. Le
             serveur refuse de toute façon les actions admin sans PIN. */}

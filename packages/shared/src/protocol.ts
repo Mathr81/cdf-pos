@@ -12,7 +12,12 @@ export type Role = (typeof ROLES)[number];
 /** Accusé de réception d'un batch d'événements poussé par le client. */
 export interface SyncAck {
   acceptedIds: string[];
-  rejected: { id: string; error: string }[];
+  /**
+   * `code: "conflict"` : refus définitif (réservation déjà encaissée par une
+   * autre caisse). Le client doit retirer l'événement de son outbox au lieu
+   * de le renvoyer en boucle comme une erreur passagère.
+   */
+  rejected: { id: string; error: string; code?: "conflict" }[];
 }
 
 /** Réponse à une demande de rattrapage (pull) depuis un curseur. */

@@ -16,15 +16,18 @@ import { CloudArrowUpIcon } from "@phosphor-icons/react/dist/csr/CloudArrowUp";
 import { CloudWarningIcon } from "@phosphor-icons/react/dist/csr/CloudWarning";
 import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
 import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
+import { ClipboardTextIcon } from "@phosphor-icons/react/dist/csr/ClipboardText";
+import { isBookingSoiree } from "@cdf/shared";
 
 import { useSession } from "../lib/session.js";
 import { useActiveSoiree } from "../lib/hooks.js";
-import { useStore } from "../lib/store.js";
+import { projection, useStore } from "../lib/store.js";
 import { disconnect } from "../lib/sync.js";
 import { getDeviceId } from "../lib/device.js";
 import { useWakeLock } from "../lib/wakeLock.js";
 import { cn } from "../lib/cn.js";
 import { PendingSalesGuard } from "./PendingSalesGuard.js";
+import { ConflictModal } from "./ConflictModal.js";
 
 interface NavItem {
   to: string;
@@ -34,7 +37,16 @@ interface NavItem {
 
 /* Routes et libellés strictement inchangés : l'équipe est formée dessus.
    Seule l'icône passe d'un emoji à un glyphe cohérent. */
-function navItemsFor(role: string | null, isAdmin: boolean): NavItem[] {
+function navItemsFor(role: string | null, isAdmin: boolean, booking: boolean): NavItem[] {
+  const items = baseNavItems(role, isAdmin);
+  // Réservations juste après Caisse, et seulement les soirs où elle sert.
+  if (booking && items[0]?.to === "/caisse") {
+    items.splice(1, 0, { to: "/reservations", label: "Réservations", icon: ClipboardTextIcon });
+  }
+  return items;
+}
+
+function baseNavItems(role: string | null, isAdmin: boolean): NavItem[] {
   const caisse = { to: "/caisse", label: "Caisse", icon: ReceiptIcon };
   const cuisine = { to: "/cuisine", label: "Cuisine", icon: ChefHatIcon };
   const inventaire = { to: "/inventaire", label: "Stock", icon: PackageIcon };
@@ -181,7 +193,8 @@ function DuplicateRegisterBanner() {
 export function Layout({ children }: { children: ReactNode }) {
   const { role, label, isAdmin, reset } = useSession();
   const navigate = useNavigate();
-  const items = navItemsFor(role, isAdmin);
+  const soiree = useActiveSoiree();
+  const items = navItemsFor(role, isAdmin, soiree !== null && isBookingSoiree(projection, soiree.id));
 
   // Toutes les routes authentifiées : chaque écran de l'app est un écran de
   // travail pendant le service.
@@ -262,6 +275,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="min-h-0 flex-1 overflow-hidden print:overflow-visible">{children}</main>
 
       <PendingSalesGuard />
+      <ConflictModal />
     </div>
   );
 }

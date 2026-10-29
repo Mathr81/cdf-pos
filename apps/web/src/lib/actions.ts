@@ -1,3 +1,8 @@
+import {
+  BOOKING_ADULT_ID,
+  BOOKING_CHILD_ID,
+  type ReservationUpsertPayload,
+} from "@cdf/shared";
 import type {
   PaymentMethod,
   PresetItem,
@@ -7,7 +12,8 @@ import type {
   StockReason,
 } from "@cdf/shared";
 import { getDeviceId, newId, nextClientSeq } from "./device.js";
-import { dispatch } from "./sync.js";
+import { dismissConflict, dispatch, dispatchMany } from "./sync.js";
+import type { ConflictRow } from "./db.js";
 import { projection } from "./store.js";
 
 /** Champs communs à toute enveloppe d'événement local. */
@@ -38,6 +44,8 @@ export function emitSale(input: {
   items: SaleItem[];
   totalCents: number;
   cashReceivedCents?: number;
+  reservationId?: string;
+  guestName?: string;
 }) {
   return dispatch({
     ...meta(),
@@ -51,6 +59,8 @@ export function emitSale(input: {
       items: input.items,
       totalCents: input.totalCents,
       cashReceivedCents: input.cashReceivedCents,
+      reservationId: input.reservationId,
+      guestName: input.guestName,
     },
   });
 }
@@ -190,4 +200,77 @@ export function deletePreset(id: string) {
 /** Ordre des onglets de catégories en caisse. */
 export function setCategoryOrder(categories: string[]) {
   return dispatch({ ...meta(), type: "category_order", payload: { categories } });
+}
+
+// ─── Réservations ────────────────────────────────────────────
+
+/** Crée ou modifie des réservations, en un seul envoi (import CSV). */
+export function upsertReservations(payloads: ReservationUpsertPayload[]) {
+  return dispatchMany(payloads.map((payload) => ({ ...meta(), type: "reservation_upsert" as const, payload })));
+}
+
+export function deleteReservation(id: string) {
+  return dispatch({ ...meta(), type: "reservation_delete", payload: { id } });
+}
+
+/**
+ * Rend une soirée « sur réservation » et fixe ses tarifs : les deux produits
+ * de réservation sont créés au besoin, puis configurés hors grille de caisse
+ * avec le prix propre à la soirée.
+ */
+export async function setBookingPrices(soireeId: string, adultCents: number, childCents: number) {
+  const defs = [
+    { id: BOOKING_ADULT_ID, name: "Repas adulte", cents: adultCents },
+    { id: BOOKING_CHILD_ID, name: "Repas enfant", cents: childCents },
+  ];
+  for (const d of defs) {
+    if (!projection.products[d.id]?.active) {
+      await upsertProduct({
+        id: d.id,
+        name: d.name,
+        priceCents: d.cents,
+        category: "Réservation",
+        stationId: null,
+        stockInitial: 0,
+        stockUnlimited: true,
+        components: [],
+        active: true,
+        sortOrder: 999,
+        emoji: "fork-knife",
+        color: "#f59e0b",
+      });
+    }
+    await setSoireeProduct({
+      soireeId,
+      productId: d.id,
+      onCarte: false,
+      stockInitial: 0,
+      stockUnlimited: true,
+      priceOverrideCents: d.cents,
+    });
+  }
+}
+
+/**
+ * Tranche un conflit d'encaissement. `keepMoney` : la caisse a bien reçu
+ * l'argent (c'étaient d'autres personnes, homonymes par exemple) → la vente
+ * est ré-émise en sur-place pour que l'argent reste tracé. Sinon (rien reçu
+ * ou remboursé), elle est abandonnée.
+ */
+export async function resolveConflict(row: ConflictRow, keepMoney: boolean) {
+  if (keepMoney) {
+    const p = row.event.payload;
+    await emitSale({
+      soireeId: p.soireeId,
+      registerLabel: p.registerLabel,
+      cashierName: p.cashierName,
+      paymentMethod: p.paymentMethod,
+      items: p.items,
+      totalCents: p.totalCents,
+      cashReceivedCents: p.cashReceivedCents,
+      reservationId: newId(),
+      guestName: p.guestName ?? projection.reservations[p.reservationId ?? ""]?.name,
+    });
+  }
+  await dismissConflict(row.id);
 }

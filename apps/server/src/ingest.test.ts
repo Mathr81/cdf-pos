@@ -2,7 +2,15 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { AppEvent } from "@cdf/shared";
 
 const applyEvent = vi.fn();
-vi.mock("./projections.js", () => ({ applyEvent: (ev: AppEvent) => applyEvent(ev) }));
+const findOrderForVoid = vi.fn();
+class ConflictError extends Error {
+  readonly code = "conflict" as const;
+}
+vi.mock("./projections.js", () => ({
+  applyEvent: (ev: AppEvent) => applyEvent(ev),
+  findOrderForVoid: (id: string) => findOrderForVoid(id),
+  ConflictError,
+}));
 vi.mock("./backup/index.js", () => ({ enqueueBackup: async () => {} }));
 
 const { ingestEvents } = await import("./ingest.js");
@@ -36,6 +44,8 @@ const voidOrder = () =>
 
 beforeEach(() => {
   applyEvent.mockReset();
+  findOrderForVoid.mockReset();
+  findOrderForVoid.mockResolvedValue(null);
   applyEvent.mockImplementation(async (ev: AppEvent) => ({
     applied: true,
     stored: { ...ev, seq: 1, serverReceivedAt: ev.createdAt },
@@ -107,5 +117,47 @@ describe("ingestEvents — ordre", () => {
     ]);
     expect(ackA.rejected[0].id).toBe(a.id);
     expect(ackB.acceptedIds).toEqual([b.id]);
+  });
+});
+
+describe("ingestEvents — réservations", () => {
+  /* Deux caisses encaissent la même famille : la seconde doit le savoir,
+     et ne pas renvoyer son encaissement en boucle. */
+  test("un encaissement en conflit est rejeté avec le code « conflict »", async () => {
+    applyEvent.mockRejectedValueOnce(new ConflictError("Déjà encaissée par Caisse 2"));
+    const ev = sale();
+    const ack = await ingestEvents(io, [ev], { isAdmin: false });
+    expect(ack.acceptedIds).toEqual([]);
+    expect(ack.rejected).toEqual([{ id: ev.id, error: "Déjà encaissée par Caisse 2", code: "conflict" }]);
+  });
+
+  test("une autre erreur n'est pas un conflit", async () => {
+    applyEvent.mockRejectedValueOnce(new Error("base indisponible"));
+    const ack = await ingestEvents(io, [sale()], { isAdmin: false });
+    expect(ack.rejected[0].code).toBeUndefined();
+  });
+
+  const resaOrder = {
+    reservationId: "00000000-0000-4000-9000-000000000001",
+    deviceId: "tablette-1",
+    createdAt: "2026-10-14T19:25:00.000Z",
+  };
+
+  test("la tablette qui a encaissé une réservation peut annuler dans les 10 min", async () => {
+    findOrderForVoid.mockResolvedValue(resaOrder);
+    const ev = voidOrder();
+    const ack = await ingestEvents(io, [ev], { isAdmin: false });
+    expect(ack.acceptedIds).toEqual([ev.id]);
+  });
+
+  test("…mais pas une autre tablette, ni au-delà de 10 min", async () => {
+    findOrderForVoid.mockResolvedValue({ ...resaOrder, deviceId: "tablette-2" });
+    const other = await ingestEvents(io, [voidOrder()], { isAdmin: false });
+    expect(other.rejected[0].error).toBe("PIN administrateur requis");
+
+    findOrderForVoid.mockResolvedValue({ ...resaOrder, createdAt: "2026-10-14T19:10:00.000Z" });
+    const late = await ingestEvents(io, [voidOrder()], { isAdmin: false });
+    expect(late.rejected[0].error).toBe("PIN administrateur requis");
+    expect(applyEvent).not.toHaveBeenCalled();
   });
 });

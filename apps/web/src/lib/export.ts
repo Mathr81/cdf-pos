@@ -1,4 +1,10 @@
-import { formatAmount, paymentLabel, type ProjectionState } from "@cdf/shared";
+import {
+  formatAmount,
+  orderHeads,
+  paymentLabel,
+  reservationRows,
+  type ProjectionState,
+} from "@cdf/shared";
 import { download } from "./download.js";
 
 /** Échappe un champ CSV (séparateur « ; », compatible Excel FR). */
@@ -10,6 +16,54 @@ function cell(v: string | number): string {
 function downloadCsv(filename: string, content: string) {
   // BOM UTF-8 pour qu'Excel affiche correctement les accents.
   download(filename, "﻿" + content, "text/csv;charset=utf-8;");
+}
+
+function fileTag(state: ProjectionState, soireeId: string | null): string {
+  const tag = soireeId ? (state.soirees[soireeId]?.name ?? soireeId) : "toutes-soirees";
+  return tag.replace(/[^\w-]+/g, "_").toLowerCase();
+}
+
+/**
+ * Bilan de fin de soirée sur réservation : une ligne par réservation (venue
+ * ou non) et par sur-place, avec ce qui a réellement été encaissé.
+ */
+export function exportReservationsCsv(state: ProjectionState, soireeId: string): void {
+  const header = [
+    "Nom",
+    "Téléphone",
+    "Adultes prévus",
+    "Enfants prévus",
+    "Adultes venus",
+    "Enfants venus",
+    "Statut",
+    "Montant",
+    "Paiement",
+    "Caisse",
+    "Heure",
+  ];
+  const lines = [header.map(cell).join(";")];
+  for (const r of reservationRows(state, soireeId)) {
+    const o = r.order;
+    const heads = o ? orderHeads(o) : { adults: 0, children: 0 };
+    lines.push(
+      [
+        r.name,
+        r.phone ?? "",
+        r.walkIn ? "" : r.adults,
+        r.walkIn ? "" : r.children,
+        heads.adults,
+        heads.children,
+        r.walkIn ? "sur place" : o ? "encaissé" : "absent",
+        o ? formatAmount(o.totalCents) : "",
+        o ? paymentLabel(o.paymentMethod) : "",
+        o?.registerLabel ?? "",
+        o ? new Date(o.createdAt).toLocaleTimeString("fr-FR") : "",
+      ]
+        .map(cell)
+        .join(";"),
+    );
+  }
+  downloadCsv(`reservations-${fileTag(state, soireeId)}.csv`, lines.join("\n"));
 }
 
 /**
@@ -62,7 +116,5 @@ export function exportOrdersCsv(state: ProjectionState, soireeId: string | null)
     }
   }
 
-  const tag = soireeId ? (state.soirees[soireeId]?.name ?? soireeId) : "toutes-soirees";
-  const safe = tag.replace(/[^\w-]+/g, "_").toLowerCase();
-  downloadCsv(`ventes-${safe}.csv`, lines.join("\n"));
+  downloadCsv(`ventes-${fileTag(state, soireeId)}.csv`, lines.join("\n"));
 }

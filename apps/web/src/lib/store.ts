@@ -1,7 +1,9 @@
 import { create } from "zustand";
+import type { ConflictRow } from "./db.js";
 import {
   emptyProjection,
   reduceEvent,
+  retractOrder,
   type AppEvent,
   type PresenceEntry,
   type ProjectionState,
@@ -38,11 +40,16 @@ interface UiState {
   blocked: BlockedWipe | null;
   /** Postes connectés, tels que le serveur les voit. Vide si hors ligne. */
   presence: PresenceEntry[];
+  /** Commandes encaissées ici et pas encore acquittées (badge « ⏳ »). */
+  pendingOrderIds: ReadonlySet<string>;
+  /** Encaissements refusés par le serveur, en attente d'une décision. */
+  conflicts: ConflictRow[];
   bump: () => void;
   setConnected: (v: boolean) => void;
   setPending: (n: number) => void;
   setBlocked: (b: BlockedWipe | null) => void;
   setPresence: (p: PresenceEntry[]) => void;
+  setOutboxState: (s: { pendingOrderIds: ReadonlySet<string>; conflicts: ConflictRow[] }) => void;
 }
 
 export const useStore = create<UiState>((set) => ({
@@ -51,11 +58,14 @@ export const useStore = create<UiState>((set) => ({
   pending: 0,
   blocked: null,
   presence: [],
+  pendingOrderIds: new Set(),
+  conflicts: [],
   bump: () => set((s) => ({ rev: s.rev + 1 })),
   setConnected: (connected) => set({ connected }),
   setPending: (pending) => set({ pending }),
   setBlocked: (blocked) => set({ blocked }),
   setPresence: (presence) => set({ presence }),
+  setOutboxState: (s) => set(s),
 }));
 
 /**
@@ -76,6 +86,13 @@ export function applyIncoming(events: (AppEvent | StoredEvent)[]): number | null
   }
   if (changed) useStore.getState().bump();
   return maxSeq;
+}
+
+/** Retire des commandes refusées par le serveur de la projection locale. */
+export function retractOrders(orderIds: string[]): void {
+  if (orderIds.length === 0) return;
+  for (const id of orderIds) retractOrder(projection, id);
+  useStore.getState().bump();
 }
 
 export function hasApplied(id: string): boolean {

@@ -90,6 +90,21 @@ export interface ClientOrder {
   items: { productId: string; qty: number; unitPriceCents: number }[];
   /** true si la commande a été modifiée après coup. */
   amended?: boolean;
+  /** Poste émetteur : la tablette qui a encaissé une réservation peut l'annuler. */
+  deviceId: string;
+  /** Encaissement d'une réservation (ou d'un sur-place). */
+  reservationId?: string;
+  guestName?: string;
+}
+
+/** Réservation d'une soirée sur réservation (liste importée par l'admin). */
+export interface ClientReservation {
+  id: string;
+  soireeId: string;
+  name: string;
+  adults: number;
+  children: number;
+  phone?: string;
 }
 
 /**
@@ -116,6 +131,7 @@ export interface ProjectionState {
   products: Record<string, ClientProduct>;
   stations: Record<string, ClientStation>;
   presets: Record<string, ClientPreset>;
+  reservations: Record<string, ClientReservation>;
   /** soireeId → productId → config carte. */
   carte: Record<string, Record<string, SoireeProductConfig>>;
   /** soireeId → productId → quantité vendue (commandes payées). */
@@ -140,6 +156,7 @@ export interface ProjectionState {
   soireeUpdatedAt: Record<string, number>;
   presetUpdatedAt: Record<string, number>;
   carteUpdatedAt: Record<string, number>; // clé "soireeId:productId"
+  reservationUpdatedAt: Record<string, number>;
 }
 
 export function emptyProjection(): ProjectionState {
@@ -149,6 +166,7 @@ export function emptyProjection(): ProjectionState {
     products: {},
     stations: {},
     presets: {},
+    reservations: {},
     carte: {},
     sold: {},
     prepared: {},
@@ -161,6 +179,7 @@ export function emptyProjection(): ProjectionState {
     soireeUpdatedAt: {},
     presetUpdatedAt: {},
     carteUpdatedAt: {},
+    reservationUpdatedAt: {},
   };
 }
 
@@ -206,6 +225,9 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         totalCents: p.totalCents,
         cashReceivedCents: p.cashReceivedCents,
         items: p.items.map((it) => ({ ...it })),
+        deviceId: ev.deviceId,
+        reservationId: p.reservationId,
+        guestName: p.guestName,
       };
       for (const it of p.items) addNested(state.sold, p.soireeId, it.productId, it.qty);
       break;
@@ -347,6 +369,9 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
       for (const o of Object.values(state.orders)) {
         if (o.soireeId === id) delete state.orders[o.id];
       }
+      for (const r of Object.values(state.reservations)) {
+        if (r.soireeId === id) delete state.reservations[r.id];
+      }
       break;
     }
     case "soiree_product_set": {
@@ -377,7 +402,38 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
     case "category_order":
       state.categoryOrder = [...ev.payload.categories];
       break;
+    case "reservation_upsert": {
+      const p = ev.payload;
+      if ((state.reservationUpdatedAt[p.id] ?? 0) > ts) break;
+      state.reservationUpdatedAt[p.id] = ts;
+      state.reservations[p.id] = { ...p };
+      break;
+    }
+    case "reservation_delete": {
+      // L'horodatage reste : une modification plus ancienne arrivée après
+      // coup ne doit pas ressusciter la réservation.
+      state.reservationUpdatedAt[ev.payload.id] = Math.max(
+        state.reservationUpdatedAt[ev.payload.id] ?? 0,
+        ts,
+      );
+      delete state.reservations[ev.payload.id];
+      break;
+    }
   }
+}
+
+/**
+ * Retire une vente que le serveur a refusée (réservation déjà encaissée
+ * ailleurs). Pas un événement : la vente n'a jamais existé pour les autres
+ * postes, elle disparaît seulement de la projection optimiste de celui-ci.
+ */
+export function retractOrder(state: ProjectionState, orderId: string): void {
+  const order = state.orders[orderId];
+  if (!order) return;
+  if (order.status === "paid") {
+    for (const it of order.items) addNested(state.sold, order.soireeId, it.productId, -it.qty);
+  }
+  delete state.orders[orderId];
 }
 
 // ─── Sélecteurs dérivés ──────────────────────────────────────
