@@ -139,8 +139,8 @@ main() {
 
   echo
   echo "✅ Mise à jour terminée."
-  echo "   Sur les tablettes : recharge la page (la PWA se met à jour toute seule"
-  echo "   au bout de quelques secondes, ou ferme/rouvre l'application)."
+  echo "   Sur les tablettes : un bandeau « Nouvelle version » apparaît sous"
+  echo "   5 minutes, il suffit de toucher « Recharger »."
 }
 
 main "$@"

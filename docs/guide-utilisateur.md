@@ -107,6 +107,9 @@ Bandeaux possibles sous l'en-tête :
   réaffiche.
 - **Rouge « Une autre tablette est aussi Caisse N »** : changer de poste et
   prendre un autre numéro.
+- **Bleu « Nouvelle version de l'app »** : toucher **Recharger** entre deux
+  clients. Les ventes en attente sont conservées ; le bandeau attend d'ailleurs
+  qu'elles soient envoyées pour s'afficher.
 
 L'écran **ne se met pas en veille** tant que l'app est ouverte : brancher les
 tablettes.
@@ -472,7 +475,7 @@ Le serveur vérifie le PIN : ce n'est pas qu'une question d'onglets visibles.
 | Pas de station proposée en Cuisine | Créer les stations dans Admin → Stations cuisine. |
 | « Aucune soirée active » | Soirées → Activer (PIN). |
 | Carte vide | Soirées → Carte de la soirée active. |
-| L'app n'a pas la nouvelle version | Recharger la page, ou fermer et rouvrir l'app. |
+| L'app n'a pas la nouvelle version | Attendre le bandeau bleu « Nouvelle version de l'app » (vérification toutes les 5 min) et toucher **Recharger**. Sinon, fermer et rouvrir l'app. |
 | « N bloqués » qui ne diminue pas | Recharger l'app ; si ça persiste, Admin → Postes connectés pour voir ce qui est retenu. Ne pas vider le cache. |
 | Bandeau « Une autre tablette est aussi Caisse N » | Changer de poste et choisir un autre numéro. |
 | Stockage « Non garanti » | Installer l'app sur l'écran d'accueil. |
