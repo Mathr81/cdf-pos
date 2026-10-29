@@ -37,7 +37,7 @@ export function InventaireScreen() {
   const rows = soireeCarte(projection, soireeId);
 
   return (
-    <div className="mx-auto flex h-full max-w-7xl flex-col p-4">
+    <div className="mx-auto flex h-full max-w-4xl flex-col p-4">
       <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
         <h1 className="font-display text-title font-bold text-cream">Inventaire</h1>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-well px-3 py-1.5 text-micro font-bold text-sand">

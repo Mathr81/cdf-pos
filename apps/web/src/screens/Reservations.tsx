@@ -89,7 +89,7 @@ export function ReservationsScreen() {
 
   return (
     <>
-      <div className="mx-auto flex h-full max-w-7xl flex-col p-4 print:hidden">
+      <div className="mx-auto flex h-full max-w-4xl flex-col p-4 print:hidden">
         {/* Sur téléphone, les onglets prennent toute une ligne à parts égales au
             lieu de passer à la ligne n'importe où sous le titre. */}
         <div className="mb-3 flex shrink-0 flex-col gap-2 md:flex-row md:items-center">
@@ -218,14 +218,7 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
         Arrivées : {paidCount} / {plural(expectedCount, "réservation")}
       </p>
 
-      {/* Deux colonnes sur iPad en paysage : deux fois plus de noms sans défiler.
-          Pas de grille pour les messages vides, qui prendraient une seule colonne. */}
-      <ul
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto pb-4",
-          shown.length > 0 ? "grid content-start gap-1.5 lg:grid-cols-2" : "space-y-1.5",
-        )}
-      >
+      <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pb-4">
         {rows.length === 0 ? (
           <EmptyState
             icon={<ClipboardTextIcon size={44} weight="light" />}
