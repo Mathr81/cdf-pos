@@ -206,7 +206,8 @@ Pour les repas à tarif par personne (raclette, paella…). Trois onglets :
    **Réservations → Gestion → Ajouter un tarif**.
 2. **Gestion → Importer un CSV** (aperçu avant validation, doublons détectés —
    détail dans [import-reservations.md](import-reservations.md)), ou **Ajouter**
-   une à une : nom, personnes par tarif, téléphone, remarque, *payé d'avance*.
+   une à une : nom, personnes par tarif, téléphone, table, remarque, *payé
+   d'avance*.
 3. Juste avant l'ouverture : **Imprimer la liste** (liste papier de secours, une
    case à cocher par réservation).
 
@@ -215,14 +216,19 @@ reste disponible à côté.
 
 ### À l'accueil
 
-1. **Rechercher** : quelques lettres du nom (fautes et accents tolérés) ou au
-   moins 3 chiffres du téléphone.
-2. Toucher la réservation. Lire la **remarque en jaune** (table, allergie).
+1. **Rechercher** : quelques lettres du nom (fautes et accents tolérés), le
+   numéro de table, ou au moins 3 chiffres du téléphone.
+2. Toucher la réservation : la **table** s'affiche en gros à côté du nom. Lire
+   la **remarque en jaune** (allergie, anniversaire).
    Ajuster le nombre de personnes par tarif si besoin, le montant suit.
 3. Encaisser (espèces, carte, chèque, offert). La ligne passe **Arrivé** sur
    toutes les tablettes.
 4. **Payé d'avance** : rien à encaisser, **Marquer arrivé**. S'ils sont plus
    nombreux, ajouter les personnes : seul le supplément est encaissé.
+
+Sur iPad en paysage, une colonne à droite affiche le **bilan** (réservations
+arrivées, couverts restants, encaissé) et **À surveiller** : les réservations
+avec une remarque qui ne sont pas encore arrivées. La toucher ouvre l'arrivée.
 5. **Sans réservation** : **Encaisser en sur place** (nom facultatif).
 
 **Erreur de pointage** : toucher la ligne → **Annuler l'arrivée**. La tablette qui

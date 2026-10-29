@@ -191,8 +191,8 @@ describe("payé d'avance", () => {
 describe("recherche", () => {
   const rows = [
     { name: "Dupont Jean", phone: "06 12 34 56 78" },
-    { name: "Lefèvre Marie" },
-    { name: "Martin" },
+    { name: "Lefèvre Marie", table: "12-13" },
+    { name: "Martin", table: "120" },
     { name: "Martineau" },
   ];
   const names = (q: string) => searchReservations(rows, q).map((r) => r.name);
@@ -212,6 +212,11 @@ describe("recherche", () => {
 
   test("par numéro de téléphone", () => {
     expect(names("5678")).toEqual(["Dupont Jean"]);
+  });
+
+  test("par numéro de table, mot entier", () => {
+    expect(names("12")).toEqual(["Lefèvre Marie"]);
+    expect(names("120")).toEqual(["Martin"]);
   });
 });
 

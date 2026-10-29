@@ -17,6 +17,7 @@ import {
   searchReservations,
   BOOKING_ADULT_ID,
   BOOKING_CHILD_ID,
+  type BookingDashboard,
   type ClientOrder,
   type Counts,
   type PaymentMethod,
@@ -89,7 +90,13 @@ export function ReservationsScreen() {
 
   return (
     <>
-      <div className="mx-auto flex h-full max-w-4xl flex-col p-4 print:hidden">
+      {/* Accueil : plus large sur iPad en paysage, pour la colonne de droite. */}
+      <div
+        className={cn(
+          "mx-auto flex h-full max-w-4xl flex-col p-4 print:hidden",
+          current === "accueil" && "lg:max-w-6xl",
+        )}
+      >
         {/* Sur téléphone, les onglets prennent toute une ligne à parts égales au
             lieu de passer à la ligne n'importe où sous le titre. */}
         <div className="mb-3 flex shrink-0 flex-col gap-2 md:flex-row md:items-center">
@@ -142,6 +149,20 @@ function onSiteCents(row: ReservationRow): number {
     .reduce((s, o) => s + o.totalCents, 0);
 }
 
+/** « Table 12 » : là où l'accueil place le groupe. */
+function TableTag({ table, large }: { table: string; large?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "tnum shrink-0 rounded-control border border-line bg-well font-bold whitespace-nowrap text-cream",
+        large ? "px-3 py-1 text-lead" : "px-1.5 py-0.5 text-micro",
+      )}
+    >
+      Table {table}
+    </span>
+  );
+}
+
 function NoteBox({ note, large }: { note: string; large?: boolean }) {
   return (
     <div
@@ -181,113 +202,119 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {!connected && (
-        <div className="mb-3 flex items-start gap-2.5 rounded-control border border-signal/60 bg-signal/10 p-3 text-body text-cream">
-          <WifiSlashIcon size={20} weight="bold" className="mt-0.5 shrink-0 text-signal" />
-          <span>
-            <b>Hors ligne.</b> Les encaissements restent sur cette tablette. Une autre caisse peut encaisser la même
-            réservation : ce sera vérifié dès le retour du réseau.
-          </span>
-        </div>
-      )}
-
-      <div className="mb-2 flex shrink-0 gap-2">
-        <div className="relative min-w-0 flex-1">
-          <MagnifyingGlassIcon
-            size={20}
-            weight="bold"
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ash"
-          />
-          <TextInput
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            autoFocus
-            placeholder="Nom ou tél."
-            aria-label="Rechercher une réservation"
-            className="min-h-14 pl-10 text-lead"
-          />
-        </div>
-        <Button size="lg" onClick={() => setOpen("walkin")}>
-          <UserPlusIcon size={20} weight="bold" />
-          Sur place
-        </Button>
-      </div>
-      <p className="tnum mb-2 shrink-0 px-1 text-micro text-ash">
-        Arrivées : {paidCount} / {plural(expectedCount, "réservation")}
-      </p>
-
-      <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pb-4">
-        {rows.length === 0 ? (
-          <EmptyState
-            icon={<ClipboardTextIcon size={44} weight="light" />}
-            title="Aucune réservation"
-            hint={
-              isAdmin
-                ? "Importez la liste (CSV) dans l'onglet Gestion. Les personnes sans réservation passent par « Sur place »."
-                : "La liste n'a pas encore été importée. Les personnes sans réservation passent par « Sur place »."
-            }
-          />
-        ) : shown.length === 0 ? (
-          <EmptyState
-            title={`Aucun nom ne ressemble à « ${q} »`}
-            action={
-              <Button size="lg" onClick={() => setOpen("walkin")}>
-                <UserPlusIcon size={20} weight="bold" />
-                Encaisser en sur place
-              </Button>
-            }
-          />
-        ) : (
-          shown.map((r) => (
-            <li key={r.id}>
-              <button
-                onClick={() => setOpen({ id: r.id })}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-control border border-line bg-surface px-4 py-3 text-left",
-                  "transition-colors hover:border-lantern/60 active:scale-[0.99]",
-                  r.order && "bg-transparent",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className={cn("truncate text-lead font-bold", r.order ? "text-sand" : "text-cream")}>
-                    {r.name}
-                  </div>
-                  <div className="tnum truncate text-micro text-ash">
-                    {r.walkIn ? "Sur place" : countsLabel(tariffs, r.counts)}
-                    {r.phone && ` · ${r.phone}`}
-                  </div>
-                  {r.note && !r.order && <NoteBox note={r.note} />}
-                </div>
-                {r.order ? (
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge tone="mint">Arrivé</Badge>
-                    <span className="tnum text-micro text-ash">
-                      {r.order.registerLabel} · {hhmm(r.order.createdAt)}
-                    </span>
-                    {pendingIds.has(r.order.id) && (
-                      <Badge>
-                        <HourglassMediumIcon size={13} weight="bold" />
-                        Pas encore synchronisé
-                      </Badge>
-                    )}
-                  </div>
-                ) : r.prepaid ? (
-                  <Badge tone="dusk" className="shrink-0">
-                    <CalendarCheckIcon size={14} weight="bold" />
-                    Payé d'avance
-                  </Badge>
-                ) : (
-                  <span className="tnum font-display shrink-0 text-lead font-bold text-lantern">
-                    {formatCents(itemsTotal(bookingItems(tariffs, r.counts)))}
-                  </span>
-                )}
-              </button>
-            </li>
-          ))
+    <div className="flex min-h-0 flex-1 gap-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {!connected && (
+          <div className="mb-3 flex items-start gap-2.5 rounded-control border border-signal/60 bg-signal/10 p-3 text-body text-cream">
+            <WifiSlashIcon size={20} weight="bold" className="mt-0.5 shrink-0 text-signal" />
+            <span>
+              <b>Hors ligne.</b> Les encaissements restent sur cette tablette. Une autre caisse peut encaisser la même
+              réservation : ce sera vérifié dès le retour du réseau.
+            </span>
+          </div>
         )}
-      </ul>
+
+        <div className="mb-2 flex shrink-0 gap-2">
+          <div className="relative min-w-0 flex-1">
+            <MagnifyingGlassIcon
+              size={20}
+              weight="bold"
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ash"
+            />
+            <TextInput
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              autoFocus
+              placeholder="Nom, table ou tél."
+              aria-label="Rechercher une réservation"
+              className="min-h-14 pl-10 text-lead"
+            />
+          </div>
+          <Button size="lg" onClick={() => setOpen("walkin")}>
+            <UserPlusIcon size={20} weight="bold" />
+            Sur place
+          </Button>
+        </div>
+        <p className="tnum mb-2 shrink-0 px-1 text-micro text-ash">
+          Arrivées : {paidCount} / {plural(expectedCount, "réservation")}
+        </p>
+
+        <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pb-4">
+          {rows.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardTextIcon size={44} weight="light" />}
+              title="Aucune réservation"
+              hint={
+                isAdmin
+                  ? "Importez la liste (CSV) dans l'onglet Gestion. Les personnes sans réservation passent par « Sur place »."
+                  : "La liste n'a pas encore été importée. Les personnes sans réservation passent par « Sur place »."
+              }
+            />
+          ) : shown.length === 0 ? (
+            <EmptyState
+              title={`Aucun nom ne ressemble à « ${q} »`}
+              action={
+                <Button size="lg" onClick={() => setOpen("walkin")}>
+                  <UserPlusIcon size={20} weight="bold" />
+                  Encaisser en sur place
+                </Button>
+              }
+            />
+          ) : (
+            shown.map((r) => (
+              <li key={r.id}>
+                <button
+                  onClick={() => setOpen({ id: r.id })}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-control border border-line bg-surface px-4 py-3 text-left",
+                    "transition-colors hover:border-lantern/60 active:scale-[0.99]",
+                    r.order && "bg-transparent",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className={cn("truncate text-lead font-bold", r.order ? "text-sand" : "text-cream")}>
+                        {r.name}
+                      </div>
+                      {r.table && <TableTag table={r.table} />}
+                    </div>
+                    <div className="tnum truncate text-micro text-ash">
+                      {r.walkIn ? "Sur place" : countsLabel(tariffs, r.counts)}
+                      {r.phone && ` · ${r.phone}`}
+                    </div>
+                    {r.note && !r.order && <NoteBox note={r.note} />}
+                  </div>
+                  {r.order ? (
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge tone="mint">Arrivé</Badge>
+                      <span className="tnum text-micro text-ash">
+                        {r.order.registerLabel} · {hhmm(r.order.createdAt)}
+                      </span>
+                      {pendingIds.has(r.order.id) && (
+                        <Badge>
+                          <HourglassMediumIcon size={13} weight="bold" />
+                          Pas encore synchronisé
+                        </Badge>
+                      )}
+                    </div>
+                  ) : r.prepaid ? (
+                    <Badge tone="dusk" className="shrink-0">
+                      <CalendarCheckIcon size={14} weight="bold" />
+                      Payé d'avance
+                    </Badge>
+                  ) : (
+                    <span className="tnum font-display shrink-0 text-lead font-bold text-lantern">
+                      {formatCents(itemsTotal(bookingItems(tariffs, r.counts)))}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+      <DoorSide soireeId={soireeId} rows={rows} onOpen={(id) => setOpen({ id })} />
 
       {open === "walkin" && (
         <CheckinModal soireeId={soireeId} row={null} initialName={q} onClose={() => setOpen(null)} onDone={done} />
@@ -305,6 +332,66 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Colonne de droite de l'accueil, sur iPad en paysage seulement : le bilan de
+ * la porte et les remarques des groupes pas encore arrivés.
+ */
+function DoorSide({
+  soireeId,
+  rows,
+  onOpen,
+}: {
+  soireeId: string;
+  rows: ReservationRow[];
+  onOpen: (id: string) => void;
+}) {
+  const d = bookingDashboard(projection, soireeId);
+  const watch = rows.filter((r) => r.note && !r.order && !r.walkIn);
+  const line = (label: string, value: ReactNode) => (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-sand">{label}</span>
+      <b className="tnum text-cream">{value}</b>
+    </div>
+  );
+
+  return (
+    <aside className="hidden w-80 shrink-0 flex-col gap-3 overflow-y-auto pb-4 lg:flex">
+      <Card className="p-4">
+        <h2 className="font-display text-lead font-bold text-cream">Bilan</h2>
+        <div className="mt-2 space-y-1.5 text-body">
+          {line("Réservations arrivées", `${d.reservationsArrived} / ${d.reservations}`)}
+          <ArrivalBar d={d} />
+          {line("Couverts restants", `${d.remaining} / ${d.expected}`)}
+          {line("Encaissé ce soir", formatCents(d.totalCents))}
+        </div>
+      </Card>
+      <Card className="p-4">
+        <h2 className="font-display text-lead font-bold text-cream">À surveiller</h2>
+        {watch.length === 0 ? (
+          <p className="mt-2 text-body text-ash">Aucune remarque en attente.</p>
+        ) : (
+          <ul className="mt-2 space-y-1.5">
+            {watch.map((r) => (
+              <li key={r.id}>
+                <button
+                  onClick={() => onOpen(r.id)}
+                  className="w-full rounded-control border border-line bg-well px-3 py-2 text-left transition-colors hover:border-lantern/60"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate font-bold text-cream">{r.name}</span>
+                    {r.table && <TableTag table={r.table} />}
+                  </span>
+                  <span className="mt-0.5 block text-micro text-lantern">{r.note}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </aside>
   );
 }
 
@@ -470,7 +557,10 @@ function CheckinModal({
 
   return (
     <Modal open onClose={onClose}>
-      <h2 className="font-display text-title font-bold text-cream">{row ? row.name : "Sur place"}</h2>
+      <div className="flex items-center gap-3">
+        <h2 className="font-display min-w-0 text-title font-bold text-cream">{row ? row.name : "Sur place"}</h2>
+        {row?.table && <TableTag table={row.table} large />}
+      </div>
       {row ? (
         <p className="tnum mt-1 text-body text-sand">
           Réservé : {countsLabel(tariffs, row.counts)}
@@ -576,7 +666,10 @@ function PaidModal({
 
   return (
     <Modal open onClose={onClose}>
-      <h2 className="font-display text-title font-bold text-cream">{row.name}</h2>
+      <div className="flex items-center gap-3">
+        <h2 className="font-display min-w-0 text-title font-bold text-cream">{row.name}</h2>
+        {row.table && <TableTag table={row.table} large />}
+      </div>
       <div className="mt-3 space-y-1 text-body text-sand">
         <p>
           <Badge tone="mint">Arrivé</Badge> pointé par <b className="text-cream">{order.registerLabel}</b> à{" "}
@@ -643,7 +736,6 @@ function DashboardTab({ soireeId }: { soireeId: string }) {
   useRev();
   const d = bookingDashboard(projection, soireeId);
   const tariffs = bookingTariffs(projection, soireeId);
-  const pct = d.expected > 0 ? Math.min(100, Math.round(((d.expected - d.remaining) / d.expected) * 100)) : 0;
   const extra = [
     d.prepaidCents > 0 && `+ ${formatCents(d.prepaidCents)} payés d'avance`,
     d.giftedOrders > 0 && `+ ${plural(d.giftedOrders, "offert")}`,
@@ -658,16 +750,7 @@ function DashboardTab({ soireeId }: { soireeId: string }) {
         <Kpi label="Encaissé ce soir" value={formatCents(d.totalCents)} hint={extra.join(" · ") || undefined} />
       </div>
 
-      <div
-        className="mt-4 h-3 w-full overflow-hidden rounded-full bg-well"
-        role="progressbar"
-        aria-label="Personnes réservées arrivées"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div className="h-full rounded-full bg-mint transition-[width]" style={{ width: `${pct}%` }} />
-      </div>
+      <ArrivalBar d={d} className="mt-4" />
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
         <Card className="p-4 md:col-span-2">
@@ -703,6 +786,22 @@ function DashboardTab({ soireeId }: { soireeId: string }) {
           }))}
         />
       </div>
+    </div>
+  );
+}
+
+function ArrivalBar({ d, className }: { d: BookingDashboard; className?: string }) {
+  const pct = d.expected > 0 ? Math.min(100, Math.round(((d.expected - d.remaining) / d.expected) * 100)) : 0;
+  return (
+    <div
+      className={cn("h-3 w-full overflow-hidden rounded-full bg-well", className)}
+      role="progressbar"
+      aria-label="Personnes réservées arrivées"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div className="h-full rounded-full bg-mint transition-[width]" style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -814,14 +913,17 @@ function ManageTab({
           </div>
           <p className="mt-1 text-micro text-ash">
             CSV : une colonne Nom (et éventuellement Prénom), une colonne par tarif (
-            {tariffs.map((t) => t.name).join(", ")}), et au choix Téléphone, Remarque (ou Table, Allergies…), Payé (oui
-            / non). Séparateur « ; » ou « , ».
+            {tariffs.map((t) => t.name).join(", ")}), et au choix Téléphone, Table, Remarque (ou Allergies…), Payé
+            (oui / non). Séparateur « ; » ou « , ».
           </p>
           <ul className="mt-3 space-y-1.5">
             {rows.map((r) => (
               <li key={r.id} className="flex items-center gap-3 rounded-control border border-line bg-well px-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold text-cream">{r.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="truncate font-bold text-cream">{r.name}</div>
+                    {r.table && <TableTag table={r.table} />}
+                  </div>
                   <div className="tnum truncate text-micro text-ash">
                     {countsLabel(tariffs, r.counts)}
                     {r.phone && ` · ${r.phone}`}
@@ -1080,7 +1182,10 @@ function ImportModal({
                 className="h-5 w-5 shrink-0 accent-lantern"
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-bold text-cream">{r.name}</span>
+                <span className="flex items-center gap-2">
+                  <span className="truncate font-bold text-cream">{r.name}</span>
+                  {r.table && <TableTag table={r.table} />}
+                </span>
                 <span className="tnum block truncate text-micro text-ash">
                   {countsLabel(tariffs, r.counts)}
                   {r.phone && ` · ${r.phone}`}
@@ -1125,6 +1230,7 @@ function EditModal({
   const [name, setName] = useState(row?.name ?? "");
   const [counts, setCounts] = useState<Counts>(row?.counts ?? { [tariffs[0]?.productId ?? ""]: 2 });
   const [phone, setPhone] = useState(row?.phone ?? "");
+  const [table, setTable] = useState(row?.table ?? "");
   const [note, setNote] = useState(row?.note ?? "");
   const [prepaid, setPrepaid] = useState(row?.prepaid ?? false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1140,6 +1246,7 @@ function EditModal({
         name: name.trim(),
         counts: present,
         phone: phone.trim() || undefined,
+        table: table.trim() || undefined,
         note: note.trim() || undefined,
         prepaid,
       },
@@ -1160,12 +1267,15 @@ function EditModal({
         <Field label="Téléphone (facultatif)">
           <TextInput type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
         </Field>
-        <Field label="Remarque (table, allergie…)">
+        <Field label="Table (facultatif)">
+          <TextInput value={table} onChange={(e) => setTable(e.target.value)} maxLength={20} placeholder="12" />
+        </Field>
+        <Field label="Remarque (allergie, anniversaire…)">
           <TextInput
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={200}
-            placeholder="Table 4 · sans gluten"
+            placeholder="Sans gluten · chaise haute"
           />
         </Field>
         <label className="flex cursor-pointer items-center gap-3 rounded-control border border-line bg-well p-3">
@@ -1247,6 +1357,7 @@ function PrintList({ soireeId }: { soireeId: string }) {
           <tr className="bg-neutral-100 text-left">
             <th className={cn(cell, "w-8")}>✓</th>
             <th className={cell}>Nom</th>
+            <th className={cell}>Table</th>
             <th className={cell}>Téléphone</th>
             {tariffs.map((t) => (
               <th key={t.productId} className={cn(cell, "text-right")}>
@@ -1262,6 +1373,7 @@ function PrintList({ soireeId }: { soireeId: string }) {
             <tr key={r.id} className="break-inside-avoid">
               <td className={cn(cell, "text-center")}>{r.order ? "✓" : "☐"}</td>
               <td className={cn(cell, "font-semibold")}>{r.name}</td>
+              <td className={cn(cell, "font-semibold")}>{r.table}</td>
               <td className={cell}>{r.phone}</td>
               {tariffs.map((t) => (
                 <td key={t.productId} className={cn(cell, "text-right")}>
@@ -1276,7 +1388,7 @@ function PrintList({ soireeId }: { soireeId: string }) {
           ))}
           <tr className="font-bold">
             <td className={cell} />
-            <td className={cell} colSpan={2}>
+            <td className={cell} colSpan={3}>
               {plural(rows.length, "réservation")}
             </td>
             {tariffs.map((t) => (

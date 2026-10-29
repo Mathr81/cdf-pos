@@ -5,7 +5,7 @@ import { normalizeName } from "@cdf/shared";
  * Séparateur « ; » (Excel FR), « , » ou tabulation, détecté sur l'en-tête.
  * Colonnes reconnues par leur nom, sans accent ni casse : nom (et prénom),
  * une colonne par tarif de la soirée (« Adultes », « Nb enfants »,
- * « Étudiants »…), téléphone, remarque (ou table, allergie…) et payé. Les
+ * « Étudiants »…), téléphone, table, remarque (ou allergie…) et payé. Les
  * lignes illisibles sont rendues à part, jamais ignorées en silence : une
  * famille oubliée à l'import arrive quand même.
  */
@@ -14,6 +14,7 @@ export interface ParsedReservation {
   name: string;
   counts: Record<string, number>;
   phone?: string;
+  table?: string;
   note?: string;
   prepaid: boolean;
 }
@@ -26,7 +27,7 @@ export interface CsvResult {
 }
 
 type Column =
-  | { kind: "name" | "firstName" | "phone" | "note" | "prepaid" }
+  | { kind: "name" | "firstName" | "phone" | "table" | "note" | "prepaid" }
   | { kind: "tariff"; productId: string }
   | null;
 
@@ -44,7 +45,8 @@ function column(header: string, tariffs: { productId: string; name: string }[]):
   // « Nom Prénom » en une seule colonne est un nom complet, pas un prénom.
   if (/\bprenoms?\b/.test(h) && !/\bnoms?\b/.test(h)) return { kind: "firstName" };
   if (/\b(tel|telephone|phone|portable|mobile)\b/.test(h)) return { kind: "phone" };
-  if (/\b(remarques?|commentaires?|notes?|tables?|allergies?|regimes?|infos?)\b/.test(h)) return { kind: "note" };
+  if (/\b(tables?)\b/.test(h)) return { kind: "table" };
+  if (/\b(remarques?|commentaires?|notes?|allergies?|regimes?|infos?)\b/.test(h)) return { kind: "note" };
   if (/\b(paye|payee|regle|reglee|paiement|acompte)\b/.test(h)) return { kind: "prepaid" };
   const hw = words(header);
   // Le tarif qui partage le plus de mots : « Enfants (-12 ans) » va à
@@ -92,7 +94,8 @@ export function parseReservationCsv(raw: string, tariffs: { productId: string; n
       if (col.kind === "name") r.name = [v, r.name].filter(Boolean).join(" ");
       else if (col.kind === "firstName") r.name = [r.name, v].filter(Boolean).join(" ");
       else if (col.kind === "phone") r.phone = v;
-      // Plusieurs colonnes (Table, Allergies) : accolées, préfixées par leur en-tête.
+      else if (col.kind === "table") r.table = v;
+      // Plusieurs colonnes (Remarque, Allergies) : accolées, préfixées par leur en-tête.
       else if (col.kind === "note") notes.push(cols.filter((c) => c?.kind === "note").length > 1 ? `${header[j].trim()} : ${v}` : v);
       else if (col.kind === "prepaid") r.prepaid = YES.test(normalizeName(v));
       else if (!/^\d{1,3}$/.test(v)) bad = `« ${v} » n'est pas un nombre de personnes`;
@@ -106,6 +109,7 @@ export function parseReservationCsv(raw: string, tariffs: { productId: string; n
         ...r,
         name: r.name.slice(0, 120),
         phone: r.phone?.slice(0, 40),
+        table: r.table?.slice(0, 20),
         note: notes.length ? notes.join(" · ").slice(0, 200) : undefined,
       });
   });

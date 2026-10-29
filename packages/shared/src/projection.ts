@@ -107,6 +107,7 @@ export interface ClientReservation {
   /** Personnes prévues par tarif (productId → nombre), zéros omis. */
   counts: Record<string, number>;
   phone?: string;
+  table?: string;
   note?: string;
   prepaid: boolean;
 }
@@ -434,6 +435,7 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         name: p.name,
         counts: Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0)),
         phone: p.phone,
+        table: p.table,
         note: p.note,
         prepaid: p.prepaid ?? false,
       };

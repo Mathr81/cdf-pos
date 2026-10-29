@@ -33,6 +33,7 @@ export function exportReservationsCsv(state: ProjectionState, soireeId: string):
   const header = [
     "Nom",
     "Téléphone",
+    "Table",
     "Remarque",
     "Payé d'avance",
     ...tariffs.flatMap((t) => [`${t.name} prévus`, `${t.name} venus`]),
@@ -52,6 +53,7 @@ export function exportReservationsCsv(state: ProjectionState, soireeId: string):
       [
         r.name,
         r.phone ?? "",
+        r.table ?? "",
         r.note ?? "",
         r.prepaid ? "oui" : "",
         ...tariffs.flatMap((t) => [r.walkIn ? "" : (r.counts[t.productId] ?? 0), heads[t.productId] ?? 0]),
