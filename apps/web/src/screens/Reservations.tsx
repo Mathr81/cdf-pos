@@ -54,7 +54,7 @@ import { exportReservationsCsv } from "../lib/export.js";
 import { decodeCsv, parseReservationCsv, type CsvResult } from "../lib/reservationCsv.js";
 import { payLook } from "../lib/payLook.js";
 import { deleteReservations, emitSale, setBookingTariffs, upsertReservations, voidOrder } from "../lib/actions.js";
-import { Badge, Button, Card, EmptyState, Field, SelectInput, StepButton, TextInput } from "../components/ui.js";
+import { Badge, Button, Card, EmptyState, Field, StepButton, TextInput } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { PaymentModal } from "../components/PaymentModal.js";
@@ -243,8 +243,9 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
             Sur place
           </Button>
         </div>
-        <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-          <div className="grid flex-1 grid-cols-3 gap-1.5 sm:flex sm:flex-none">
+        {/* Contrôles secondaires : petits, sur une ligne, pour laisser la place à la liste. */}
+        <div className="mb-2 flex shrink-0 items-center gap-2">
+          <div className="flex rounded-full bg-well p-0.5" role="group" aria-label="Filtrer la liste">
             {(
               [
                 ["tous", "Tous", rows.length],
@@ -252,23 +253,32 @@ function CheckinTab({ soireeId, toast }: { soireeId: string; toast: (t: ToastDat
                 ["arrives", "Arrivés", arrivedCount],
               ] as const
             ).map(([value, label, count]) => (
-              <TabBtn key={value} active={filter === value && !q} onClick={() => setFilter(value)}>
+              <button
+                key={value}
+                type="button"
+                aria-pressed={filter === value && !q}
+                onClick={() => setFilter(value)}
+                className={cn(
+                  "h-9 rounded-full px-3 text-micro font-bold whitespace-nowrap transition-colors",
+                  filter === value && !q ? "bg-line text-cream" : "text-ash hover:text-sand",
+                )}
+              >
                 {label} <span className="tnum font-semibold opacity-70">{count}</span>
-              </TabBtn>
+              </button>
             ))}
           </div>
-          <SelectInput
+          <select
             aria-label="Trier la liste"
             value={sort}
             onChange={(e) => setSort(e.target.value as ArrivalSort)}
             disabled={q !== ""}
             title={q ? "Pendant une recherche, toute la liste, les noms les plus proches en tête" : undefined}
-            className="w-full disabled:opacity-50 sm:ml-auto sm:w-auto"
+            className="ml-auto h-9 min-w-0 cursor-pointer rounded-full bg-transparent px-2 text-micro font-bold text-ash outline-none hover:text-sand focus-visible:ring-2 focus-visible:ring-lantern disabled:opacity-40"
           >
             <option value="nom">Tri : nom</option>
             <option value="table">Tri : table</option>
-            <option value="arrivee">Tri : dernières arrivées</option>
-          </SelectInput>
+            <option value="arrivee">Tri : arrivées</option>
+          </select>
         </div>
 
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pb-4">
