@@ -89,6 +89,7 @@ export interface ReservationRow {
   id: string;
   name: string;
   phone?: string;
+  table?: string;
   note?: string;
   prepaid: boolean;
   /** Prévu à la réservation ; vide pour un sur-place. */
@@ -120,6 +121,7 @@ export function reservationRows(state: ProjectionState, soireeId: string): Reser
       id: r.id,
       name: r.name,
       phone: r.phone,
+      table: r.table,
       note: r.note,
       prepaid: r.prepaid,
       counts: r.counts,
@@ -278,14 +280,19 @@ function nameScore(name: string, query: string): number | null {
   return total;
 }
 
-/** Filtre et trie des lignes par pertinence (nom, ou chiffres du téléphone). */
-export function searchReservations<T extends { name: string; phone?: string }>(rows: T[], query: string): T[] {
+/** Filtre et trie des lignes par pertinence (nom, numéro de table, ou chiffres du téléphone). */
+export function searchReservations<T extends { name: string; phone?: string; table?: string }>(
+  rows: T[],
+  query: string,
+): T[] {
   const q = normalizeName(query);
   if (!q) return rows;
   const digits = query.replace(/\D/g, "");
   const scored: { row: T; score: number }[] = [];
   for (const row of rows) {
     let score = nameScore(row.name, q);
+    // Mot entier : « 12 » trouve « 12 » et « 12-13 », pas « 120 ».
+    if (score === null && row.table && normalizeName(row.table).split(" ").includes(q)) score = 0;
     if (score === null && digits.length >= 3 && row.phone?.replace(/\D/g, "").includes(digits)) score = 0;
     if (score !== null) scored.push({ row, score });
   }

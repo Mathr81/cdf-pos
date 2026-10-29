@@ -42,9 +42,10 @@ describe("import CSV des réservations", () => {
     expect(rows[0]).toMatchObject({
       counts: { "resa-adulte": 2, "resa-enfant": 1, "resa-bebe": 1 },
       prepaid: true,
-      note: "Table : 4 · Allergies : arachide",
+      table: "4",
+      note: "arachide",
     });
-    expect(rows[1]).toMatchObject({ prepaid: false, note: undefined });
+    expect(rows[1]).toMatchObject({ prepaid: false, table: undefined, note: undefined });
     expect(ignored).toEqual(["Mail"]);
   });
 

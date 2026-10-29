@@ -178,12 +178,14 @@ const SECTIONS: Section[] = [
         <ol className="space-y-3">
           <Etape n={1} titre="Retrouver la réservation">
             Onglet <b className="text-cream">Réservations → Accueil</b> : tape quelques lettres du nom
-            (les fautes et les accents sont tolérés) ou au moins 3 chiffres du téléphone.
+            (les fautes et les accents sont tolérés), le numéro de table, ou au moins 3 chiffres du téléphone.
           </Etape>
           <Etape n={2} titre="Ajuster et encaisser">
             Touche le nom. Corrige le nombre de personnes par tarif s'il a changé, le montant suit, puis
             encaisse comme en caisse, chèque compris. La ligne passe « Arrivé » sur toutes les tablettes.
-            Une remarque (table, allergie…) s'affiche en jaune : lis-la avant de valider.
+            La table s'affiche à côté du nom ; une remarque (allergie, anniversaire…) s'affiche en jaune :
+            lis-la avant de valider. Sur iPad en paysage, la colonne de droite liste les remarques des groupes
+            pas encore arrivés.
           </Etape>
           <Etape n={3} titre="Payé d'avance">
             Badge <b className="text-cream">Payé d'avance</b> : rien à encaisser, touche « Marquer arrivé ».

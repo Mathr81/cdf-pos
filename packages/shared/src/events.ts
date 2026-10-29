@@ -342,7 +342,9 @@ export const ReservationUpsertPayloadSchema = z.object({
   /** Personnes par tarif (productId → nombre). Prime sur adults / children. */
   counts: z.record(z.number().int().nonnegative().max(999)).optional(),
   phone: z.string().max(40).optional(),
-  /** Remarque affichée à l'arrivée : table, allergie, chaise haute… */
+  /** Table où placer le groupe : « 12 », « 12-13 », « Terrasse ». */
+  table: z.string().max(20).optional(),
+  /** Remarque affichée à l'arrivée : allergie, anniversaire, chaise haute… */
   note: z.string().max(200).optional(),
   /** Réglée avant la soirée : à la porte, on pointe sans encaisser. */
   prepaid: z.boolean().optional(),
