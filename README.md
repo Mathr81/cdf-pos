@@ -17,6 +17,10 @@ Le tout **temps réel** entre tous les appareils, **offline-first** (les caisses
 continuent d'encaisser même sans réseau, puis se resynchronisent), avec
 **sauvegarde continue** (miroir Google Sheet + dumps PostgreSQL).
 
+📖 **Documentation** : [guide d'utilisation](docs/guide-utilisateur.md) (tous les écrans,
+pour bénévoles et responsables) · [architecture technique](docs/architecture.md) ·
+[import des réservations](docs/import-reservations.md).
+
 ---
 
 ## 🏗️ Architecture
@@ -436,6 +440,10 @@ décomposé.
   à jour en direct. Marquez les articles préparés avec `+1 / +5 / +10`.
 - **Inventaire** : réapprovisionnez ou déclarez des pertes ; le stock restant est
   recalculé partout.
+- **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
+- **Stats** (PIN requis) : tableau de bord live (fonctionne aussi hors-ligne).
+
+Le détail de chaque écran est dans le [guide d'utilisation](docs/guide-utilisateur.md).
 
 ### Prévision de rupture
 
@@ -452,7 +460,6 @@ vont manquer, pour lancer une cuisson *avant* la rupture plutôt que la constate
 
 Les statistiques indiquent aussi l'écart de chiffre d'affaires avec le **service
 précédent** (« +18 % vs 14 juin »).
-- **Admin** (PIN requis) : créez/modifiez produits & stations cuisine, et **remise à zéro**.
 
 ### Aide intégrée
 
@@ -472,8 +479,9 @@ bénévoles sans fausser les chiffres.
 
 - Tout fonctionne **exactement** comme une vraie soirée — on n'apprend rien sur
   une version au rabais.
-- Un **bandeau orange permanent**, non refermable, s'affiche sur tous les postes
-  tant qu'elle est active.
+- Un **bandeau orange** s'affiche sur tous les postes tant qu'elle est active.
+  On peut le masquer sur une tablette : une pastille « Entraînement » reste alors
+  à côté du nom du poste.
 - Ses ventes sont exclues des totaux **« toutes soirées »** et de la
   **comparaison** avec le service précédent. Sélectionner explicitement la soirée
   d'entraînement affiche bien ses stats : c'est l'intérêt de l'exercice.
@@ -526,7 +534,6 @@ ligne pour saisir le comptage final. Un recomptage **remplace** le précédent.
   postes restants est rappelé sous le tableau.
 - Un poste où l'on a déposé un fond apparaît **même s'il n'a rien vendu** — sinon
   cet argent serait invisible à la clôture.
-- **Stats** (PIN requis) : tableau de bord live (fonctionne aussi hors-ligne).
 
 ### Comportement hors-ligne
 
