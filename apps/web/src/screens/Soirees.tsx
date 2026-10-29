@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   carteConfig,
   formatAmount,
+  formatCents,
+  BOOKING_ADULT_ID,
+  BOOKING_CHILD_ID,
   parseAmountToCents,
   soireeCarte,
   sortedPresets,
@@ -27,6 +30,7 @@ import {
   closeSoiree,
   deleteSoiree,
   deletePreset,
+  setBookingTariffs,
   setSoireeProduct,
   upsertPreset,
   upsertSoiree,
@@ -142,16 +146,14 @@ export function SoireesScreen() {
                           Clôturer
                         </Button>
                       )}
-                      {orders === 0 && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          aria-label={`Supprimer ${s.name}`}
-                          onClick={() => setDeleting(s)}
-                        >
-                          <TrashIcon size={17} weight="bold" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        aria-label={`Supprimer ${s.name}`}
+                        onClick={() => setDeleting(s)}
+                      >
+                        <TrashIcon size={17} weight="bold" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -190,19 +192,65 @@ export function SoireesScreen() {
         onConfirm={() => activating && activateSoiree(activating.id)}
         onClose={() => setActivating(null)}
       />
-      <ConfirmModal
-        open={deleting !== null}
-        title="Supprimer cette soirée ?"
-        body={
-          deleting
-            ? `« ${deleting.name} » sera retirée sur tous les postes. Cette soirée ne contient aucune commande.`
-            : undefined
-        }
-        confirmLabel="Supprimer"
-        onConfirm={() => deleting && deleteSoiree(deleting.id)}
-        onClose={() => setDeleting(null)}
-      />
+      {deleting && <DeleteSoireeModal soiree={deleting} onClose={() => setDeleting(null)} />}
     </div>
+  );
+}
+
+/**
+ * Sans commande, une confirmation suffit. Avec des commandes (soirée de
+ * test), elles partent avec la soirée sur tous les postes : on fait taper
+ * son nom, pour qu'aucune vraie soirée ne disparaisse d'un tap.
+ */
+function DeleteSoireeModal({ soiree, onClose }: { soiree: ClientSoiree; onClose: () => void }) {
+  const [typed, setTyped] = useState("");
+  const orders = Object.values(projection.orders).filter((o) => o.soireeId === soiree.id);
+  const paid = orders.filter((o) => o.status === "paid");
+  const totalCents = paid.reduce((s, o) => s + o.totalCents, 0);
+  const ok = orders.length === 0 || typed.trim() === soiree.name.trim();
+
+  return (
+    <Modal open onClose={onClose}>
+      <h2 className="font-display text-title font-bold text-cream">Supprimer « {soiree.name} » ?</h2>
+      {orders.length === 0 ? (
+        <p className="mt-2 text-body text-sand">
+          Elle sera retirée sur tous les postes. Cette soirée ne contient aucune commande.
+        </p>
+      ) : (
+        <>
+          <p className="mt-2 mb-4 text-body text-sand">
+            Ses <b className="text-cream">{plural(orders.length, "commande")}</b> (
+            {formatCents(totalCents)} encaissés), ses réservations et sa carte seront effacées sur tous les
+            postes, et disparaîtront des stats. <b className="text-cream">Irréversible.</b> Tape le nom de la
+            soirée pour confirmer.
+          </p>
+          <TextInput
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoFocus
+            placeholder={soiree.name}
+            aria-label="Nom de la soirée, pour confirmer"
+          />
+        </>
+      )}
+      <div className="mt-6 flex gap-2">
+        <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>
+          Retour
+        </Button>
+        <Button
+          variant="danger"
+          size="lg"
+          className="flex-1"
+          disabled={!ok}
+          onClick={() => {
+            void deleteSoiree(soiree.id);
+            onClose();
+          }}
+        >
+          Supprimer
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -219,13 +267,25 @@ function NewSoireeModal({
   const [date, setDate] = useState(new Date().toLocaleDateString("sv-SE"));
   const [source, setSource] = useState<string>(""); // "" | preset:<id> | soiree:<id>
   const [training, setTraining] = useState(false);
+  const [booking, setBooking] = useState(false);
+  const [adultPrice, setAdultPrice] = useState("");
+  const [childPrice, setChildPrice] = useState("");
+  const pricesValid = !booking || (isAmount(adultPrice) && isAmount(childPrice));
+  const navigate = useNavigate();
   const presets = sortedPresets(projection);
   const soirees = sortedSoirees(projection);
   const current = projection.activeSoireeId ? projection.soirees[projection.activeSoireeId] : undefined;
 
   const create = () => {
+    if (!pricesValid) return;
     const id = newId();
     void upsertSoiree({ id, name: name.trim() || "Soirée", date, training });
+    // Deux tarifs pour démarrer ; d'autres (étudiant…) s'ajoutent dans Réservations → Gestion.
+    if (booking)
+      void setBookingTariffs(id, [
+        { productId: BOOKING_ADULT_ID, name: projection.products[BOOKING_ADULT_ID]?.name ?? "Adulte", priceCents: parseAmountToCents(adultPrice) },
+        { productId: BOOKING_CHILD_ID, name: projection.products[BOOKING_CHILD_ID]?.name ?? "Enfant", priceCents: parseAmountToCents(childPrice) },
+      ]);
 
     // Applique la source (preset ou carte d'une autre soirée).
     if (source.startsWith("preset:")) {
@@ -257,6 +317,11 @@ function NewSoireeModal({
 
     void activateSoiree(id);
     onClose();
+    // Soirée sur réservation : la suite, c'est l'import de la liste.
+    if (booking) {
+      navigate("/reservations?vue=gestion");
+      return;
+    }
     // Ouvre directement l'éditeur de carte pour ajuster.
     onEditCarte({
       id,
@@ -329,6 +394,44 @@ function NewSoireeModal({
             </span>
           </span>
         </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-control border border-line bg-well p-3">
+          <input
+            type="checkbox"
+            checked={booking}
+            onChange={(e) => setBooking(e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-lantern"
+          />
+          <span>
+            <span className="block text-body font-bold text-cream">Sur réservation</span>
+            <span className="block text-micro text-sand">
+              Repas à tarif adulte / enfant (raclette, paella…). Les caisses pointent les réservations
+              importées et encaissent les sur-place depuis l'onglet Réservations.
+            </span>
+          </span>
+        </label>
+        {booking && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Tarif adulte (€)">
+              <TextInput
+                inputMode="decimal"
+                value={adultPrice}
+                onChange={(e) => setAdultPrice(e.target.value)}
+                invalid={adultPrice !== "" && !isAmount(adultPrice)}
+                placeholder="24"
+              />
+            </Field>
+            <Field label="Tarif enfant (€)">
+              <TextInput
+                inputMode="decimal"
+                value={childPrice}
+                onChange={(e) => setChildPrice(e.target.value)}
+                invalid={childPrice !== "" && !isAmount(childPrice)}
+                placeholder="9"
+              />
+            </Field>
+          </div>
+        )}
       </div>
       {current && (
         <p className="mt-4 text-body text-sand">
@@ -340,7 +443,7 @@ function NewSoireeModal({
         <Button variant="ghost" size="lg" onClick={onClose}>
           Annuler
         </Button>
-        <Button variant="primary" size="lg" className="flex-1" onClick={create}>
+        <Button variant="primary" size="lg" className="flex-1" disabled={!pricesValid} onClick={create}>
           Créer et activer
         </Button>
       </div>

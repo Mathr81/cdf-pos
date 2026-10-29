@@ -1,13 +1,15 @@
 import type { Server } from "socket.io";
 import {
   EventSchema,
+  canSelfVoid,
+  type AppEvent,
   type ClientToServerEvents,
   type EventType,
   type ServerToClientEvents,
   type StoredEvent,
   type SyncAck,
 } from "@cdf/shared";
-import { applyEvent } from "./projections.js";
+import { applyEvent, ConflictError, findOrderForVoid } from "./projections.js";
 import { enqueueBackup } from "./backup/index.js";
 
 export type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -22,6 +24,13 @@ export type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
  * une annulation après coup est la fraude classique sur une caisse.
  */
 const PUBLIC_TYPES: ReadonlySet<EventType> = new Set(["sale", "stock_adjust", "prepared"]);
+
+/** Exception à PUBLIC_TYPES : la tablette qui a encaissé une réservation corrige son clic. */
+async function isSelfVoid(ev: AppEvent): Promise<boolean> {
+  if (ev.type !== "order_void") return false;
+  const order = await findOrderForVoid(ev.payload.orderId);
+  return order !== null && canSelfVoid(order, ev.deviceId, ev.createdAt);
+}
 
 /**
  * Une seule ingestion à la fois.
@@ -55,7 +64,7 @@ async function ingestNow(
   { isAdmin }: { isAdmin: boolean },
 ): Promise<SyncAck> {
   const acceptedIds: string[] = [];
-  const rejected: { id: string; error: string }[] = [];
+  const rejected: SyncAck["rejected"] = [];
   const broadcast: StoredEvent[] = [];
 
   for (const raw of rawEvents) {
@@ -65,7 +74,7 @@ async function ingestNow(
       rejected.push({ id, error: parsed.error.issues.map((i) => i.message).join("; ") });
       continue;
     }
-    if (!isAdmin && !PUBLIC_TYPES.has(parsed.data.type)) {
+    if (!isAdmin && !PUBLIC_TYPES.has(parsed.data.type) && !(await isSelfVoid(parsed.data))) {
       rejected.push({ id: parsed.data.id, error: "PIN administrateur requis" });
       continue;
     }
@@ -81,7 +90,11 @@ async function ingestNow(
         });
       }
     } catch (e) {
-      rejected.push({ id: parsed.data.id, error: (e as Error).message });
+      rejected.push({
+        id: parsed.data.id,
+        error: (e as Error).message,
+        ...(e instanceof ConflictError ? { code: e.code } : {}),
+      });
     }
   }
 

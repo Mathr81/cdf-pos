@@ -2,6 +2,23 @@ import { Prisma } from "@prisma/client";
 import type { AppEvent, StoredEvent } from "@cdf/shared";
 import { prisma } from "./db.js";
 
+/**
+ * Refus définitif : la réservation est déjà encaissée par une autre caisse.
+ * Le client la retire de son outbox au lieu de la renvoyer en boucle.
+ */
+export class ConflictError extends Error {
+  readonly code = "conflict" as const;
+}
+
+/** Encaissement visé par une annulation, pour la règle des 10 min sans PIN. */
+export async function findOrderForVoid(orderId: string) {
+  const row = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { reservationId: true, deviceId: true, createdAt: true },
+  });
+  return row && { ...row, createdAt: row.createdAt.toISOString() };
+}
+
 export interface ApplyResult {
   /** true si l'événement vient d'être appliqué (pas un doublon déjà connu). */
   applied: boolean;
@@ -20,6 +37,19 @@ export async function applyEvent(ev: AppEvent): Promise<ApplyResult> {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.event.findUnique({ where: { id: ev.id }, select: { id: true } });
     if (existing) return { applied: false };
+
+    // Avant l'insert : un encaissement refusé ne doit pas entrer au journal.
+    // L'ingestion étant sérialisée, aucun autre encaissement ne peut se
+    // glisser entre ce contrôle et le commit.
+    if (ev.type === "sale" && ev.payload.reservationId) {
+      const winner = await tx.order.findFirst({
+        where: { reservationId: ev.payload.reservationId, status: "paid" },
+        select: { id: true, registerLabel: true },
+      });
+      if (winner && winner.id !== ev.payload.orderId) {
+        throw new ConflictError(`Déjà encaissée par ${winner.registerLabel}`);
+      }
+    }
 
     const stored = await tx.event.create({
       data: {
@@ -79,6 +109,7 @@ async function project(tx: Tx, ev: AppEvent): Promise<void> {
           status: "paid",
           totalCents: p.totalCents,
           cashReceivedCents: p.cashReceivedCents ?? null,
+          reservationId: p.reservationId ?? null,
           items: {
             create: p.items.map((it) => ({
               productId: it.productId,

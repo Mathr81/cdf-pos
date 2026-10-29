@@ -16,15 +16,19 @@ import { CloudArrowUpIcon } from "@phosphor-icons/react/dist/csr/CloudArrowUp";
 import { CloudWarningIcon } from "@phosphor-icons/react/dist/csr/CloudWarning";
 import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
 import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
+import { ClipboardTextIcon } from "@phosphor-icons/react/dist/csr/ClipboardText";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import { isBookingSoiree, isReservationsOnly } from "@cdf/shared";
 
 import { useSession } from "../lib/session.js";
 import { useActiveSoiree } from "../lib/hooks.js";
-import { useStore } from "../lib/store.js";
+import { projection, useStore } from "../lib/store.js";
 import { disconnect } from "../lib/sync.js";
 import { getDeviceId } from "../lib/device.js";
 import { useWakeLock } from "../lib/wakeLock.js";
 import { cn } from "../lib/cn.js";
 import { PendingSalesGuard } from "./PendingSalesGuard.js";
+import { ConflictModal } from "./ConflictModal.js";
 
 interface NavItem {
   to: string;
@@ -34,7 +38,16 @@ interface NavItem {
 
 /* Routes et libellés strictement inchangés : l'équipe est formée dessus.
    Seule l'icône passe d'un emoji à un glyphe cohérent. */
-function navItemsFor(role: string | null, isAdmin: boolean): NavItem[] {
+function navItemsFor(role: string | null, isAdmin: boolean, booking: boolean, only: boolean): NavItem[] {
+  const items = baseNavItems(role, isAdmin);
+  // Réservations juste après Caisse, et seulement les soirs où elle sert.
+  if (!booking || items[0]?.to !== "/caisse") return items;
+  items.splice(1, 0, { to: "/reservations", label: "Réservations", icon: ClipboardTextIcon });
+  // Rien d'autre à vendre ce soir : Caisse, Cuisine et Stock seraient vides.
+  return only ? items.filter((i) => !["/caisse", "/cuisine", "/inventaire"].includes(i.to)) : items;
+}
+
+function baseNavItems(role: string | null, isAdmin: boolean): NavItem[] {
   const caisse = { to: "/caisse", label: "Caisse", icon: ReceiptIcon };
   const cuisine = { to: "/cuisine", label: "Cuisine", icon: ChefHatIcon };
   const inventaire = { to: "/inventaire", label: "Stock", icon: PackageIcon };
@@ -141,19 +154,54 @@ function usePendingExitWarning() {
 }
 
 /**
- * Bandeau permanent en soirée d'entraînement.
- *
- * Non refermable, et c'est délibéré : le danger n'est pas d'oublier qu'on
- * s'entraîne, c'est d'encaisser un vrai client sur une soirée d'exercice et
- * de ne jamais retrouver l'argent dans les comptes.
+ * Bandeau en soirée d'entraînement. Refermable par tablette et par soirée,
+ * mais il laisse alors une pastille à côté du nom de caisse : le danger est
+ * d'encaisser un vrai client sur une soirée d'exercice sans le voir.
  */
-function TrainingBanner() {
+const TRAINING_HIDDEN_KEY = "cdf.trainingBannerHidden";
+
+function useTrainingBanner() {
   const soiree = useActiveSoiree();
-  if (!soiree?.training) return null;
+  const [hiddenFor, setHiddenFor] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(TRAINING_HIDDEN_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const set = (id: string | null) => {
+    setHiddenFor(id);
+    try {
+      if (id) localStorage.setItem(TRAINING_HIDDEN_KEY, id);
+      else localStorage.removeItem(TRAINING_HIDDEN_KEY);
+    } catch {
+      // Stockage indisponible : masqué jusqu'au rechargement seulement.
+    }
+  };
+  const training = soiree?.training ? soiree : null;
+  return {
+    soiree: training,
+    hidden: training !== null && hiddenFor === training.id,
+    hide: () => training && set(training.id),
+    show: () => set(null),
+  };
+}
+
+function TrainingBanner({ name, onHide }: { name: string; onHide: () => void }) {
   return (
-    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern px-3 print:hidden py-1.5 text-center text-micro font-bold text-night">
+    <div className="flex shrink-0 items-center justify-center gap-2 bg-lantern py-1 pl-3 pr-1 text-center text-micro font-bold text-night print:hidden">
       <GraduationCapIcon size={16} weight="fill" className="shrink-0" />
-      MODE ENTRAÎNEMENT · « {soiree.name} » — ces ventes ne comptent pas dans les chiffres
+      <span className="min-w-0 flex-1 md:flex-none">
+        MODE ENTRAÎNEMENT · « {name} » — ces ventes ne comptent pas dans les chiffres
+      </span>
+      <button
+        onClick={onHide}
+        aria-label="Masquer le bandeau d'entraînement"
+        title="Masquer (une pastille reste en haut)"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control hover:bg-night/10"
+      >
+        <XIcon size={16} weight="bold" />
+      </button>
     </div>
   );
 }
@@ -181,12 +229,19 @@ function DuplicateRegisterBanner() {
 export function Layout({ children }: { children: ReactNode }) {
   const { role, label, isAdmin, reset } = useSession();
   const navigate = useNavigate();
-  const items = navItemsFor(role, isAdmin);
+  const soiree = useActiveSoiree();
+  const items = navItemsFor(
+    role,
+    isAdmin,
+    soiree !== null && isBookingSoiree(projection, soiree.id),
+    soiree !== null && isReservationsOnly(projection, soiree.id),
+  );
 
   // Toutes les routes authentifiées : chaque écran de l'app est un écran de
   // travail pendant le service.
   useWakeLock();
   usePendingExitWarning();
+  const training = useTrainingBanner();
 
   const changePoste = () => {
     disconnect();
@@ -212,7 +267,19 @@ export function Layout({ children }: { children: ReactNode }) {
               <div className="font-display max-w-40 truncate text-body font-bold text-cream md:max-w-28 lg:max-w-none">
                 {label ?? "CDF Caisse"}
               </div>
-              <SyncIndicator />
+              <div className="flex items-center gap-2">
+                <SyncIndicator />
+                {training.hidden && (
+                  <button
+                    onClick={training.show}
+                    title="Réafficher le bandeau d'entraînement"
+                    className="flex items-center gap-1 rounded-full bg-lantern px-1.5 text-micro font-bold text-night"
+                  >
+                    <GraduationCapIcon size={12} weight="fill" />
+                    Entraînement
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -229,7 +296,9 @@ export function Layout({ children }: { children: ReactNode }) {
                 to={it.to}
                 className={({ isActive }) =>
                   cn(
-                    "flex h-12 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-control px-1",
+                    // min-w-9 sous `sm` : avec le PIN et Réservations, 10 onglets
+                    // doivent tenir sur 390 px sans défilement caché.
+                    "flex h-12 min-w-9 flex-1 flex-col sm:min-w-11 items-center justify-center gap-0.5 rounded-control px-1",
                     "font-bold whitespace-nowrap transition-colors",
                     "md:h-14 md:flex-none md:px-2.5 lg:h-12 lg:flex-row lg:gap-2 lg:px-3",
                     isActive
@@ -256,12 +325,15 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="guirlande" />
       </header>
 
-      <TrainingBanner />
+      {training.soiree && !training.hidden && (
+        <TrainingBanner name={training.soiree.name} onHide={training.hide} />
+      )}
       <DuplicateRegisterBanner />
 
       <main className="min-h-0 flex-1 overflow-hidden print:overflow-visible">{children}</main>
 
       <PendingSalesGuard />
+      <ConflictModal />
     </div>
   );
 }

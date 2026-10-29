@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
+import { ClipboardTextIcon } from "@phosphor-icons/react/dist/csr/ClipboardText";
 import { ChefHatIcon } from "@phosphor-icons/react/dist/csr/ChefHat";
 import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
 import { PackageIcon } from "@phosphor-icons/react/dist/csr/Package";
@@ -103,6 +104,46 @@ const SECTIONS: Section[] = [
         <Note>
           <b className="text-cream">« Vider » par erreur ?</b> Touche « Rétablir » dans le message
           qui s'affiche : le panier revient tel quel.
+        </Note>
+      </>
+    ),
+  },
+  {
+    id: "reservations",
+    title: "Soirée sur réservation",
+    icon: ClipboardTextIcon,
+    body: (
+      <>
+        <ol className="space-y-3">
+          <Etape n={1} titre="Retrouver la réservation">
+            Onglet <b className="text-cream">Réservations</b> : tape quelques lettres du nom (les fautes
+            et les accents sont tolérés) ou la fin du numéro de téléphone.
+          </Etape>
+          <Etape n={2} titre="Ajuster et encaisser">
+            Touche le nom. Corrige le nombre de personnes par tarif s'il a changé, le montant suit, puis
+            encaisse comme en caisse. La ligne passe « Arrivé » sur toutes les tablettes. Une remarque
+            (table, allergie…) s'affiche en jaune : lis-la avant de valider.
+          </Etape>
+          <Etape n={3} titre="Payé d'avance">
+            Badge <b className="text-cream">Payé d'avance</b> : rien à encaisser, touche « Marquer arrivé ».
+            S'ils sont plus nombreux que prévu, ajoute-les : seules les personnes en plus sont encaissées.
+          </Etape>
+          <Etape n={4} titre="Sans réservation">
+            Bouton <b className="text-cream">Sur place</b> : nom facultatif, nombre de personnes, encaisser.
+          </Etape>
+        </ol>
+        <Note>
+          <b className="text-cream">Erreur de clic ?</b> Touche la ligne puis « Annuler l'arrivée » :
+          possible depuis la même tablette pendant 10 minutes, ensuite il faut un responsable avec le PIN.
+        </Note>
+        <Note>
+          <b className="text-cream">Liste papier de secours</b> : Réservations → Gestion → « Imprimer la
+          liste », juste avant l'ouverture. Elle sort à jour, avec une case à cocher par réservation.
+        </Note>
+        <Note tone="warn">
+          <b className="text-cream">Deux caisses sur la même réservation</b> (souvent hors ligne) : la
+          première arrivée au serveur compte. L'autre tablette affiche un message et demande si de
+          l'argent a été reçu : si oui (c'étaient d'autres personnes), il est gardé en sur-place.
         </Note>
       </>
     ),

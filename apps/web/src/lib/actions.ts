@@ -1,3 +1,4 @@
+import type { ReservationUpsertPayload } from "@cdf/shared";
 import type {
   PaymentMethod,
   PresetItem,
@@ -7,7 +8,8 @@ import type {
   StockReason,
 } from "@cdf/shared";
 import { getDeviceId, newId, nextClientSeq } from "./device.js";
-import { dispatch } from "./sync.js";
+import { dismissConflict, dispatch, dispatchMany } from "./sync.js";
+import type { ConflictRow } from "./db.js";
 import { projection } from "./store.js";
 
 /** Champs communs à toute enveloppe d'événement local. */
@@ -38,6 +40,10 @@ export function emitSale(input: {
   items: SaleItem[];
   totalCents: number;
   cashReceivedCents?: number;
+  reservationId?: string;
+  guestName?: string;
+  supplementOf?: string;
+  heads?: Record<string, number>;
 }) {
   return dispatch({
     ...meta(),
@@ -51,6 +57,10 @@ export function emitSale(input: {
       items: input.items,
       totalCents: input.totalCents,
       cashReceivedCents: input.cashReceivedCents,
+      reservationId: input.reservationId,
+      guestName: input.guestName,
+      supplementOf: input.supplementOf,
+      heads: input.heads,
     },
   });
 }
@@ -190,4 +200,80 @@ export function deletePreset(id: string) {
 /** Ordre des onglets de catégories en caisse. */
 export function setCategoryOrder(categories: string[]) {
   return dispatch({ ...meta(), type: "category_order", payload: { categories } });
+}
+
+// ─── Réservations ────────────────────────────────────────────
+
+/** Crée ou modifie des réservations, en un seul envoi (import CSV). */
+export function upsertReservations(payloads: Omit<ReservationUpsertPayload, "adults" | "children">[]) {
+  return dispatchMany(
+    payloads.map((p) => ({
+      ...meta(),
+      type: "reservation_upsert" as const,
+      // adults / children : champs de l'ancien format, remplacés par `counts`.
+      payload: { ...p, adults: 0, children: 0 },
+    })),
+  );
+}
+
+export function deleteReservations(ids: string[]) {
+  return dispatchMany(ids.map((id) => ({ ...meta(), type: "reservation_delete" as const, payload: { id } })));
+}
+
+/**
+ * Fixe les tarifs d'une soirée sur réservation. Chaque tarif est un produit
+ * (catégorie « Réservation », hors grille de caisse) : il est créé, ou
+ * renommé, au besoin. `productId` absent = nouveau tarif.
+ */
+export async function setBookingTariffs(
+  soireeId: string,
+  tariffs: { productId?: string; name: string; priceCents: number }[],
+) {
+  const saved: { productId: string; priceCents: number }[] = [];
+  for (const [i, t] of tariffs.entries()) {
+    const productId = t.productId ?? `resa-${newId()}`;
+    const existing = projection.products[productId];
+    if (!existing?.active || existing.name !== t.name) {
+      await upsertProduct({
+        id: productId,
+        name: t.name,
+        priceCents: t.priceCents,
+        category: "Réservation",
+        stationId: null,
+        stockInitial: 0,
+        stockUnlimited: true,
+        components: [],
+        active: true,
+        sortOrder: 900 + i,
+        emoji: existing?.emoji ?? "fork-knife",
+        color: existing?.color ?? "#f59e0b",
+      });
+    }
+    saved.push({ productId, priceCents: t.priceCents });
+  }
+  await dispatch({ ...meta(), type: "booking_tariffs_set", payload: { soireeId, tariffs: saved } });
+}
+
+/**
+ * Tranche un conflit d'encaissement. `keepMoney` : la caisse a bien reçu
+ * l'argent (c'étaient d'autres personnes, homonymes par exemple) → la vente
+ * est ré-émise en sur-place pour que l'argent reste tracé. Sinon (rien reçu
+ * ou remboursé), elle est abandonnée.
+ */
+export async function resolveConflict(row: ConflictRow, keepMoney: boolean) {
+  if (keepMoney) {
+    const p = row.event.payload;
+    await emitSale({
+      soireeId: p.soireeId,
+      registerLabel: p.registerLabel,
+      cashierName: p.cashierName,
+      paymentMethod: p.paymentMethod,
+      items: p.items,
+      totalCents: p.totalCents,
+      cashReceivedCents: p.cashReceivedCents,
+      reservationId: newId(),
+      guestName: p.guestName ?? projection.reservations[p.reservationId ?? ""]?.name,
+    });
+  }
+  await dismissConflict(row.id);
 }

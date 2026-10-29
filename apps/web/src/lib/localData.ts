@@ -22,9 +22,13 @@ export class PendingSalesError extends Error {
   }
 }
 
-/** Nombre d'événements créés ici et pas encore acquittés par le serveur. */
+/**
+ * Nombre d'événements créés ici et pas encore acquittés par le serveur,
+ * plus les encaissements en conflit non tranchés : de l'argent a pu être
+ * reçu pour eux, ils n'existent que sur cette tablette.
+ */
 export async function pendingCount(): Promise<number> {
-  return db.outbox.count();
+  return (await db.outbox.count()) + (await db.conflicts.count());
 }
 
 /**
@@ -39,10 +43,11 @@ export async function wipeLocalData({ force = false }: { force?: boolean } = {})
     const count = await pendingCount();
     if (count > 0) throw new PendingSalesError(count);
   }
-  await db.transaction("rw", db.log, db.outbox, db.meta, async () => {
+  await db.transaction("rw", [db.log, db.outbox, db.meta, db.conflicts], async () => {
     await db.log.clear();
     await db.outbox.clear();
     await db.meta.clear();
+    await db.conflicts.clear();
   });
 }
 
@@ -54,5 +59,8 @@ export async function wipeLocalData({ force = false }: { force?: boolean } = {})
 export async function serializeOutbox(): Promise<string> {
   const rows = await db.outbox.orderBy("createdAt").toArray();
   const events: AppEvent[] = rows.map((r) => r.event);
-  return JSON.stringify({ exportedAt: new Date().toISOString(), events }, null, 2);
+  // Les conflits ne sont pas rejouables tels quels (le serveur les refuse),
+  // mais ils disent qu'une caisse a peut-être reçu de l'argent.
+  const conflicts = await db.conflicts.toArray();
+  return JSON.stringify({ exportedAt: new Date().toISOString(), events, conflicts }, null, 2);
 }

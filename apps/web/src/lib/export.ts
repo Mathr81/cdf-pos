@@ -1,4 +1,11 @@
-import { formatAmount, paymentLabel, type ProjectionState } from "@cdf/shared";
+import {
+  bookingTariffs,
+  formatAmount,
+  orderHeads,
+  paymentLabel,
+  reservationRows,
+  type ProjectionState,
+} from "@cdf/shared";
 import { download } from "./download.js";
 
 /** Échappe un champ CSV (séparateur « ; », compatible Excel FR). */
@@ -10,6 +17,56 @@ function cell(v: string | number): string {
 function downloadCsv(filename: string, content: string) {
   // BOM UTF-8 pour qu'Excel affiche correctement les accents.
   download(filename, "﻿" + content, "text/csv;charset=utf-8;");
+}
+
+function fileTag(state: ProjectionState, soireeId: string | null): string {
+  const tag = soireeId ? (state.soirees[soireeId]?.name ?? soireeId) : "toutes-soirees";
+  return tag.replace(/[^\w-]+/g, "_").toLowerCase();
+}
+
+/**
+ * Bilan de fin de soirée sur réservation : une ligne par réservation (venue
+ * ou non) et par sur-place, avec ce qui a réellement été encaissé.
+ */
+export function exportReservationsCsv(state: ProjectionState, soireeId: string): void {
+  const tariffs = bookingTariffs(state, soireeId);
+  const header = [
+    "Nom",
+    "Téléphone",
+    "Remarque",
+    "Payé d'avance",
+    ...tariffs.flatMap((t) => [`${t.name} prévus`, `${t.name} venus`]),
+    "Statut",
+    "Montant payé d'avance",
+    "Montant encaissé",
+    "Paiement",
+    "Caisse",
+    "Heure",
+  ];
+  const lines = [header.map(cell).join(";")];
+  for (const r of reservationRows(state, soireeId)) {
+    const o = r.order;
+    const heads = o ? orderHeads(o) : {};
+    const onSite = [o, ...r.supplements].filter((x) => x && x.paymentMethod !== "prepaid");
+    lines.push(
+      [
+        r.name,
+        r.phone ?? "",
+        r.note ?? "",
+        r.prepaid ? "oui" : "",
+        ...tariffs.flatMap((t) => [r.walkIn ? "" : (r.counts[t.productId] ?? 0), heads[t.productId] ?? 0]),
+        r.walkIn ? "sur place" : o ? "arrivé" : "absent",
+        o?.paymentMethod === "prepaid" ? formatAmount(o.totalCents) : "",
+        onSite.length ? formatAmount(onSite.reduce((sum, x) => sum + x!.totalCents, 0)) : "",
+        [...new Set(onSite.map((x) => paymentLabel(x!.paymentMethod)))].join(" + "),
+        o?.registerLabel ?? "",
+        o ? new Date(o.createdAt).toLocaleTimeString("fr-FR") : "",
+      ]
+        .map(cell)
+        .join(";"),
+    );
+  }
+  downloadCsv(`reservations-${fileTag(state, soireeId)}.csv`, lines.join("\n"));
 }
 
 /**
@@ -62,7 +119,5 @@ export function exportOrdersCsv(state: ProjectionState, soireeId: string | null)
     }
   }
 
-  const tag = soireeId ? (state.soirees[soireeId]?.name ?? soireeId) : "toutes-soirees";
-  const safe = tag.replace(/[^\w-]+/g, "_").toLowerCase();
-  downloadCsv(`ventes-${safe}.csv`, lines.join("\n"));
+  downloadCsv(`ventes-${fileTag(state, soireeId)}.csv`, lines.join("\n"));
 }

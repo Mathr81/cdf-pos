@@ -11,7 +11,7 @@ import { db, getMeta, setMeta } from "./db.js";
 import { getDeviceId } from "./device.js";
 import { pendingCount, wipeLocalData } from "./localData.js";
 import { useSession } from "./session.js";
-import { applyIncoming, useStore } from "./store.js";
+import { applyIncoming, retractOrders, useStore } from "./store.js";
 
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
@@ -25,8 +25,13 @@ const PUSH_CHUNK = 200;
 const EPOCH_KEY = "epoch";
 
 async function refreshPending() {
-  const count = await db.outbox.count();
+  const rows = await db.outbox.toArray();
+  const count = rows.length;
   useStore.getState().setPending(count);
+  useStore.getState().setOutboxState({
+    pendingOrderIds: new Set(rows.flatMap((r) => (r.event.type === "sale" ? [r.event.payload.orderId] : []))),
+    conflicts: await db.conflicts.orderBy("at").toArray(),
+  });
   // Le serveur ne peut pas deviner ce chiffre : ces événements n'existent que
   // dans l'IndexedDB de cette tablette. C'est précisément ce qui le rend utile
   // à l'admin avant une remise à zéro.
@@ -148,8 +153,44 @@ export async function pushOutbox(): Promise<void> {
       .catch(() => null);
     if (!ack) break; // réseau perdu : la suite repartira à la reconnexion
     if (ack.acceptedIds.length > 0) await db.outbox.bulkDelete(ack.acceptedIds);
+    await settleConflicts(ack);
   }
   await refreshPending();
+}
+
+/**
+ * Encaissements de réservation refusés : une autre caisse est passée avant.
+ * Les renvoyer ne changerait rien, on les sort de l'outbox et du journal.
+ * Si la caisse avait déjà annulé son encaissement (annulation encore en
+ * attente), il n'y a rien à trancher : les deux partent. Sinon le conflit
+ * est gardé jusqu'à ce que la caisse dise ce qu'elle a fait de l'argent.
+ */
+export async function settleConflicts(ack: SyncAck): Promise<void> {
+  const ids = ack.rejected.filter((r) => r.code === "conflict").map((r) => r.id);
+  if (ids.length === 0) return;
+  const retracted: string[] = [];
+  await db.transaction("rw", [db.outbox, db.log, db.conflicts], async () => {
+    const outbox = await db.outbox.toArray();
+    for (const id of ids) {
+      const row = outbox.find((r) => r.id === id);
+      if (row?.event.type !== "sale") continue;
+      const sale = row.event;
+      const voids = outbox.filter(
+        (r) => r.event.type === "order_void" && r.event.payload.orderId === sale.payload.orderId,
+      );
+      const drop = [id, ...voids.map((r) => r.id)];
+      await db.outbox.bulkDelete(drop);
+      await db.log.bulkDelete(drop);
+      // Arrivée d'une réservation payée d'avance : aucun argent en jeu,
+      // l'autre caisse l'a déjà pointée, il n'y a rien à trancher.
+      if (voids.length === 0 && sale.payload.paymentMethod !== "prepaid") {
+        const error = ack.rejected.find((r) => r.id === id)?.error ?? "Déjà encaissée";
+        await db.conflicts.put({ id, event: sale, error, at: Date.now() });
+      }
+      retracted.push(sale.payload.orderId);
+    }
+  });
+  retractOrders(retracted);
 }
 
 /**
@@ -157,16 +198,31 @@ export async function pushOutbox(): Promise<void> {
  * Fonctionne hors-ligne : l'événement reste dans l'outbox jusqu'à reconnexion.
  */
 export async function dispatch(event: AppEvent): Promise<void> {
+  return dispatchMany([event]);
+}
+
+/**
+ * Même chose pour un lot (import de réservations) : une seule écriture et
+ * une seule poussée, au lieu d'une poussée concurrente par événement.
+ */
+export async function dispatchMany(events: AppEvent[]): Promise<void> {
   // Écrire AVANT d'afficher : si IndexedDB refuse (stockage plein, navigation
   // privée), l'appelant reçoit l'erreur et rien ne s'affiche. L'inverse
   // montrerait une vente « encaissée » qui disparaît au rechargement.
+  const now = Date.now();
   await db.transaction("rw", db.outbox, db.log, async () => {
-    await db.outbox.put({ id: event.id, event, createdAt: Date.now() });
-    await db.log.put({ id: event.id, seq: null, event });
+    await db.outbox.bulkPut(events.map((event) => ({ id: event.id, event, createdAt: now })));
+    await db.log.bulkPut(events.map((event) => ({ id: event.id, seq: null, event })));
   });
-  applyIncoming([event]);
+  applyIncoming(events);
   await refreshPending();
   void pushOutbox();
+}
+
+/** Décision de la caisse sur un conflit : la ligne disparaît, l'éventuelle vente de remplacement est déjà émise. */
+export async function dismissConflict(id: string): Promise<void> {
+  await db.conflicts.delete(id);
+  await refreshPending();
 }
 
 /** Établit la connexion temps réel et lance la synchro. */
