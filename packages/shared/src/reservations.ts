@@ -103,6 +103,8 @@ export interface ReservationRow {
   /** Prévu à la réservation ; vide pour un sur-place. */
   counts: Counts;
   walkIn: boolean;
+  /** Arrivé en partie et déclaré complet : on n'attend plus les absents. */
+  complete: boolean;
   /** Arrivée : encaissement (ou pointage d'une réservation payée d'avance) en cours. */
   order: ClientOrder | null;
   /**
@@ -137,6 +139,7 @@ export function reservationRows(state: ProjectionState, soireeId: string): Reser
       prepaid: r.prepaid,
       counts: r.counts,
       walkIn: false,
+      complete: state.reservationComplete[r.id] ?? false,
       order: paid.get(r.id) ?? null,
       supplements: supplements.get(r.id) ?? [],
     }));
@@ -147,6 +150,7 @@ export function reservationRows(state: ProjectionState, soireeId: string): Reser
       prepaid: false,
       counts: {},
       walkIn: true,
+      complete: false,
       order: o,
       supplements: [],
     });
@@ -204,7 +208,7 @@ export function bookingDashboard(state: ProjectionState, soireeId: string): Book
     }
     const heads = arrivedHeads(r);
     // Payé d'avance : pointé en une fois, il n'attend plus personne.
-    if (!r.walkIn && !(r.order && r.prepaid)) d.remaining += Math.max(0, countTotal(r.counts) - countTotal(heads));
+    if (!r.walkIn && !(r.order && (r.prepaid || r.complete))) d.remaining += Math.max(0, countTotal(r.counts) - countTotal(heads));
     if (!r.order) continue;
     d.arrived += countTotal(heads);
     if (r.walkIn) d.arrivedWalkIn += countTotal(heads);

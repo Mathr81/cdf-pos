@@ -20,6 +20,7 @@ import {
   product,
   replay,
   reservation,
+  reservationComplete,
   reservationDelete,
   resetIds,
   sale,
@@ -208,6 +209,22 @@ describe("arrivées en plusieurs fois", () => {
     // Dupont (3) pas arrivé + Martin : 7 prévus − 4 arrivés.
     expect(d.remaining).toBe(6);
     expect(d.totalCents).toBe(3 * 2400 + 900);
+  });
+
+  test("groupe complet : les absents ne sont plus attendus, rouvrir les rattend", () => {
+    const events = [...setup(), arrive(MARTIN, { [A]: 2 })];
+    const closed = replay(...events, reservationComplete(MARTIN, true));
+    expect(reservationRows(closed, SOIREE).find((r) => r.id === MARTIN)?.complete).toBe(true);
+    // Reste Dupont seul (3) ; Martin compte 2 arrivés sur 7 prévus.
+    expect(bookingDashboard(closed, SOIREE).remaining).toBe(3);
+    expect(bookingDashboard(closed, SOIREE).arrived).toBe(2);
+    // Last-write-wins : un « complet » plus ancien arrivé après coup ne referme pas.
+    const reopened = replay(
+      ...events,
+      reservationComplete(MARTIN, false, at("22:00")),
+      reservationComplete(MARTIN, true, at("21:45")),
+    );
+    expect(bookingDashboard(reopened, SOIREE).remaining).toBe(8);
   });
 });
 

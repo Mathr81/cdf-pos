@@ -108,6 +108,14 @@ export function reservationDelete(id: string, createdAt = at("12:00")): EventOf<
   return { ...meta(createdAt), type: "reservation_delete", payload: { id } };
 }
 
+export function reservationComplete(
+  id: string,
+  complete: boolean,
+  createdAt = at("21:30"),
+): EventOf<"reservation_complete"> {
+  return { ...meta(createdAt), type: "reservation_complete", payload: { id, complete } };
+}
+
 export function voidOrder(orderId: string, createdAt = at("21:00")): EventOf<"order_void"> {
   return { ...meta(createdAt), type: "order_void", payload: { orderId } };
 }

@@ -62,7 +62,7 @@ export function exportReservationsCsv(state: ProjectionState, soireeId: string):
           ? "sur place"
           : !o
             ? "absent"
-            : !r.prepaid && countTotal(heads) < countTotal(r.counts)
+            : !r.prepaid && !r.complete && countTotal(heads) < countTotal(r.counts)
               ? "partiel"
               : "arrivé",
         o?.paymentMethod === "prepaid" ? formatAmount(o.totalCents) : "",

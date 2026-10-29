@@ -146,6 +146,8 @@ export interface ProjectionState {
   stations: Record<string, ClientStation>;
   presets: Record<string, ClientPreset>;
   reservations: Record<string, ClientReservation>;
+  /** Groupes déclarés complets à la porte (hors de la réservation : un ré-import ne les rouvre pas). */
+  reservationComplete: Record<string, boolean>;
   /** soireeId → tarifs de la soirée sur réservation. */
   bookingTariffs: Record<string, BookingTariff[]>;
   /** soireeId → productId → config carte. */
@@ -173,6 +175,7 @@ export interface ProjectionState {
   presetUpdatedAt: Record<string, number>;
   carteUpdatedAt: Record<string, number>; // clé "soireeId:productId"
   reservationUpdatedAt: Record<string, number>;
+  reservationCompleteAt: Record<string, number>;
   bookingTariffsUpdatedAt: Record<string, number>;
 }
 
@@ -184,6 +187,7 @@ export function emptyProjection(): ProjectionState {
     stations: {},
     presets: {},
     reservations: {},
+    reservationComplete: {},
     bookingTariffs: {},
     carte: {},
     sold: {},
@@ -198,6 +202,7 @@ export function emptyProjection(): ProjectionState {
     presetUpdatedAt: {},
     carteUpdatedAt: {},
     reservationUpdatedAt: {},
+    reservationCompleteAt: {},
     bookingTariffsUpdatedAt: {},
   };
 }
@@ -439,6 +444,13 @@ export function reduceEvent(state: ProjectionState, ev: AppEvent): void {
         note: p.note,
         prepaid: p.prepaid ?? false,
       };
+      break;
+    }
+    case "reservation_complete": {
+      const p = ev.payload;
+      if ((state.reservationCompleteAt[p.id] ?? 0) > ts) break;
+      state.reservationCompleteAt[p.id] = ts;
+      state.reservationComplete[p.id] = p.complete;
       break;
     }
     case "booking_tariffs_set": {

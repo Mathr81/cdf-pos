@@ -370,6 +370,17 @@ export const ReservationDeletePayloadSchema = z.object({
 });
 export type ReservationDeletePayload = z.infer<typeof ReservationDeletePayloadSchema>;
 
+/**
+ * Groupe arrivé en partie, déclaré complet à la porte : les absents ne
+ * viendront pas. `complete: false` le rouvre (last-write-wins). Émis par
+ * n'importe quelle caisse : ça ne touche à aucun argent.
+ */
+export const ReservationCompletePayloadSchema = z.object({
+  id: z.string().uuid(),
+  complete: z.boolean(),
+});
+export type ReservationCompletePayload = z.infer<typeof ReservationCompletePayloadSchema>;
+
 // ─── Enveloppe d'événement (discriminated union sur `type`) ──
 
 const baseEnvelope = {
@@ -405,6 +416,7 @@ export const EventSchema = z.discriminatedUnion("type", [
   z.object({ ...baseEnvelope, type: z.literal("category_order"), payload: CategoryOrderPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("reservation_upsert"), payload: ReservationUpsertPayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("reservation_delete"), payload: ReservationDeletePayloadSchema }),
+  z.object({ ...baseEnvelope, type: z.literal("reservation_complete"), payload: ReservationCompletePayloadSchema }),
   z.object({ ...baseEnvelope, type: z.literal("booking_tariffs_set"), payload: BookingTariffsSetPayloadSchema }),
 ]);
 

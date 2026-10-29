@@ -216,6 +216,11 @@ export function upsertReservations(payloads: Omit<ReservationUpsertPayload, "adu
   );
 }
 
+/** Groupe arrivé en partie : on n'attend plus les absents (ou on les rattend). */
+export function setReservationComplete(id: string, complete: boolean) {
+  return dispatch({ ...meta(), type: "reservation_complete", payload: { id, complete } });
+}
+
 export function deleteReservations(ids: string[]) {
   return dispatchMany(ids.map((id) => ({ ...meta(), type: "reservation_delete" as const, payload: { id } })));
 }
@@ -255,14 +260,17 @@ export async function setBookingTariffs(
 }
 
 /**
- * Tranche un conflit d'encaissement. `keepMoney` : la caisse a bien reçu
- * l'argent (c'étaient d'autres personnes, homonymes par exemple) → la vente
- * est ré-émise en sur-place pour que l'argent reste tracé. Sinon (rien reçu
- * ou remboursé), elle est abandonnée.
+ * Tranche un conflit d'encaissement.
+ * - `groupe` : d'autres membres du même groupe, encaissés en même temps
+ *   ailleurs → la vente devient une vague de plus du groupe.
+ * - `sur-place` : l'argent est reçu mais c'étaient d'autres personnes
+ *   (homonymes) → ré-émise en sur-place pour que l'argent reste tracé.
+ * - `rien` : rien reçu ou remboursé → abandonnée.
  */
-export async function resolveConflict(row: ConflictRow, keepMoney: boolean) {
-  if (keepMoney) {
+export async function resolveConflict(row: ConflictRow, outcome: "groupe" | "sur-place" | "rien") {
+  if (outcome !== "rien") {
     const p = row.event.payload;
+    const group = outcome === "groupe" ? p.reservationId : undefined;
     await emitSale({
       soireeId: p.soireeId,
       registerLabel: p.registerLabel,
@@ -272,7 +280,9 @@ export async function resolveConflict(row: ConflictRow, keepMoney: boolean) {
       totalCents: p.totalCents,
       cashReceivedCents: p.cashReceivedCents,
       reservationId: newId(),
-      guestName: p.guestName ?? projection.reservations[p.reservationId ?? ""]?.name,
+      supplementOf: group,
+      heads: group ? p.heads : undefined,
+      guestName: group ? undefined : (p.guestName ?? projection.reservations[p.reservationId ?? ""]?.name),
     });
   }
   await dismissConflict(row.id);

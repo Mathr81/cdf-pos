@@ -54,7 +54,14 @@ import { cn } from "../lib/cn.js";
 import { exportReservationsCsv } from "../lib/export.js";
 import { decodeCsv, parseReservationCsv, type CsvResult } from "../lib/reservationCsv.js";
 import { payLook } from "../lib/payLook.js";
-import { deleteReservations, emitSale, setBookingTariffs, upsertReservations, voidOrder } from "../lib/actions.js";
+import {
+  deleteReservations,
+  emitSale,
+  setBookingTariffs,
+  setReservationComplete,
+  upsertReservations,
+  voidOrder,
+} from "../lib/actions.js";
 import { Badge, Button, Card, EmptyState, Field, StepButton, TextInput } from "../components/ui.js";
 import { Modal } from "../components/Modal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
@@ -156,10 +163,11 @@ function onSiteCents(row: ReservationRow): number {
 /**
  * Personnes encore attendues : toute la réservation tant que personne n'est
  * venu, puis ce qui manque d'un groupe qui arrive en plusieurs fois. Un payé
- * d'avance se pointe en une fois : une fois pointé, il n'attend plus personne.
+ * d'avance se pointe en une fois : une fois pointé, il n'attend plus personne,
+ * pas plus qu'un groupe déclaré complet.
  */
 function stillExpected(row: ReservationRow): Counts {
-  if (row.walkIn || (row.order && row.prepaid)) return {};
+  if (row.walkIn || (row.order && (row.prepaid || row.complete))) return {};
   return extras(row.counts, arrivedHeads(row));
 }
 
@@ -579,9 +587,18 @@ function Counter({
       <StepButton aria-label={`${label} : un de moins`} disabled={value === 0} onClick={() => onChange(value - 1)}>
         <MinusIcon size={18} weight="bold" />
       </StepButton>
-      <span className="tnum font-display w-10 text-center text-title font-bold text-cream" aria-live="polite">
-        {value}
-      </span>
+      {/* Saisie directe : 2 arrivés sur 24, sans 22 appuis sur « − ». Plafond = schéma `heads`. */}
+      {/* Largeur sur l'enveloppe : TextInput impose w-full. */}
+      <div className="w-16 shrink-0">
+        <TextInput
+          inputMode="numeric"
+          aria-label={`${label} : nombre`}
+          value={String(value)}
+          onChange={(e) => onChange(Math.min(999, Number(e.target.value.replace(/\D/g, "")) || 0))}
+          onFocus={(e) => e.target.select()}
+          className="tnum font-display px-1 text-center text-title font-bold"
+        />
+      </div>
       <StepButton aria-label={`${label} : un de plus`} onClick={() => onChange(value + 1)}>
         <PlusIcon size={18} weight="bold" />
       </StepButton>
@@ -826,6 +843,16 @@ function PaidModal({
   // Le serveur vérifie chaque annulation : une vague encaissée par une autre caisse demande le PIN.
   const canVoid = (o: ClientOrder) => isAdmin || canSelfVoid(o, getDeviceId(), new Date().toISOString());
   const allowed = () => [order, ...row.supplements].every(canVoid);
+  const missing = countTotal(row.counts) - countTotal(arrivedHeads(row));
+
+  const setComplete = async (complete: boolean) => {
+    try {
+      await setReservationComplete(row.id, complete);
+      onDone({ text: complete ? `${row.name} : groupe complet` : `${row.name} : de nouveau attendu` });
+    } catch (e) {
+      onDone({ tone: "error", text: `Non enregistré : ${(e as Error).message}` });
+    }
+  };
 
   const cancelWave = async (o: ClientOrder) => {
     if (!canVoid(o)) {
@@ -901,10 +928,30 @@ function PaidModal({
       </div>
       {row.note && <NoteBox note={row.note} />}
       {!row.prepaid && !row.walkIn && (
-        <Button size="lg" className="mt-4 w-full" onClick={onMore}>
-          <UserPlusIcon size={20} weight="bold" />
-          Ajouter des arrivants
-        </Button>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <Button size="lg" className="flex-1" onClick={onMore}>
+            <UserPlusIcon size={20} weight="bold" />
+            Ajouter des arrivants
+          </Button>
+          {/* Les absents ne viendront pas : le groupe quitte « À venir » et le reste à encaisser. */}
+          {missing > 0 && !row.complete && (
+            <Button size="lg" className="flex-1" onClick={() => void setComplete(true)}>
+              Groupe complet ({plural(missing, "absent")})
+            </Button>
+          )}
+        </div>
+      )}
+      {row.complete && missing > 0 && (
+        <p className="mt-2 flex items-center gap-2 text-micro text-ash">
+          <span>Déclaré complet : {plural(missing, "absent")}.</span>
+          <button
+            type="button"
+            className="font-bold text-sand underline hover:text-cream"
+            onClick={() => void setComplete(false)}
+          >
+            Rouvrir
+          </button>
+        </p>
       )}
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
         <Button variant="ghost" size="lg" className="flex-1" onClick={onClose}>

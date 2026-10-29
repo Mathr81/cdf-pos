@@ -16,14 +16,20 @@ export type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 /**
  * Seuls types qu'un poste SANS PIN admin peut émettre : vendre (caisse),
- * ajuster le stock (onglet Stock de la caisse), marquer préparé (cuisine).
+ * ajuster le stock (onglet Stock de la caisse), marquer préparé (cuisine),
+ * déclarer complet un groupe arrivé en partie (accueil, sans argent en jeu).
  *
  * Tout le reste — annuler ou modifier une vente, toucher la carte, les
  * soirées, la caisse — est réservé à l'admin. Le vérifier dans l'interface
  * ne suffit pas : le code d'accès est partagé par tous les bénévoles, et
  * une annulation après coup est la fraude classique sur une caisse.
  */
-const PUBLIC_TYPES: ReadonlySet<EventType> = new Set(["sale", "stock_adjust", "prepared"]);
+const PUBLIC_TYPES: ReadonlySet<EventType> = new Set([
+  "sale",
+  "stock_adjust",
+  "prepared",
+  "reservation_complete",
+]);
 
 /** Exception à PUBLIC_TYPES : la tablette qui a encaissé une réservation corrige son clic. */
 async function isSelfVoid(ev: AppEvent): Promise<boolean> {

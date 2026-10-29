@@ -74,6 +74,12 @@ describe("ingestEvents — droits", () => {
     const ack = await ingestEvents(io, [ev], { isAdmin: true });
     expect(ack.acceptedIds).toEqual([ev.id]);
   });
+
+  test("l'accueil sans PIN peut déclarer un groupe complet", async () => {
+    const ev = event("reservation_complete", { id: "00000000-0000-4000-9000-000000000001", complete: true });
+    const ack = await ingestEvents(io, [ev], { isAdmin: false });
+    expect(ack.acceptedIds).toEqual([ev.id]);
+  });
 });
 
 describe("ingestEvents — ordre", () => {
