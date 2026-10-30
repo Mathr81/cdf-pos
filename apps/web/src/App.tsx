@@ -16,7 +16,7 @@ import { SoireesScreen } from "./screens/Soirees.js";
 import { JournalScreen } from "./screens/Journal.js";
 import { AideScreen } from "./screens/Aide.js";
 import { RecapScreen } from "./screens/Recap.js";
-import { ReservationsScreen } from "./screens/Reservations.js";
+import { ReservationsScreen } from "./screens/reservations/ReservationsScreen.js";
 
 export function App() {
   const role = useSession((s) => s.role);
