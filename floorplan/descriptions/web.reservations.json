@@ -1,0 +1,57 @@
+{
+  "files": {
+    "apps/web/src/screens/reservations/ReservationsScreen.tsx": {
+      "name": "Écran Réservations",
+      "description": "Point d'entrée des soirées sur réservation : choisit entre les onglets Accueil, Suivi et Gestion selon la soirée et le PIN."
+    },
+    "apps/web/src/screens/reservations/CheckinTab.tsx": {
+      "name": "Accueil à la porte",
+      "description": "La liste des réservations à pointer : recherche par nom, table ou téléphone, filtres « à venir / arrivés », tri, et bouton « Sur place »."
+    },
+    "apps/web/src/screens/reservations/DoorSide.tsx": {
+      "name": "Bilan de la porte",
+      "description": "Colonne de droite sur iPad en paysage : couverts arrivés, argent reçu par moyen de paiement, reste à encaisser et remarques à surveiller."
+    },
+    "apps/web/src/screens/reservations/CheckinModal.tsx": {
+      "name": "Fenêtre d'arrivée",
+      "description": "Pointe l'arrivée d'un groupe ou d'un sur-place et encaisse ce qui est dû, y compris les personnes en plus et les arrivants suivants d'un groupe."
+    },
+    "apps/web/src/screens/reservations/PaidModal.tsx": {
+      "name": "Fenêtre d'un groupe arrivé",
+      "description": "Montre ce qu'un groupe a payé et qui manque encore : ajouter des arrivants, déclarer le groupe complet ou annuler une arrivée."
+    },
+    "apps/web/src/screens/reservations/DashboardTab.tsx": {
+      "name": "Suivi de la soirée",
+      "description": "Les chiffres en direct : arrivés, couverts restants, encaissé, détail par tarif, par moyen de paiement et par caisse."
+    },
+    "apps/web/src/screens/reservations/ManageTab.tsx": {
+      "name": "Gestion des réservations",
+      "description": "Onglet responsable : tarifs, liste des réservations, import d'un fichier, ajout, impression, export du bilan et vidage de la liste."
+    },
+    "apps/web/src/screens/reservations/TariffsEditor.tsx": {
+      "name": "Tarifs de la soirée",
+      "description": "Fixe les tarifs (adulte, enfant…) qui font d'une soirée une soirée sur réservation ; un tarif déjà réservé ne peut pas être retiré."
+    },
+    "apps/web/src/screens/reservations/ImportModal.tsx": {
+      "name": "Import de la liste",
+      "description": "Aperçu avant d'importer un fichier de réservations : lignes illisibles, colonnes ignorées, et doublons décochés d'office."
+    },
+    "apps/web/src/screens/reservations/EditModal.tsx": {
+      "name": "Fiche réservation",
+      "description": "Crée, modifie ou supprime une réservation : nom, nombre de personnes par tarif, téléphone, table, remarque, payé d'avance."
+    },
+    "apps/web/src/screens/reservations/PrintList.tsx": {
+      "name": "Liste imprimée de secours",
+      "description": "La feuille papier à jour à la minute, pour le jour où le wifi ou les tablettes lâchent ; elle n'apparaît qu'à l'impression."
+    },
+    "apps/web/src/screens/reservations/parts.tsx": {
+      "name": "Petits éléments communs",
+      "description": "Pièces réutilisées par les écrans de réservation : étiquette de table, encadré de remarque, compteurs de personnes par tarif."
+    },
+    "apps/web/src/screens/reservations/rows.ts": {
+      "name": "Calculs des réservations",
+      "description": "Petits calculs partagés : qui est encore attendu, ce qui a été payé sur place, et le texte « 2 adultes · 1 enfant »."
+    }
+  },
+  "routes": {}
+}

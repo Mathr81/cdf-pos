@@ -37,6 +37,16 @@
       ]
     },
     {
+      "id": "web.reservations",
+      "parent": "web",
+      "label": "Réservations",
+      "kind": "feature",
+      "summary": "Soirées sur réservation : accueil des arrivants à la porte, suivi en direct, gestion de la liste et des tarifs, liste imprimée de secours.",
+      "paths": [
+        "apps/web/src/screens/reservations/**"
+      ]
+    },
+    {
       "id": "web.admin",
       "parent": "web",
       "label": "Réglages admin",

@@ -1,68 +1,20 @@
 {
-  "updatedAt": "2026-10-29T22:10:00Z",
+  "updatedAt": "2026-10-30T08:45:00Z",
   "tasks": [
     {
-      "title": "Arrivées de groupes",
-      "request": "Un groupe réservé peut arriver en plusieurs fois, chacun paie sa part (derniers commits)",
-      "summary": "Un groupe peut maintenant être accueilli en plusieurs arrivées, chacune payant sa part ; un groupe peut être déclaré complet, et « Ajouter des arrivants » devient le bouton principal d'un groupe incomplet. Les alertes de double encaissement sont rattachées au groupe.",
+      "title": "Écran Réservations découpé",
+      "request": "Le fichier Reservations.tsx est énorme, découpe-le proprement et déploie",
+      "summary": "L'ancien fichier unique de 1 750 lignes (supprimé) est réparti en 13 fichiers, un par onglet et par fenêtre, sans changer le comportement. Déployé sur les tablettes.",
       "items": [
-        {
-          "ref": "apps/web/src/screens/Reservations.tsx",
-          "change": "changed",
-          "note": "L'écran d'accueil gère les groupes qui arrivent en plusieurs fois, la saisie au clavier et « Ajouter des arrivants » en action principale."
-        },
-        {
-          "ref": "packages/shared/src/reservations.ts",
-          "change": "changed",
-          "note": "Les règles des réservations calculent qui est arrivé dans un groupe et ce que chaque arrivée doit encore."
-        },
-        {
-          "ref": "packages/shared/src/projection.ts",
-          "change": "changed",
-          "note": "Les totaux en direct suivent les arrivées partielles, pour que toutes les tablettes voient le même compte."
-        },
-        {
-          "ref": "packages/shared/src/events.ts",
-          "change": "changed",
-          "note": "Nouvelle action « groupe complet » : l'accueil peut déclarer terminé un groupe arrivé en partie (les autres ne viendront pas)."
-        },
-        {
-          "ref": "apps/server/src/ingest.ts",
-          "change": "changed",
-          "note": "N'importe quelle caisse peut envoyer « groupe complet » sans PIN admin, puisqu'aucun argent n'est en jeu."
-        },
-        {
-          "ref": "apps/web/src/components/ConflictModal.tsx",
-          "change": "changed",
-          "note": "L'alerte de double encaissement désigne maintenant le groupe concerné."
-        },
-        {
-          "ref": "apps/web/src/lib/export.ts",
-          "change": "changed",
-          "note": "Le bilan CSV des réservations reflète ce que chaque arrivée partielle a réellement payé."
-        }
-      ]
-    },
-    {
-      "title": "Type d'appareil dans l'admin",
-      "request": "Afficher l'appareil et le navigateur de chaque poste connecté dans l'admin",
-      "summary": "La liste des appareils connectés affiche maintenant des libellés comme « iPad · Safari » pour distinguer les tablettes.",
-      "items": [
-        {
-          "ref": "apps/web/src/lib/deviceInfo.ts",
-          "change": "new",
-          "note": "Transforme les infos du navigateur en libellé d'appareil lisible."
-        },
-        {
-          "ref": "apps/server/src/presence.ts",
-          "change": "changed",
-          "note": "La liste « qui est en ligne » du serveur garde le libellé de chaque appareil."
-        },
-        {
-          "ref": "apps/web/src/screens/admin/PresencePanel.tsx",
-          "change": "changed",
-          "note": "Affiche l'appareil et le navigateur de chaque tablette connectée."
-        }
+        { "ref": "apps/web/src/screens/reservations/ReservationsScreen.tsx", "change": "new", "note": "Reprend le haut de l'ancien gros fichier : seulement le choix des onglets, le reste vit maintenant à côté." },
+        { "ref": "apps/web/src/screens/reservations/CheckinTab.tsx", "change": "new", "note": "L'onglet Accueil, sorti tel quel du gros fichier pour qu'on puisse le modifier sans toucher au reste." },
+        { "ref": "apps/web/src/screens/reservations/CheckinModal.tsx", "change": "new", "note": "La fenêtre d'arrivée et d'encaissement, isolée dans son propre fichier." },
+        { "ref": "apps/web/src/screens/reservations/PaidModal.tsx", "change": "new", "note": "La fenêtre d'un groupe déjà arrivé, isolée dans son propre fichier." },
+        { "ref": "apps/web/src/screens/reservations/DoorSide.tsx", "change": "new", "note": "La colonne bilan de la porte, sortie du gros fichier." },
+        { "ref": "apps/web/src/screens/reservations/DashboardTab.tsx", "change": "new", "note": "L'onglet Suivi, sorti du gros fichier." },
+        { "ref": "apps/web/src/screens/reservations/ManageTab.tsx", "change": "new", "note": "L'onglet Gestion, sorti du gros fichier ; tarifs, import et fiche réservation ont chacun leur fichier." },
+        { "ref": "apps/web/src/screens/reservations/rows.ts", "change": "new", "note": "Les petits calculs que plusieurs onglets partagent, regroupés en un seul endroit." },
+        { "ref": "apps/web/src/App.tsx", "change": "changed", "note": "Pointe vers le nouvel emplacement de l'écran Réservations." }
       ]
     }
   ]

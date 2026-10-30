@@ -1,0 +1,33 @@
+{
+  "since": "2026-10-30T08:23:27.654Z",
+  "at": "2026-10-30T08:59:09.498Z",
+  "files": {
+    "new": [
+      "apps/web/src/screens/reservations/CheckinModal.tsx",
+      "apps/web/src/screens/reservations/CheckinTab.tsx",
+      "apps/web/src/screens/reservations/DashboardTab.tsx",
+      "apps/web/src/screens/reservations/DoorSide.tsx",
+      "apps/web/src/screens/reservations/EditModal.tsx",
+      "apps/web/src/screens/reservations/ImportModal.tsx",
+      "apps/web/src/screens/reservations/ManageTab.tsx",
+      "apps/web/src/screens/reservations/PaidModal.tsx",
+      "apps/web/src/screens/reservations/PrintList.tsx",
+      "apps/web/src/screens/reservations/ReservationsScreen.tsx",
+      "apps/web/src/screens/reservations/TariffsEditor.tsx",
+      "apps/web/src/screens/reservations/parts.tsx",
+      "apps/web/src/screens/reservations/rows.ts"
+    ],
+    "edited": [
+      "apps/web/src/App.tsx"
+    ],
+    "moved": [],
+    "deleted": [
+      "apps/web/src/screens/Reservations.tsx"
+    ]
+  },
+  "routes": {
+    "new": [],
+    "removed": [],
+    "moved": []
+  }
+}

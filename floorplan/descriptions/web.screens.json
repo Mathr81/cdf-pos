@@ -32,10 +32,6 @@
       "name": "Récap de fin de soirée",
       "description": "Résume la soirée pour le trésorier : recette par moyen de paiement, comptage des caisses et écarts."
     },
-    "apps/web/src/screens/Reservations.tsx": {
-      "name": "Réservations",
-      "description": "Remplace la liste papier : import des réservations, accueil des arrivants (même par groupes en plusieurs fois), encaissement du dû."
-    },
     "apps/web/src/screens/RoleSelect.tsx": {
       "name": "Écran de démarrage",
       "description": "Demande le code d'accès et le rôle de l'appareil : caisse, poste de cuisine, stock ou admin."
