@@ -1,0 +1,36 @@
+{
+  "files": {
+    "apps/web/src/screens/admin/AdminScreen.tsx": {
+      "name": "Réglages admin",
+      "description": "Page protégée par PIN avec onglets produits, postes de cuisine, ordre des catégories, appareils et remise à zéro."
+    },
+    "apps/web/src/screens/admin/CategoryOrderEditor.tsx": {
+      "name": "Ordre des catégories",
+      "description": "Choisit l'ordre des onglets de catégories en caisse, par exemple les plats en premier."
+    },
+    "apps/web/src/screens/admin/PresencePanel.tsx": {
+      "name": "Appareils connectés",
+      "description": "Montre les tablettes en ligne, leur rôle, leur type d'appareil et leurs ventes pas encore envoyées."
+    },
+    "apps/web/src/screens/admin/ProductEditor.tsx": {
+      "name": "Fiche produit",
+      "description": "Ajoute et modifie les produits : prix, catégorie, stock, poste de cuisine et accompagnements inclus."
+    },
+    "apps/web/src/screens/admin/ProductVisual.tsx": {
+      "name": "Apparence du produit",
+      "description": "Choisit l'aspect d'un produit en caisse (icône, emoji ou photo) et la couleur de son ticket papier."
+    },
+    "apps/web/src/screens/admin/ResetPanel.tsx": {
+      "name": "Remise à zéro",
+      "description": "Efface les ventes (ou tout) et fait vider leur copie locale à toutes les tablettes connectées."
+    },
+    "apps/web/src/screens/admin/StationEditor.tsx": {
+      "name": "Postes de cuisine",
+      "description": "Ajoute, renomme et supprime les postes de cuisine (grill, frites…)."
+    },
+    "apps/web/src/screens/admin/TabBtn.tsx": {
+      "name": "Onglet admin",
+      "description": "Le bouton d'onglet utilisé dans les réglages admin."
+    }
+  }
+}

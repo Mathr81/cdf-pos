@@ -1,0 +1,16 @@
+{
+  "files": {
+    "apps/server/src/ingest.ts": {
+      "name": "Réception des événements",
+      "description": "Seule porte d'entrée des événements : vérifie leur format et s'il faut le PIN admin, puis les enregistre."
+    },
+    "apps/server/src/projections.ts": {
+      "name": "Tables de ventes & stock",
+      "description": "Met à jour commandes, stock et caisses à chaque événement, et refuse une réservation déjà encaissée ailleurs."
+    },
+    "apps/server/src/reset.ts": {
+      "name": "Remise à zéro des données",
+      "description": "Efface les ventes (ou tout) et change un repère pour que chaque tablette sache vider sa copie."
+    }
+  }
+}

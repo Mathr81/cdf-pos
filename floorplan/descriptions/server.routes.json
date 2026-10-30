@@ -1,0 +1,46 @@
+{
+  "files": {
+    "apps/server/src/media.ts": {
+      "name": "Traitement des photos produit",
+      "description": "Vérifie, redimensionne et range les photos produit envoyées."
+    },
+    "apps/server/src/routes/admin.ts": {
+      "name": "Requêtes admin",
+      "description": "Traite la remise à zéro demandée par l'admin et fait recharger toutes les tablettes ouvertes."
+    },
+    "apps/server/src/routes/auth.ts": {
+      "name": "Vérification de connexion",
+      "description": "Vérifie le code d'accès et le PIN admin, limité à 10 essais par minute contre les tentatives de devinette."
+    },
+    "apps/server/src/routes/guards.ts": {
+      "name": "Contrôles d'accès",
+      "description": "Bloque les requêtes sans le bon code d'accès, ou sans le PIN admin pour les actions admin."
+    },
+    "apps/server/src/routes/index.ts": {
+      "name": "Annuaire des requêtes",
+      "description": "Liste toutes les adresses web auxquelles le serveur répond."
+    },
+    "apps/server/src/routes/media.ts": {
+      "name": "Requêtes photos",
+      "description": "Reçoit les photos produit (admin seulement) et sert les images enregistrées."
+    },
+    "apps/server/src/routes/state.ts": {
+      "name": "État courant",
+      "description": "Renvoie l'état courant du serveur à un appareil connecté."
+    }
+  },
+  "routes": {
+    "GET /api/health": {
+      "name": "Serveur en marche",
+      "description": "Répond « OK » pour que l'hébergement vérifie que le serveur tourne."
+    },
+    "POST /admin/media": {
+      "name": "Envoyer une photo produit",
+      "description": "Admin seulement : reçoit une photo produit, la redimensionne et l'enregistre."
+    },
+    "GET /state": {
+      "name": "Charger l'état courant",
+      "description": "Donne à un appareil connecté l'état courant du serveur."
+    }
+  }
+}

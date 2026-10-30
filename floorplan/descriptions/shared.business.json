@@ -1,0 +1,24 @@
+{
+  "files": {
+    "packages/shared/src/forecast.ts": {
+      "name": "Prévision de rupture",
+      "description": "Estime quand chaque produit sera épuisé au rythme des ventes."
+    },
+    "packages/shared/src/index.ts": {
+      "name": "Point d'entrée commun",
+      "description": "Rassemble les règles communes pour l'appli et le serveur."
+    },
+    "packages/shared/src/money.ts": {
+      "name": "Affichage des montants",
+      "description": "Stocke les montants en centimes et les affiche ou les lit comme « 12,50 € »."
+    },
+    "packages/shared/src/reservations.ts": {
+      "name": "Règles des réservations",
+      "description": "Calcule le prix par réservation, qui est arrivé, ce qui reste dû, et le délai de 10 min pour annuler sans PIN."
+    },
+    "packages/shared/src/stats.ts": {
+      "name": "Calcul des statistiques",
+      "description": "Calcule recette, panier moyen, affluence par heure, top produits et résumés par soirée, sans compter les offerts dans l'argent."
+    }
+  }
+}

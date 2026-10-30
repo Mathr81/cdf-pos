@@ -1,0 +1,56 @@
+{
+  "files": {
+    "apps/web/src/components/ConfirmModal.tsx": {
+      "name": "Fenêtre de confirmation",
+      "description": "Demande « êtes-vous sûr ? » avec de gros boutons tactiles, au lieu de la minuscule fenêtre du navigateur."
+    },
+    "apps/web/src/components/ConflictModal.tsx": {
+      "name": "Alerte double encaissement",
+      "description": "Prévient qu'une réservation encaissée ici l'avait déjà été à une autre caisse, et laisse décider quoi faire."
+    },
+    "apps/web/src/components/DepletionHint.tsx": {
+      "name": "Estimation de rupture",
+      "description": "Indique à peu près quand un produit sera épuisé au rythme actuel."
+    },
+    "apps/web/src/components/Layout.tsx": {
+      "name": "Cadre de page",
+      "description": "La barre autour de chaque écran : navigation, état de la connexion, ventes en attente, rôle de l'appareil."
+    },
+    "apps/web/src/components/Modal.tsx": {
+      "name": "Fenêtre",
+      "description": "La fenêtre de base utilisée par toutes les boîtes de dialogue."
+    },
+    "apps/web/src/components/NoSoiree.tsx": {
+      "name": "Aucune soirée ouverte",
+      "description": "Affiché à la place de la caisse, de la cuisine et du stock quand aucune soirée n'est active."
+    },
+    "apps/web/src/components/Numpad.tsx": {
+      "name": "Pavé numérique",
+      "description": "Clavier à l'écran pour saisir des montants, comme l'argent reçu."
+    },
+    "apps/web/src/components/PaymentModal.tsx": {
+      "name": "Fenêtre d'encaissement",
+      "description": "Encaisse une commande : espèces, carte ou autre, et calcule la monnaie à rendre."
+    },
+    "apps/web/src/components/PendingSalesGuard.tsx": {
+      "name": "Garde-fou ventes non envoyées",
+      "description": "Bloque un effacement qui détruirait des ventes pas encore reçues par le serveur, et propose de les télécharger d'abord."
+    },
+    "apps/web/src/components/ProductIcon.tsx": {
+      "name": "Icône produit",
+      "description": "Affiche l'icône, l'emoji ou la photo d'un produit partout où il apparaît."
+    },
+    "apps/web/src/components/Toast.tsx": {
+      "name": "Messages courts",
+      "description": "Affiche de brefs messages comme « Vente enregistrée » en bas de l'écran."
+    },
+    "apps/web/src/components/ui.tsx": {
+      "name": "Éléments de base",
+      "description": "Boutons, boutons +/−, cartes et séparateurs communs à tous les écrans pour un rendu cohérent."
+    },
+    "apps/web/src/components/UpdateBanner.tsx": {
+      "name": "Bandeau nouvelle version",
+      "description": "Signale qu'une nouvelle version est prête et permet de recharger."
+    }
+  }
+}

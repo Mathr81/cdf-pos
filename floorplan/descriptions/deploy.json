@@ -1,0 +1,16 @@
+{
+  "files": {
+    "docker/backup-cron/backup.sh": {
+      "name": "Sauvegardes programmées",
+      "description": "Sauvegarde la base et les photos produit à intervalle régulier et ne garde que les plus récentes."
+    },
+    "docker/server-entrypoint.sh": {
+      "name": "Démarrage du conteneur serveur",
+      "description": "Applique les évolutions de la base, puis lance le serveur."
+    },
+    "scripts/update.sh": {
+      "name": "Mise à jour en production",
+      "description": "Récupère le dernier code sur le VPS, puis reconstruit et relance l'appli partie par partie."
+    }
+  }
+}

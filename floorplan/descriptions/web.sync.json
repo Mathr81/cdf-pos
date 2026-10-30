@@ -1,0 +1,52 @@
+{
+  "files": {
+    "apps/web/src/lib/actions.ts": {
+      "name": "Toutes les actions possibles",
+      "description": "Une fonction par action (vendre, annuler, ajuster le stock, marquer préparé, modifier la carte…), transformée en événement et enregistrée."
+    },
+    "apps/web/src/lib/api.ts": {
+      "name": "Requêtes au serveur",
+      "description": "Envoie les quelques requêtes classiques : vérification de connexion, envoi de photo, remise à zéro ; ajoute code d'accès et PIN."
+    },
+    "apps/web/src/lib/db.ts": {
+      "name": "Stockage de la tablette",
+      "description": "Ce que la tablette garde chez elle : événements non envoyés, historique complet, position de synchro et conflits."
+    },
+    "apps/web/src/lib/device.ts": {
+      "name": "Identité de l'appareil",
+      "description": "Donne à chaque tablette un identifiant permanent et numérote ses événements, pour que rien ne compte deux fois."
+    },
+    "apps/web/src/lib/deviceInfo.ts": {
+      "name": "Description de l'appareil",
+      "description": "Transforme les infos du navigateur en libellé lisible comme « iPad · Safari » pour la liste des appareils."
+    },
+    "apps/web/src/lib/localData.ts": {
+      "name": "Nettoyage des données locales",
+      "description": "Compte les ventes pas encore envoyées et efface les données locales, en refusant si des ventes seraient perdues."
+    },
+    "apps/web/src/lib/persist.ts": {
+      "name": "Protéger les données locales",
+      "description": "Demande au navigateur de ne pas effacer les données de l'appli quand la place manque, et mesure l'espace utilisé."
+    },
+    "apps/web/src/lib/rescue.ts": {
+      "name": "Secours des ventes non envoyées",
+      "description": "Télécharge un fichier des ventes non envoyées avant un effacement, pour ne perdre aucune trace d'argent."
+    },
+    "apps/web/src/lib/session.ts": {
+      "name": "Mémoire de connexion",
+      "description": "Retient le rôle de l'appareil, le code d'accès et le PIN admin d'une visite à l'autre."
+    },
+    "apps/web/src/lib/store.ts": {
+      "name": "État de l'appli en direct",
+      "description": "Garde les totaux courants en mémoire, applique chaque nouvel événement une seule fois et fait rafraîchir les écrans."
+    },
+    "apps/web/src/lib/sync.ts": {
+      "name": "Synchro avec le serveur",
+      "description": "Enregistre chaque action en local, l'envoie au serveur, récupère celles des autres tablettes, gère remises à zéro et conflits."
+    },
+    "apps/web/src/lib/wakeLock.ts": {
+      "name": "Écran toujours allumé",
+      "description": "Empêche la tablette de se mettre en veille pendant le service."
+    }
+  }
+}

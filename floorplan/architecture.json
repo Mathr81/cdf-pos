@@ -1,0 +1,369 @@
+{
+  "$schema": "floorplan/architecture@1",
+  "audience": "everyone",
+  "project": {
+    "name": "CDF POS",
+    "summary": "Caisse et cuisine pour les soirées d'un comité des fêtes : les bénévoles prennent les commandes sur tablette, chaque poste de cuisine voit quoi préparer, et tout le monde voit le stock en direct. Chaque action est enregistrée comme un petit événement définitif que la tablette garde chez elle (la caisse marche sans Wi-Fi) puis envoie au serveur central dès qu'elle peut ; le serveur les stocke, les partage avec les autres tablettes et les sauvegarde dans un Google Sheet.",
+    "entrypoints": [
+      "apps/web/src/main.tsx",
+      "apps/server/src/index.ts"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "web",
+      "label": "Appli tablette",
+      "kind": "ui",
+      "summary": "L'appli des bénévoles sur tablette, téléphone ou ordinateur : caisse, cuisine, stock, réservations et écrans admin. S'installe comme une appli et marche hors ligne.",
+      "paths": [
+        "apps/web/**"
+      ],
+      "exclude": [
+        "**/*.test.ts",
+        "**/test/**",
+        "**/vitest.config.ts"
+      ]
+    },
+    {
+      "id": "web.screens",
+      "parent": "web",
+      "label": "Écrans",
+      "kind": "feature",
+      "summary": "Les pages de travail : caisse, cuisine, stock, réservations, soirées, journal des ventes, stats, récap de fin de soirée, aide.",
+      "paths": [
+        "apps/web/src/screens/*.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/main.tsx"
+      ]
+    },
+    {
+      "id": "web.admin",
+      "parent": "web",
+      "label": "Réglages admin",
+      "kind": "feature",
+      "summary": "Réglages protégés par PIN : produits et images, postes de cuisine, ordre des catégories, appareils connectés, remise à zéro.",
+      "paths": [
+        "apps/web/src/screens/admin/**"
+      ]
+    },
+    {
+      "id": "web.components",
+      "parent": "web",
+      "label": "Briques d'interface",
+      "kind": "library",
+      "summary": "Éléments réutilisés partout : boutons, fenêtres, fenêtre d'encaissement, pavé numérique, cadre de page, messages.",
+      "paths": [
+        "apps/web/src/components/**"
+      ]
+    },
+    {
+      "id": "web.sync",
+      "parent": "web",
+      "label": "Stockage local & synchro",
+      "kind": "library",
+      "summary": "Enregistre chaque action sur la tablette d'abord, puis l'envoie au serveur et récupère celles des autres tablettes : la caisse continue sans Wi-Fi.",
+      "paths": [
+        "apps/web/src/lib/{sync,db,store,actions,localData,persist,rescue,api,session,device,deviceInfo,wakeLock}.ts"
+      ]
+    },
+    {
+      "id": "web.helpers",
+      "parent": "web",
+      "label": "Petits utilitaires",
+      "kind": "library",
+      "summary": "Panier en cours, couleurs des tickets, icônes, import/export CSV des réservations, contrôles de saisie, réduction des photos.",
+      "paths": [
+        "apps/web/src/lib/**"
+      ],
+      "exclude": [
+        "apps/web/src/lib/{sync,db,store,actions,localData,persist,rescue,api,session,device,deviceInfo,wakeLock}.ts"
+      ]
+    },
+    {
+      "id": "web.tooling",
+      "parent": "web",
+      "label": "Construction de l'appli",
+      "kind": "config",
+      "summary": "Comment l'appli est empaquetée et rendue installable, plus un script qui génère ses icônes.",
+      "paths": [
+        "apps/web/vite.config.ts",
+        "apps/web/scripts/**"
+      ]
+    },
+    {
+      "id": "server",
+      "label": "Serveur central",
+      "kind": "service",
+      "summary": "Reçoit les événements de toutes les tablettes, vérifie qui a le droit de faire quoi, les enregistre et les transmet en direct aux autres tablettes.",
+      "paths": [
+        "apps/server/src/**"
+      ],
+      "exclude": [
+        "**/*.test.ts",
+        "**/test/**"
+      ]
+    },
+    {
+      "id": "server.core",
+      "parent": "server",
+      "label": "Démarrage & réglages",
+      "kind": "service",
+      "summary": "Démarre le serveur, lit ses réglages et ouvre la connexion à la base de données.",
+      "paths": [
+        "apps/server/src/{index,env,db}.ts"
+      ]
+    },
+    {
+      "id": "server.realtime",
+      "parent": "server",
+      "label": "Connexion en direct",
+      "kind": "feature",
+      "summary": "Le lien permanent avec chaque tablette : reçoit les nouveaux événements, renvoie ceux des autres et suit quels appareils sont en ligne.",
+      "paths": [
+        "apps/server/src/{socket,presence}.ts"
+      ]
+    },
+    {
+      "id": "server.ingest",
+      "parent": "server",
+      "label": "Réception des événements",
+      "kind": "feature",
+      "summary": "Vérifie chaque événement reçu (format, droits, PIN admin), l'enregistre une seule fois et met à jour les tables de ventes et de stock.",
+      "paths": [
+        "apps/server/src/{ingest,projections,reset}.ts"
+      ]
+    },
+    {
+      "id": "server.routes",
+      "parent": "server",
+      "label": "Adresses web",
+      "kind": "feature",
+      "summary": "Les requêtes web classiques : connexion avec le code d'accès ou le PIN, état courant, envoi des photos produit, remise à zéro.",
+      "paths": [
+        "apps/server/src/routes/**",
+        "apps/server/src/media.ts"
+      ],
+      "exclude": []
+    },
+    {
+      "id": "server.backup",
+      "parent": "server",
+      "label": "Sauvegarde Google Sheet",
+      "kind": "worker",
+      "summary": "En tâche de fond, recopie les nouveaux événements dans un Google Sheet pour avoir une copie lisible hors du serveur.",
+      "paths": [
+        "apps/server/src/backup/**"
+      ]
+    },
+    {
+      "id": "shared",
+      "label": "Règles communes",
+      "kind": "library",
+      "summary": "Le code commun aux tablettes et au serveur, pour qu'ils soient toujours d'accord : forme des événements, calcul du stock et des ventes, argent, stats, réservations.",
+      "paths": [
+        "packages/shared/**"
+      ],
+      "exclude": [
+        "**/*.test.ts",
+        "**/test-utils/**",
+        "**/vitest.config.ts"
+      ]
+    },
+    {
+      "id": "shared.events",
+      "parent": "shared",
+      "label": "Définition des événements",
+      "kind": "library",
+      "summary": "La liste de toutes les actions possibles (vente, mouvement de stock, préparé, réservation…) et des messages échangés entre tablettes et serveur.",
+      "paths": [
+        "packages/shared/src/{events,protocol}.ts"
+      ]
+    },
+    {
+      "id": "shared.projection",
+      "parent": "shared",
+      "label": "Totaux en direct",
+      "kind": "library",
+      "summary": "Rejoue la liste des événements pour obtenir le stock, les commandes, ce qui reste à préparer en cuisine et les caisses.",
+      "paths": [
+        "packages/shared/src/projection.ts"
+      ]
+    },
+    {
+      "id": "shared.business",
+      "parent": "shared",
+      "label": "Argent, stats & réservations",
+      "kind": "library",
+      "summary": "Affichage des montants, statistiques de vente, prévision de rupture de stock et règles des réservations.",
+      "paths": [
+        "packages/shared/src/**"
+      ],
+      "exclude": [
+        "packages/shared/src/{events,protocol,projection}.ts"
+      ]
+    },
+    {
+      "id": "data",
+      "label": "Base de données",
+      "kind": "data",
+      "summary": "La structure des tables, ses évolutions successives et la carte de départ chargée à l'installation.",
+      "paths": [
+        "apps/server/prisma/**"
+      ]
+    },
+    {
+      "id": "tests",
+      "label": "Tests",
+      "kind": "test",
+      "summary": "Vérifications automatiques de la synchro, des règles d'événements, des stats, des réservations et de la réception côté serveur.",
+      "paths": [
+        "**/*.test.ts",
+        "**/test/**",
+        "**/test-utils/**",
+        "**/vitest.config.ts"
+      ]
+    },
+    {
+      "id": "deploy",
+      "label": "Hébergement & sauvegardes",
+      "kind": "infra",
+      "summary": "Installation Docker de la base, du serveur, de l'appli web et d'un conteneur qui sauvegarde la base toutes les 15 min, plus le script de mise à jour.",
+      "paths": [
+        "docker/**",
+        "scripts/**"
+      ]
+    },
+    {
+      "id": "postgres",
+      "label": "Base de données (PostgreSQL)",
+      "kind": "external",
+      "summary": "Stocke la liste complète des événements et des tables prêtes à l'emploi pour les commandes, le stock et la file de sauvegarde.",
+      "packages": [
+        "npm:@prisma/client"
+      ]
+    },
+    {
+      "id": "gsheets",
+      "label": "Google Sheets",
+      "kind": "external",
+      "summary": "Reçoit une copie lisible de chaque événement, en sauvegarde supplémentaire.",
+      "packages": [
+        "npm:googleapis"
+      ],
+      "hosts": [
+        "www.googleapis.com"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "apps/web/src/lib/sync.ts",
+      "to": "apps/server/src/socket.ts",
+      "kind": "rpc",
+      "label": "lien en direct (Socket.IO)",
+      "description": "Les tablettes envoient leurs événements, récupèrent ceux des autres et reçoivent les diffusions et la liste des appareils connectés."
+    },
+    {
+      "from": "apps/server/src/socket.ts",
+      "to": "apps/web/src/lib/sync.ts",
+      "kind": "event",
+      "label": "diffusion des nouveaux événements",
+      "description": "Dès qu'un événement d'une tablette est enregistré, toutes les autres le reçoivent."
+    },
+    {
+      "from": "deploy",
+      "to": "postgres",
+      "kind": "data",
+      "label": "sauvegarde toutes les 15 min",
+      "description": "Le conteneur de sauvegarde copie toute la base (et les photos produit) à intervalle régulier."
+    }
+  ],
+  "flows": [
+    {
+      "id": "sale",
+      "title": "Une vente à la caisse",
+      "description": "Du bénévole qui appuie sur Encaisser jusqu'à la cuisine qui voit le burger à préparer.",
+      "steps": [
+        {
+          "node": "apps/web/src/screens/Caisse.tsx",
+          "note": "Le bénévole compose la commande et encaisse (espèces avec rendu monnaie, carte, chèque…)."
+        },
+        {
+          "node": "apps/web/src/lib/sync.ts",
+          "note": "La vente est d'abord enregistrée sur la tablette, elle compte donc même sans Wi-Fi, puis envoyée au serveur."
+        },
+        {
+          "node": "apps/server/src/socket.ts",
+          "note": "La connexion en direct du serveur reçoit l'événement."
+        },
+        {
+          "node": "apps/server/src/ingest.ts",
+          "note": "Il est vérifié, enregistré une seule fois (les doublons sont ignorés), et les tables de ventes et de stock sont mises à jour."
+        },
+        {
+          "node": "postgres",
+          "note": "L'événement est maintenant stocké définitivement."
+        },
+        {
+          "node": "apps/server/src/socket.ts",
+          "note": "Le serveur envoie la nouvelle vente à toutes les autres tablettes."
+        },
+        {
+          "node": "apps/web/src/screens/Cuisine.tsx",
+          "note": "Les postes de cuisine la voient aussitôt dans « reste à faire », accompagnements des formules compris."
+        }
+      ]
+    },
+    {
+      "id": "backup",
+      "title": "Garder une sauvegarde",
+      "description": "Comment chaque événement se retrouve aussi en dehors du serveur.",
+      "steps": [
+        {
+          "node": "apps/server/src/ingest.ts",
+          "note": "Quand un événement est enregistré, il est aussi mis en file pour la sauvegarde."
+        },
+        {
+          "node": "server.backup",
+          "note": "Une tâche de fond récupère les événements en attente."
+        },
+        {
+          "node": "gsheets",
+          "note": "Ils sont écrits dans un Google Sheet, en copie lisible."
+        }
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "node": "web",
+      "title": "Ce qu'est cette appli",
+      "note": "Une caisse et une cuisine pour les soirées du comité des fêtes. Les bénévoles utilisent cette appli sur tablette : la caisse prend les commandes, la cuisine voit quoi préparer, le stock se met à jour en direct."
+    },
+    {
+      "node": "web.sync",
+      "title": "Marche sans Wi-Fi",
+      "note": "Chaque action est d'abord enregistrée sur la tablette, puis envoyée au serveur quand le réseau le permet. C'est pour ça que les caisses ne s'arrêtent jamais d'encaisser."
+    },
+    {
+      "node": "shared",
+      "title": "Un seul jeu de règles",
+      "note": "Tablettes et serveur partagent le même code pour la forme des actions et leur calcul en stock et en ventes : ils sont toujours d'accord."
+    },
+    {
+      "node": "server",
+      "title": "Le serveur central",
+      "note": "Rassemble les actions de toutes les tablettes, vérifie les droits (certaines demandent le PIN admin), les enregistre et les transmet en direct."
+    },
+    {
+      "node": "postgres",
+      "title": "Où c'est stocké",
+      "note": "Tout finit dans une base PostgreSQL, avec des copies supplémentaires dans un Google Sheet et dans des sauvegardes régulières de la base."
+    },
+    {
+      "node": "apps/web/src/screens/Caisse.tsx",
+      "title": "L'écran de caisse",
+      "note": "Le cœur de la soirée : choisir les articles, encaisser, et la vente part vers la cuisine."
+    }
+  ]
+}

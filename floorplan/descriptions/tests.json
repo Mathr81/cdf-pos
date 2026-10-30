@@ -1,0 +1,104 @@
+{
+  "files": {
+    "apps/server/src/ingest.test.ts": {
+      "name": "Tests de réception",
+      "description": "Vérifie quels événements demandent le PIN et la gestion des doublons et conflits."
+    },
+    "apps/server/src/presence.test.ts": {
+      "name": "Tests « qui est en ligne »",
+      "description": "Vérifie la liste des appareils quand des tablettes arrivent et partent."
+    },
+    "apps/server/src/routes/auth.test.ts": {
+      "name": "Tests de connexion",
+      "description": "Vérifie le code d'accès, le PIN admin et la limite d'essais."
+    },
+    "apps/server/src/test/setup.ts": {
+      "name": "Préparation des tests serveur",
+      "description": "Fournit de faux réglages pour que les tests serveur démarrent."
+    },
+    "apps/server/vitest.config.ts": {
+      "name": "Réglages des tests serveur",
+      "description": "Configure le lancement des tests serveur."
+    },
+    "apps/web/src/components/Numpad.test.ts": {
+      "name": "Tests du pavé numérique",
+      "description": "Vérifie la saisie des montants au clavier."
+    },
+    "apps/web/src/lib/deviceInfo.test.ts": {
+      "name": "Tests de description d'appareil",
+      "description": "Vérifie les libellés lisibles des appareils."
+    },
+    "apps/web/src/lib/localData.test.ts": {
+      "name": "Tests de nettoyage local",
+      "description": "Vérifie qu'un effacement ne détruit jamais de ventes non envoyées."
+    },
+    "apps/web/src/lib/persist.test.ts": {
+      "name": "Tests de protection des données",
+      "description": "Vérifie la demande de conservation des données locales."
+    },
+    "apps/web/src/lib/reservationCsv.test.ts": {
+      "name": "Tests du fichier de réservations",
+      "description": "Vérifie la lecture des listes de réservations Excel."
+    },
+    "apps/web/src/lib/sync.test.ts": {
+      "name": "Tests de synchro",
+      "description": "Vérifie l'envoi, les accusés de réception et les conflits avec le serveur."
+    },
+    "apps/web/src/lib/validate.test.ts": {
+      "name": "Tests des saisies",
+      "description": "Vérifie le contrôle des montants et quantités."
+    },
+    "apps/web/src/lib/wakeLock.test.ts": {
+      "name": "Tests écran allumé",
+      "description": "Vérifie que l'écran reste allumé et repart après la mise en veille."
+    },
+    "apps/web/src/test/setup.ts": {
+      "name": "Préparation des tests appli",
+      "description": "Donne aux tests un faux stockage local pour tourner sans navigateur."
+    },
+    "apps/web/vitest.config.ts": {
+      "name": "Réglages des tests appli",
+      "description": "Configure le lancement des tests de l'appli."
+    },
+    "packages/shared/src/cashup.test.ts": {
+      "name": "Tests des caisses",
+      "description": "Vérifie fonds de caisse, comptages et écarts par caisse."
+    },
+    "packages/shared/src/forecast.test.ts": {
+      "name": "Tests de prévision de rupture",
+      "description": "Vérifie les estimations de rupture."
+    },
+    "packages/shared/src/offerts.test.ts": {
+      "name": "Tests des offerts",
+      "description": "Vérifie que les offerts comptent pour le stock mais jamais pour l'argent."
+    },
+    "packages/shared/src/projection.test.ts": {
+      "name": "Tests des totaux en direct",
+      "description": "Vérifie que stock, commandes, files de cuisine et corrections tombent juste."
+    },
+    "packages/shared/src/recap.test.ts": {
+      "name": "Tests du récap",
+      "description": "Vérifie les chiffres du récap de fin de soirée."
+    },
+    "packages/shared/src/reservations.test.ts": {
+      "name": "Tests des réservations",
+      "description": "Vérifie les arrivées par groupes, le reste dû et les règles d'annulation."
+    },
+    "packages/shared/src/stats.test.ts": {
+      "name": "Tests des statistiques",
+      "description": "Vérifie recette, moyennes et résumés par soirée."
+    },
+    "packages/shared/src/test-utils/fixtures.ts": {
+      "name": "Données d'exemple",
+      "description": "Ventes, réservations et soirées d'exemple prêtes pour les tests."
+    },
+    "packages/shared/src/training.test.ts": {
+      "name": "Tests du mode formation",
+      "description": "Vérifie que les ventes d'entraînement restent hors des vrais totaux."
+    },
+    "packages/shared/vitest.config.ts": {
+      "name": "Réglages des tests communs",
+      "description": "Configure le lancement des tests des règles communes."
+    }
+  }
+}

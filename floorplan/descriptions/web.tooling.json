@@ -1,0 +1,12 @@
+{
+  "files": {
+    "apps/web/scripts/generate-icons.mjs": {
+      "name": "Générateur d'icônes",
+      "description": "Crée les icônes affichées sur l'écran d'accueil quand l'appli est installée."
+    },
+    "apps/web/vite.config.ts": {
+      "name": "Empaquetage & installation",
+      "description": "Prépare l'appli pour le web et la rend installable sur tablette, avec mise en cache hors ligne."
+    }
+  }
+}

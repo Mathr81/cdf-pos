@@ -1,0 +1,44 @@
+{
+  "files": {
+    "apps/server/prisma/menu.ts": {
+      "name": "Carte de départ",
+      "description": "Les postes de cuisine et produits par défaut chargés à l'installation."
+    },
+    "apps/server/prisma/migrations/0001_init/migration.sql": {
+      "name": "Création des tables",
+      "description": "Crée les premières tables : historique des événements, produits, postes, commandes, stock, file de sauvegarde."
+    },
+    "apps/server/prisma/migrations/0002_stock_unlimited_components_meta/migration.sql": {
+      "name": "Stock illimité & accompagnements",
+      "description": "Ajoute les produits à stock illimité et les accompagnements inclus dans les plats."
+    },
+    "apps/server/prisma/migrations/0003_soirees/migration.sql": {
+      "name": "Ajout des soirées",
+      "description": "Ajoute les soirées pour regrouper les ventes par soir."
+    },
+    "apps/server/prisma/migrations/0004_product_image/migration.sql": {
+      "name": "Ajout des photos produit",
+      "description": "Permet une photo par produit."
+    },
+    "apps/server/prisma/migrations/0005_product_image_zoom/migration.sql": {
+      "name": "Cadrage des photos",
+      "description": "Enregistre le zoom et la position d'une photo produit."
+    },
+    "apps/server/prisma/migrations/0006_cash_session/migration.sql": {
+      "name": "Ajout des caisses",
+      "description": "Enregistre le fond de caisse de départ et le comptage de fin de soirée."
+    },
+    "apps/server/prisma/migrations/0007_order_reservation/migration.sql": {
+      "name": "Lien vente–réservation",
+      "description": "Rattache un encaissement à la réservation qu'il règle, pour qu'elle ne soit pas payée deux fois."
+    },
+    "apps/server/prisma/reset.ts": {
+      "name": "Remise à zéro en ligne de commande",
+      "description": "Efface les ventes ou tout depuis un terminal quand la page admin est inaccessible."
+    },
+    "apps/server/prisma/seed.ts": {
+      "name": "Chargement de la carte de départ",
+      "description": "Remplit une base vide avec la carte de départ."
+    }
+  }
+}

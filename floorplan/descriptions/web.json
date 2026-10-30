@@ -1,0 +1,12 @@
+{
+  "files": {
+    "apps/web/index.html": {
+      "name": "Page d'accueil technique",
+      "description": "Charge l'appli dans le navigateur, avec son titre et ses réglages d'affichage tablette/téléphone."
+    },
+    "apps/web/src/index.css": {
+      "name": "Apparence",
+      "description": "Couleurs, polices et style « guinguette nocturne » communs à tous les écrans."
+    }
+  }
+}

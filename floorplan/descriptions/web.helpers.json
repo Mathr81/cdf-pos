@@ -1,0 +1,60 @@
+{
+  "files": {
+    "apps/web/src/lib/cart.ts": {
+      "name": "Commande en cours",
+      "description": "Garde les articles de la commande en cours en caisse jusqu'à l'encaissement."
+    },
+    "apps/web/src/lib/cn.ts": {
+      "name": "Combinaison de styles",
+      "description": "Assemble des noms de styles selon des conditions."
+    },
+    "apps/web/src/lib/download.ts": {
+      "name": "Téléchargement de fichier",
+      "description": "Enregistre sur l'appareil un fichier généré par l'appli."
+    },
+    "apps/web/src/lib/downscale.ts": {
+      "name": "Réduction des photos",
+      "description": "Rapetisse les photos produit avant envoi pour qu'elles passent vite sur le Wi-Fi de la fête."
+    },
+    "apps/web/src/lib/export.ts": {
+      "name": "Exports tableur",
+      "description": "Exporte le détail des ventes et le bilan des réservations de fin de soirée en CSV pour Excel."
+    },
+    "apps/web/src/lib/hooks.ts": {
+      "name": "Rafraîchissement des écrans",
+      "description": "Fait rafraîchir les écrans quand les données changent et donne la soirée en cours."
+    },
+    "apps/web/src/lib/palette.ts": {
+      "name": "Couleurs des graphiques",
+      "description": "Les couleurs utilisées par les graphiques de statistiques."
+    },
+    "apps/web/src/lib/payLook.ts": {
+      "name": "Aspect des moyens de paiement",
+      "description": "Donne à chaque moyen de paiement sa couleur et ses rayures dans les graphiques et listes."
+    },
+    "apps/web/src/lib/plural.ts": {
+      "name": "Pluriels",
+      "description": "Écrit correctement « 1 commande » et « 2 commandes »."
+    },
+    "apps/web/src/lib/productIcons.ts": {
+      "name": "Bibliothèque d'icônes",
+      "description": "Les icônes que l'admin peut choisir pour les produits, rangées par type de plat et de boisson."
+    },
+    "apps/web/src/lib/reservationCsv.ts": {
+      "name": "Lecture du fichier de réservations",
+      "description": "Lit une liste de réservations exportée d'Excel, accents compris, et vérifie chaque ligne."
+    },
+    "apps/web/src/lib/ticket.ts": {
+      "name": "Couleurs des tickets",
+      "description": "Choisit la couleur du ticket papier d'un produit et une couleur de texte lisible dessus."
+    },
+    "apps/web/src/lib/urlState.ts": {
+      "name": "Onglet mémorisé dans l'adresse",
+      "description": "Garde l'onglet ou le filtre choisi dans l'adresse de la page pour qu'il survive à un rechargement."
+    },
+    "apps/web/src/lib/validate.ts": {
+      "name": "Contrôle des saisies",
+      "description": "Vérifie que montants et quantités saisis sont des nombres valides."
+    }
+  }
+}

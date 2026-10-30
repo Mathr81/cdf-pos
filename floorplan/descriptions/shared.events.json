@@ -1,0 +1,12 @@
+{
+  "files": {
+    "packages/shared/src/events.ts": {
+      "name": "Types d'événements",
+      "description": "Définit chaque action possible (vente, mouvement de stock, réservation…), les moyens de paiement, et vérifie que chaque événement est bien formé."
+    },
+    "packages/shared/src/protocol.ts": {
+      "name": "Messages tablette–serveur",
+      "description": "Définit les messages du lien en direct : bonjour, envoi, rattrapage, accusés de réception, rôles des appareils."
+    }
+  }
+}

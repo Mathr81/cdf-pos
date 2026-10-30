@@ -1,0 +1,12 @@
+{
+  "files": {
+    "apps/server/src/backup/index.ts": {
+      "name": "File de sauvegarde",
+      "description": "Met chaque nouvel événement en attente de copie vers le Google Sheet."
+    },
+    "apps/server/src/backup/sheets.ts": {
+      "name": "Copie vers Google Sheet",
+      "description": "En tâche de fond, écrit les événements en attente dans le Google Sheet, et réessaie si Google ne répond pas."
+    }
+  }
+}

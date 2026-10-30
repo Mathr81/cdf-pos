@@ -1,0 +1,52 @@
+{
+  "files": {
+    "apps/web/src/App.tsx": {
+      "name": "Aiguillage des écrans",
+      "description": "Charge les données locales, se connecte au serveur et affiche les écrans du rôle choisi ; les pages admin seulement avec le PIN."
+    },
+    "apps/web/src/main.tsx": {
+      "name": "Lancement de l'appli",
+      "description": "Démarre l'appli dans le navigateur et active les mises à jour automatiques."
+    },
+    "apps/web/src/screens/Aide.tsx": {
+      "name": "Aide",
+      "description": "Explique le fonctionnement de chaque écran aux bénévoles pendant la soirée."
+    },
+    "apps/web/src/screens/Caisse.tsx": {
+      "name": "Caisse",
+      "description": "Les bénévoles y composent la commande, voient le stock en direct et encaissent en espèces, carte, chèque ou offert."
+    },
+    "apps/web/src/screens/Cuisine.tsx": {
+      "name": "Cuisine",
+      "description": "Montre à chaque poste ce qui est vendu, préparé et reste à faire, accompagnements des formules compris."
+    },
+    "apps/web/src/screens/Inventaire.tsx": {
+      "name": "Stock",
+      "description": "Affiche le stock restant, les alertes et l'heure de rupture estimée, et enregistre réappros et pertes."
+    },
+    "apps/web/src/screens/Journal.tsx": {
+      "name": "Journal des ventes",
+      "description": "Liste toutes les ventes de la soirée pour qu'un admin puisse en annuler ou en corriger une."
+    },
+    "apps/web/src/screens/Recap.tsx": {
+      "name": "Récap de fin de soirée",
+      "description": "Résume la soirée pour le trésorier : recette par moyen de paiement, comptage des caisses et écarts."
+    },
+    "apps/web/src/screens/Reservations.tsx": {
+      "name": "Réservations",
+      "description": "Remplace la liste papier : import des réservations, accueil des arrivants (même par groupes en plusieurs fois), encaissement du dû."
+    },
+    "apps/web/src/screens/RoleSelect.tsx": {
+      "name": "Écran de démarrage",
+      "description": "Demande le code d'accès et le rôle de l'appareil : caisse, poste de cuisine, stock ou admin."
+    },
+    "apps/web/src/screens/Soirees.tsx": {
+      "name": "Soirées",
+      "description": "Crée et pilote les soirées : produits à la carte, prix, ouverture et clôture."
+    },
+    "apps/web/src/screens/Stats.tsx": {
+      "name": "Statistiques",
+      "description": "Graphiques du chiffre d'affaires, panier moyen, affluence par heure, top produits, répartition par caisse et paiement, comparaison des soirées."
+    }
+  }
+}

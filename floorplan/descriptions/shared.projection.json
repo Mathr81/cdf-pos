@@ -1,0 +1,8 @@
+{
+  "files": {
+    "packages/shared/src/projection.ts": {
+      "name": "Calcul des totaux en direct",
+      "description": "Rejoue tous les événements pour obtenir produits, stock, commandes, files de cuisine, réservations et caisses."
+    }
+  }
+}

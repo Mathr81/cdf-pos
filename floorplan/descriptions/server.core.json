@@ -1,0 +1,16 @@
+{
+  "files": {
+    "apps/server/src/db.ts": {
+      "name": "Connexion à la base",
+      "description": "Ouvre l'unique connexion à la base de données."
+    },
+    "apps/server/src/env.ts": {
+      "name": "Réglages du serveur",
+      "description": "Lit les réglages (base, code d'accès, PIN admin, sauvegarde) et s'arrête s'il en manque un."
+    },
+    "apps/server/src/index.ts": {
+      "name": "Démarrage du serveur",
+      "description": "Lance le serveur : requêtes web, connexion en direct, limites d'essais, carte de départ éventuelle et sauvegardes."
+    }
+  }
+}

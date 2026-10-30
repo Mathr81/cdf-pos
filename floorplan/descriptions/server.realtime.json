@@ -1,0 +1,12 @@
+{
+  "files": {
+    "apps/server/src/presence.ts": {
+      "name": "Qui est en ligne",
+      "description": "Tient la liste des appareils connectés, leur rôle et leurs ventes non envoyées."
+    },
+    "apps/server/src/socket.ts": {
+      "name": "Lien en direct avec les tablettes",
+      "description": "Reçoit les événements des tablettes, leur renvoie ce qu'elles ont manqué et diffuse chaque nouvel événement à toutes."
+    }
+  }
+}
